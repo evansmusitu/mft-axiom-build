@@ -11,7 +11,7 @@ def response(items, *,changed=False,rows_written=0):
 
 def fixture():
  return {"totals":{"identities":3,"tenants":2,"memberships":3,"canonical_links":1,"flows":2,"sessions":2},
- "active":{"active_identities":2,"active_tenants":1,"active_memberships":2,
+ "active":{"active_tenants":1,"active_memberships":2,
  "active_canonical_links":1,"unexpired_active_sessions":0},
  "linked":{"active_joined_links":1},
  "fk":{"foreign_key_violations":0}}
