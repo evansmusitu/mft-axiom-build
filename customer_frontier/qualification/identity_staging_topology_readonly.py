@@ -28,7 +28,7 @@ class NeverRedirect(urllib.request.HTTPRedirectHandler):
 
 def assess_topology(workers, settings, *, database_id=SOURCE_DB):
     """Classify one observed inventory, never convert it into deployment approval."""
-    if (not isinstance(workers, list) or not 1 <= len(workers) <= 40 or
+    if (not isinstance(workers, list) or not 1 <= len(workers) <= 80 or
             not all(isinstance(row,dict) and isinstance(row.get("id"),str) and
                     WORKER.fullmatch(row["id"]) for row in workers)):
         raise ValueError("WORKER_INVENTORY_INVALID")
@@ -139,8 +139,8 @@ def run():
         scripts=provider_get("/workers/scripts",token,opener);request_count+=1
         if not isinstance(scripts,list):
             raise Reject("WORKER_INVENTORY_TYPE_INVALID")
-        if len(scripts)>40:
-            raise Reject("WORKER_INVENTORY_COUNT_EXCEEDS_40_OBSERVED_"+str(len(scripts)))
+        if len(scripts)>80:
+            raise Reject("WORKER_INVENTORY_COUNT_EXCEEDS_80_OBSERVED_"+str(len(scripts)))
         names=[s.get("id") for s in scripts if isinstance(s,dict)]
         if len(names)!=len(scripts) or len(set(names))!=len(names) or STAGING_WORKER not in names:
             raise Reject("WORKER_NAMES_MISSING_OR_DUPLICATED")
