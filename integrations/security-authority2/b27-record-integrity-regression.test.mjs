@@ -37,3 +37,18 @@ test('B27 detects corrupted R2 predecessor sequence even if current head matches
     /HIGHWATER_WORM_PREDECESSOR_SEQUENCE_MISMATCH_HOLD/);}
   finally{records.set(key,original);}
 });
+
+test('B27 refuses R2 event proof missing action/artifact/challenge despite matching tip head',async()=>{
+  const key=wormKey(pin,1),original=records.get(key);
+  for(const field of ['event_digest','artifact_sha256','action_sha256','challenge','decision']){
+    const altered={...original};
+    if(field==='decision')altered.decision='ALLOW_TWICE';
+    else delete altered[field];
+    records.set(key,altered);
+    try{
+      await assert.rejects(wormReadback(bucket,pin,{sequence:1,head:h('1')}),
+        /HIGHWATER_WORM_EVENT_PROOF_INVALID_HOLD/,
+        'missing or changed '+field+' must deny signed highwater readback');
+    }finally{records.set(key,original);}
+  }
+});
