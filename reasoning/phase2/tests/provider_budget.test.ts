@@ -629,3 +629,46 @@ test("both PostgreSQL ledgers refuse modified canonical pg Client SQL and connec
     }
   }
 });
+
+
+test("Phase 2.10J acquired PostgreSQL client must be genuine and preserve SQL method identity before BEGIN",async()=>{
+  const {EventEmitter}=await import("node:events");
+  for(const Ledger of [phase2.PostgresProviderSpendLedger,phase2.ProtectedPostgresProviderSpendLedger]){
+    for(const shape of ["substituted-client","patched-genuine-client"]){
+      const pool=new pg.Pool({host:"127.0.0.1",port:1,user:"synthetic_worker",database:"central_spend",
+        password:"test-only",connectionTimeoutMillis:100,max:1,idleTimeoutMillis:1});
+      let executed=0;
+      const forgedQuery=async()=>{executed++;throw new Error("UNTRUSTED_ACQUIRED_CLIENT_QUERY");};
+      const client:any=shape==="patched-genuine-client"
+        ?new pg.Client((pool as any).options)
+        :new EventEmitter();
+      client.query=forgedQuery;
+      // Reproduce a compromised, already-idle pooled client without opening
+      // any network connection or monkeypatching trusted Pool.connect.
+      if(shape==="substituted-client"){
+        client.end=()=>client.emit("end");
+        client.ref=()=>{};
+        client._queryable=true;
+        client._ending=false;
+      }
+      (pool as any)._clients.push(client);
+      (pool as any)._idle.push({client,idleListener:()=>{},timeoutId:undefined});
+      try{
+        const ledger=new Ledger(pool);
+        assert.equal(Ledger.isAuthenticLedger(ledger),true,
+          "pre-check currently sees an unmodified real pool");
+        await assert.rejects(()=>ledger.reserve({
+          tenantId:"tenant:guard",provider:"adapter:guard",modelId:"model:guard",
+          billingProvider:"openai",requestId:"intent:guard",requestHash:"f".repeat(64),reserveMicroUsd:10
+        }), (error:any)=>error?.code==="BUDGET_STORE_UNAVAILABLE");
+        assert.equal(executed,0,
+          "forged "+shape+" must be denied after Pool.connect but before BEGIN/ROLLBACK/SQL");
+      }finally{
+        for(const idle of (pool as any)._idle){if(idle.timeoutId)clearTimeout(idle.timeoutId);}
+        (pool as any)._idle.length=0;
+        (pool as any)._clients.length=0;
+        await pool.end();
+      }
+    }
+  }
+});
