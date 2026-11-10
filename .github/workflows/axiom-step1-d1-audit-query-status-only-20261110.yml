@@ -47,7 +47,10 @@ jobs:
             ('audit_31d', '/logs/audit?'+query({'since':'2026-10-01','before':'2026-11-01','resource_id':database,'limit':1})),
             ('audit_61d', '/logs/audit?'+query({'since':'2026-09-01','before':'2026-11-01','resource_id':database,'limit':1})),
             ('audit_92d', '/logs/audit?'+query({'since':'2026-08-01','before':'2026-11-01','resource_id':database,'limit':1})),
-            ('audit_184d', '/logs/audit?'+query({'since':'2026-05-01','before':'2026-11-01','resource_id':database,'limit':1}))
+            ('audit_184d', '/logs/audit?'+query({'since':'2026-05-01','before':'2026-11-01','resource_id':database,'limit':1})),
+            ('audit_slice_2025', '/logs/audit?'+query({'since':'2025-05-10','before':'2025-11-10','resource_id':database,'direction':'asc','limit':1})),
+            ('audit_slice_2025_26', '/logs/audit?'+query({'since':'2025-11-10','before':'2026-05-10','resource_id':database,'direction':'asc','limit':1})),
+            ('audit_slice_recent_future', '/logs/audit?'+query({'since':'2026-05-10','before':'2026-11-11','resource_id':database,'direction':'asc','limit':1}))
           ]
           statuses={}
           for tag,path in cases:
