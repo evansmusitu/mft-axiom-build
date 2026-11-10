@@ -103,8 +103,10 @@ jobs:
           python3 -m pip install --disable-pip-version-check pytest beautifulsoup4
           (
             cd /tmp/musitu-phase03-publication-candidate/corporate
-            MUSITU_BUILD_MODE=production MUSITU_CANONICAL_ORIGIN=https://mftintelligence.com MUSITU_INCLUDE_STUDIO_MEDIA=1 MUSITU_PUBLISH_PHASE03=1 MUSITU_PHASE03_PUBLICATION_DATE="$MUSITU_CANDIDATE_DATE" python3 scripts/build.py
+            # These tests create their own temporary dist fixture. Run them FIRST,
+            # then produce the exact locked-date candidate LAST.
             MUSITU_BUILD_MODE=production MUSITU_CANONICAL_ORIGIN=https://mftintelligence.com MUSITU_INCLUDE_STUDIO_MEDIA=1 MUSITU_PUBLISH_PHASE03=1 MUSITU_PHASE03_PUBLICATION_DATE="$MUSITU_CANDIDATE_DATE" python3 -m unittest discover -s tests -p 'test_phase03_publication.py' -q
+            MUSITU_BUILD_MODE=production MUSITU_CANONICAL_ORIGIN=https://mftintelligence.com MUSITU_INCLUDE_STUDIO_MEDIA=1 MUSITU_PUBLISH_PHASE03=1 MUSITU_PHASE03_PUBLICATION_DATE="$MUSITU_CANDIDATE_DATE" python3 scripts/build.py
           )
           python3 - <<'PY'
           import os,json,xml.etree.ElementTree as ET
