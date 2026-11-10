@@ -4,7 +4,7 @@ import {operatorReadOnlyPreflight} from './authority2-provider-readonly-check.mj
 
 const key='AXIOM_AUTHORITY2_CLOUDFLARE_R2_READ_TOKEN',secret='SYNTHETIC_NEVER_LOG_THIS_SECRET';
 const good={account_id:'67469478aa9349fa0a57fe3a72da200a',
-  bucket_name:'musitu-axiom-authority2-worm',rule_id:'sensitive-provider-rule-label',
+  bucket_name:'musitu-axiom-b27-highwater-a2',rule_id:'sensitive-provider-rule-label',
   scope:'b27/',retention:'Indefinite',admin_removable:true};
 const goodWorker={status:'WORKER_METADATA_READBACK_NOT_RELEASE',
   account_id:good.account_id,script_name:'axiom-security-authority2-highwater',
