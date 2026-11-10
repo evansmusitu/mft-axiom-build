@@ -601,3 +601,31 @@ test("both PostgreSQL ledgers deny a substituted pg Pool.newClient execution hoo
     }
   }
 });
+
+
+test("both PostgreSQL ledgers refuse modified canonical pg Client SQL and connect methods",async()=>{
+  const proto=pg.Client.prototype as any;
+  for(const method of ["query","connect"] as const){
+    const trustedMethod=proto[method];
+    for(const Ledger of [phase2.PostgresProviderSpendLedger,phase2.ProtectedPostgresProviderSpendLedger]){
+      const pool=new pg.Pool({host:"127.0.0.1",port:1,user:"synthetic_worker",database:"central_spend",
+        password:"test-only",connectionTimeoutMillis:50,max:1});
+      let fakeCalls=0;
+      try{
+        const ledger=new Ledger(pool);
+        assert.equal(Ledger.isAuthenticLedger(ledger),true);
+        proto[method]=function forgedSqlBoundary(){fakeCalls++;throw new Error("FORGED_PG_CLIENT_METHOD");};
+        assert.equal(Ledger.isAuthenticLedger(ledger),false,
+          "modified canonical pg Client "+method+" must revoke protected spending trust before SQL");
+        await assert.rejects(()=>ledger.reserve({
+          tenantId:"tenant:guard",provider:"adapter:guard",modelId:"model:guard",
+          billingProvider:"openai",requestId:"intent:guard",requestHash:"f".repeat(64),reserveMicroUsd:10
+        }), (e:any)=>e?.code==="BUDGET_STORE_UNAVAILABLE");
+        assert.equal(fakeCalls,0,"forged pg.Client."+method+" must never run");
+      }finally{
+        proto[method]=trustedMethod;
+        await pool.end();
+      }
+    }
+  }
+});
