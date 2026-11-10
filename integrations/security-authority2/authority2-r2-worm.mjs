@@ -30,6 +30,12 @@ export async function wormReadback(bucket,pin,tip){
       // Check the R2 record's predecessor independently of the restorable DO tip.
       if(record.previous_sequence!==tip.sequence-1)hold('HIGHWATER_WORM_PREDECESSOR_SEQUENCE_MISMATCH_HOLD');
       if(!H64.test(record.previous_head))hold('HIGHWATER_WORM_PREDECESSOR_HASH_MISMATCH_HOLD');
+      // Matching the current head is insufficient: a separately restored
+      // object with a forged action or lost audit proof must never be signed
+      // as an intact high-water witness.
+      for(const field of ['event_digest','artifact_sha256','action_sha256','challenge'])
+        if(!H64.test(record[field]))hold('HIGHWATER_WORM_EVENT_PROOF_INVALID_HOLD');
+      if(record.decision!=='ALLOW_ONCE')hold('HIGHWATER_WORM_EVENT_PROOF_INVALID_HOLD');
       const predecessor=await readRecord(bucket,pin,tip.sequence-1);
       if(record.previous_head!==predecessor.head)hold('HIGHWATER_WORM_PREDECESSOR_HASH_MISMATCH_HOLD');
     }
