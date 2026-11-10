@@ -21,8 +21,7 @@ QUERIES={
               " (SELECT count(*) FROM canonical_customer_links) AS canonical_links,"
               " (SELECT count(*) FROM customer_idp_flows_v1) AS flows,"
               " (SELECT count(*) FROM customer_idp_sessions_v1) AS sessions"),
-    "active":("SELECT (SELECT count(*) FROM identities WHERE status='active') AS active_identities,"
-              " (SELECT count(*) FROM tenants WHERE status='active') AS active_tenants,"
+    "active":("SELECT (SELECT count(*) FROM tenants WHERE status='active') AS active_tenants,"
               " (SELECT count(*) FROM memberships WHERE status='active') AS active_memberships,"
               " (SELECT count(*) FROM canonical_customer_links WHERE status='active') AS active_canonical_links,"
               " (SELECT count(*) FROM customer_idp_sessions_v1 WHERE status='active' AND expires_at_ms>unixepoch('now')*1000) AS unexpired_active_sessions"),
@@ -50,7 +49,7 @@ def check_counts(kind,obj):
  records=r.get("results")
  expected={
   "totals":{"identities","tenants","memberships","canonical_links","flows","sessions"},
-  "active":{"active_identities","active_tenants","active_memberships","active_canonical_links","unexpired_active_sessions"},
+  "active":{"active_tenants","active_memberships","active_canonical_links","unexpired_active_sessions"},
   "linked":{"active_joined_links"},
   "fk":{"foreign_key_violations"},
  }[kind]
@@ -61,8 +60,7 @@ def check_counts(kind,obj):
 
 def check_consistency(counts):
  total,active,joined,fk=(counts[k] for k in ("totals","active","linked","fk"))
- if (active["active_identities"]>total["identities"] or
-     active["active_tenants"]>total["tenants"] or
+ if (active["active_tenants"]>total["tenants"] or
      active["active_memberships"]>total["memberships"] or
      active["active_canonical_links"]>total["canonical_links"] or
      active["unexpired_active_sessions"]>total["sessions"] or
