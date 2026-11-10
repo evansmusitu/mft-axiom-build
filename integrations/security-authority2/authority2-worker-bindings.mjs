@@ -3,7 +3,7 @@
  */
 const ACCOUNT='67469478aa9349fa0a57fe3a72da200a';
 const SCRIPT='axiom-security-authority2-highwater';
-const BUCKET='musitu-axiom-authority2-worm';
+const BUCKET='musitu-axiom-b27-highwater-a2';
 const REQUIRED=new Map([
  ['HIGHWATER_STATE','durable_object_namespace'],
  ['HIGHWATER_WORM','r2_bucket'],
