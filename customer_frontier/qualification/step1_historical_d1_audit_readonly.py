@@ -230,7 +230,7 @@ def inspect_windows(window_pages):
         "audited_window_count": len(window_pages),
         "provider_retention_start": SINCE,
         "audited_end_exclusive": BEFORE,
-        "audit_window_strategy": "BOUNDED_MONTHLY_ONE_DAY_OVERLAP",
+        "audit_window_strategy": "BOUNDED_MONTHLY_ONE_DAY_OVERLAP_RFC3339_EXCLUSIVE_BEFORE",
         "raw_overlap_events_retained": 0,
         "historical_ownership_qualified": False,
         "source_reuse_authorized": False,
@@ -248,7 +248,10 @@ def get(path, token, opener):
         if parsed.path != "/logs/audit" or parsed.fragment or not parsed.query:
             raise NoGo("PATH_NOT_ALLOWLISTED")
         pairs = urllib.parse.parse_qs(parsed.query, strict_parsing=True)
-        allowed = [{"since": [a], "before": [b], "resource_id": [DATABASE],
+        # Cloudflare Audit v2 treats date-only before as inclusive of the
+        # full calendar day. Pin midnight RFC3339 to enforce our EXACT
+        # exclusive boundary and prevent overlap-window false positives.
+        allowed = [{"since": [a], "before": [b + "T00:00:00Z"], "resource_id": [DATABASE],
                     "direction": ["asc"], "limit": [str(PAGE_LIMIT)]}
                    for a, b in WINDOWS]
         cursor = pairs.pop("cursor", None)
@@ -286,7 +289,7 @@ def run():
             cursor = None
             seen = set()
             for _ in range(MAX_PAGES):
-                args = {"since": since, "before": before, "resource_id": DATABASE,
+                args = {"since": since, "before": before + "T00:00:00Z", "resource_id": DATABASE,
                         "direction": "asc", "limit": str(PAGE_LIMIT)}
                 if cursor:
                     args["cursor"] = cursor
