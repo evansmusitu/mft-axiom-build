@@ -10,11 +10,17 @@ const goodWorker={status:'WORKER_METADATA_READBACK_NOT_RELEASE',
   account_id:good.account_id,script_name:'axiom-security-authority2-highwater',
   bucket_name:good.bucket_name,checked_binding_count:5,secret_values_exposed:false,
   active_deployment_verified:false,signer_custody_verified:false,release_eligible:false};
+const goodDeployment={status:'ACTIVE_DEPLOYMENT_METADATA_NOT_SOURCE_ATTESTATION',
+ account_id:good.account_id,script_name:goodWorker.script_name,
+ active_version_id_sha256:'a'.repeat(64),deployment_id_sha256:'b'.repeat(64),
+ active_deployment_metadata_observed:true,
+ active_deployment_source_qualified:false,release_eligible:false};
 async function invoke({env={},verify=async()=>good,verifyWorker=async()=>goodWorker,
+ verifyDeployment=async()=>goodDeployment,
   argv=['node','operator-script']}={}){
   const stdout=[],stderr=[];
   const status=await operatorReadOnlyPreflight({env:{[key]:secret,...env},
-    argv,verify,verifyWorker,output:s=>stdout.push(s),error:s=>stderr.push(s)});
+    argv,verify,verifyWorker,verifyDeployment,output:s=>stdout.push(s),error:s=>stderr.push(s)});
   return {status,stdout,stderr};
 }
 test('operator-only policy proof emits only redacted nonrelease evidence',async()=>{
@@ -99,4 +105,15 @@ test('B27 operator cannot leak Worker-provider errors or invoke Workers in build
  const noCall=await invoke({env:{GITHUB_ACTIONS:'true'},verifyWorker:async()=>{calls++;return goodWorker;}});
  assert.equal(noCall.status,2);
  assert.equal(calls,0);
+});
+
+
+test('B27 operator must check currently active deployment before producing evidence',async()=>{
+ const r=await invoke();
+ assert.equal(r.status,0);
+ const record=JSON.parse(r.stdout[0]);
+ assert.equal(record.active_deployment_metadata_observed,true);
+ assert.equal(record.active_version_id_sha256,'a'.repeat(64));
+ assert.equal(record.active_deployment_source_qualified,false);
+ assert.equal(record.release_eligible,false);
 });
