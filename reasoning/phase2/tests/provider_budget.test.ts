@@ -541,3 +541,63 @@ test("both PostgreSQL budget ledgers fail closed on mutated Pool connection sett
     }finally{await pool.end();}
   }
 });
+
+
+// Phase 2.10I TDD: authentic Pool.connect and unchanged Pool.options do not
+// suffice if the mutable Pool.Client factory is replaced after admission.
+test("both PostgreSQL ledgers reject an unapproved pg Pool.Client factory before or after admission",async()=>{
+  for(const Ledger of [phase2.PostgresProviderSpendLedger,phase2.ProtectedPostgresProviderSpendLedger]){
+    const pool=new pg.Pool({host:"127.0.0.1",port:1,user:"synthetic_worker",database:"central_spend",
+      password:"test-only",connectionTimeoutMillis:50,max:1});
+    let fabricated=0;
+    class FakeClient{constructor(){fabricated++;}}
+    const originalClient=(pool as any).Client;
+    try{
+      (pool as any).Client=FakeClient;
+      assert.throws(()=>new Ledger(pool),/trusted|pool|postgres/i,
+        "pre-constructor fake Client must never establish billing authority");
+      (pool as any).Client=originalClient;
+      const ledger=new Ledger(pool);
+      assert.equal(Ledger.isAuthenticLedger(ledger),true);
+      (pool as any).Client=FakeClient;
+      assert.equal(Ledger.isAuthenticLedger(ledger),false,
+        "mutable client factory must revoke registered billing authority");
+      await assert.rejects(()=>ledger.reserve({
+        tenantId:"tenant:guard",provider:"adapter:guard",modelId:"model:guard",
+        billingProvider:"openai",requestId:"intent:guard",requestHash:"f".repeat(64),reserveMicroUsd:10
+      }), (e:any)=>e?.code==="BUDGET_STORE_UNAVAILABLE");
+      assert.equal(fabricated,0,"fake client constructor must never be called");
+    }finally{
+      (pool as any).Client=originalClient;
+      await pool.end();
+    }
+  }
+});
+
+test("both PostgreSQL ledgers deny a substituted pg Pool.newClient execution hook",async()=>{
+  for(const Ledger of [phase2.PostgresProviderSpendLedger,phase2.ProtectedPostgresProviderSpendLedger]){
+    const pool=new pg.Pool({host:"127.0.0.1",port:1,user:"synthetic_worker",database:"central_spend",
+      password:"test-only",connectionTimeoutMillis:50,max:1});
+    let fakeCalls=0;
+    const fakeNewClient=()=>{fakeCalls++;throw new Error("UNTRUSTED_CLIENT_FACTORY");};
+    try{
+      (pool as any).newClient=fakeNewClient;
+      assert.throws(()=>new Ledger(pool),/trusted|pool|postgres/i,
+        "unapproved client creation hook must fail before ledger registration");
+      delete (pool as any).newClient;
+      const ledger=new Ledger(pool);
+      assert.equal(Ledger.isAuthenticLedger(ledger),true);
+      (pool as any).newClient=fakeNewClient;
+      assert.equal(Ledger.isAuthenticLedger(ledger),false,
+        "changed client creation method must revoke registered billing authority");
+      await assert.rejects(()=>ledger.reserve({
+        tenantId:"tenant:guard",provider:"adapter:guard",modelId:"model:guard",
+        billingProvider:"openai",requestId:"intent:guard",requestHash:"f".repeat(64),reserveMicroUsd:10
+      }), (e:any)=>e?.code==="BUDGET_STORE_UNAVAILABLE");
+      assert.equal(fakeCalls,0,"injected newClient must not run");
+    }finally{
+      delete (pool as any).newClient;
+      await pool.end();
+    }
+  }
+});
