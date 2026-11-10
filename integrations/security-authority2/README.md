@@ -52,8 +52,27 @@ SHA-256-identified policy readback with `release_eligible:false` and
 an administrator-proof retention policy or a destructive replay pass.
 
 The command only issues an authenticated Cloudflare GET for
-`/accounts/67469478aa9349fa0a57fe3a72da200a/r2/buckets/musitu-axiom-authority2-worm/lock`.
+`/accounts/67469478aa9349fa0a57fe3a72da200a/r2/buckets/musitu-axiom-b27-highwater-a2/lock`.
 It performs no account mutation, billing, R2 provision or credential export.
 An independently retained reviewer transcript and signed custody evidence
 remain required. The external repo-side GitHub immutable anchor does not,
 by itself, qualify operator/admin independence.
+
+## Live R2 bucket pin reconciliation (9 November 2026)
+
+Security Authority 2's provider-created R2 Standard bucket is exactly `musitu-axiom-b27-highwater-a2`,
+not the former unprovisioned placeholder `musitu-axiom-authority2-worm`. Provider write workflow
+[42641634621](https://github.com/evansmusitu/mft-axiom-build/actions/runs/42641634621)
+and independent read-only workflow
+[42639682908, attempt 2](https://github.com/evansmusitu/mft-axiom-build/actions/runs/42639682908)
+verified the bucket and the enabled `b27-indefinite` rule covering `b27/`.
+The operator-side readback is pinned to the exact observed bucket. This
+reconciles one integration defect; it does not certify independent custody.
+Builder-held Cloudflare credentials still had account lock-policy write power,
+so a separate custodian must establish and attest the administrative isolation.
+Do not run any signer, genesis, high-water append, or public deployment based
+only on this read-only test. Global B27 remains NO-GO.
+
+### Fail-closed Wrangler candidate routing
+
+The candidate `wrangler.example.toml` binds `HIGHWATER_WORM` to the exact provider-audited bucket and specifies `workers_dev = false` and `preview_urls = false`. Do not add a route or deploy the Worker until an independent operator has approved the signer, genesis, administrative separation and external destructive acceptance. These settings restrict the sample configuration, not any existing deployed provider service.
