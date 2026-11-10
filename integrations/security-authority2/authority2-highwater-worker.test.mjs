@@ -70,3 +70,24 @@ test('lost R2 acknowledgement holds pending transaction permanently; no retry',a
   await assert.rejects(externalHighwaterFence(x.args),/HIGHWATER_REMOTE_DENIAL_HOLD/);
   await assert.rejects(externalHighwaterFence(x.args),/HIGHWATER_REMOTE_DENIAL_HOLD/);
 });
+
+test('B27: highwater authority rejects unbounded streaming body without Content-Length',async()=>{
+  const x=await setup();await x.seed();
+  let cancelled=false;
+  const stream=new ReadableStream({
+    start(controller){controller.enqueue(new Uint8Array(5000).fill(65));},
+    cancel(){cancelled=true;}
+  });
+  const req=new Request(x.root+'/v1/highwater/readback',{
+    method:'POST',duplex:'half',
+    headers:{authorization:'Bearer '+'r'.repeat(40),'content-type':'application/json'},
+    body:stream
+  });
+  assert.equal(req.headers.get('content-length'),null);
+  const outcome=await Promise.race([
+    x.server.fetch(req).then(r=>({status:r.status})),
+    new Promise(resolve=>setTimeout(()=>resolve({status:'UNBOUNDED_READ'}),850))
+  ]);
+  assert.equal(outcome.status,413,'stream must be rejected at 4096 bytes, not awaited');
+  assert.equal(cancelled,true,'request stream must be cancelled on input overflow');
+});
