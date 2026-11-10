@@ -95,6 +95,28 @@ class AuditQualification(unittest.TestCase):
         with self.assertRaisesRegex(audit.NoGo,"PAGE_COUNT"):
             audit.inspect_logs(responses + [page([])])
 
+    def test_provider_date_only_before_is_inclusive_and_rejected_by_allowlist(self):
+        # Hosted evidence 42843937389: 1056 events with `before=2026-09-12`,
+        # including eight September 12 entries. RFC3339 midnight yields 1048,
+        # correctly excluding all eight. The test never assumes filter syntax.
+        import urllib.parse
+        start,end=audit.WINDOWS[15]
+        self.assertEqual((start,end),('2026-08-10','2026-09-12'))
+        params={'since':start,'before':end,'resource_id':audit.DATABASE,
+                'direction':'asc','limit':str(audit.PAGE_LIMIT)}
+        with self.assertRaisesRegex(audit.NoGo,'AUDIT_QUERY_NOT_ALLOWLISTED'):
+            audit.get('/logs/audit?'+urllib.parse.urlencode(params),'TEST_TOKEN',None)
+        params['before']=end+'T00:00:00Z'
+        class Stub:
+            def __init__(self):self.url=None
+            def open(self, req, timeout):
+                self.url=req.full_url
+                raise OSError('NETWORK_DISABLED_TEST')
+        stub=Stub()
+        with self.assertRaisesRegex(audit.NoGo,'PROVIDER_NETWORK_UNAVAILABLE'):
+            audit.get('/logs/audit?'+urllib.parse.urlencode(params),'TEST_TOKEN',stub)
+        self.assertIn('before=2026-09-12T00%3A00%3A00Z',stub.url)
+
     def test_provider_offset_timestamp_normalized_to_utc_boundary(self):
         e=event(date="2026-09-12T00:30:00+02:00")
         parsed=audit.parse_event(e)
