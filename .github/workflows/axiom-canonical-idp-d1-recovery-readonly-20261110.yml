@@ -1,0 +1,49 @@
+name: AXIOM canonical customer D1 and historical session rollback bookmark READ ONLY
+on:
+  push:
+    branches: [review/axiom-canonical-d1-recovery-bookmark-readonly-20261110]
+    paths: [.github/workflows/axiom-canonical-idp-d1-recovery-readonly-20261110.yml]
+permissions: {contents: read}
+concurrency:
+  group: axiom-canonical-d1-recovery-20261110
+  cancel-in-progress: false
+jobs:
+  audit:
+    if: >-
+      github.repository == 'evansmusitu/mft-axiom-build' &&
+      github.actor == 'evansmusitu' &&
+      github.ref == 'refs/heads/review/axiom-canonical-d1-recovery-bookmark-readonly-20261110' &&
+      github.run_attempt == 1
+    runs-on: ubuntu-24.04
+    timeout-minutes: 7
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with: {persist-credentials: false}
+      - name: Verify exact source and no-authority tests before any credential
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git hash-object customer_frontier/qualification/canonical_d1_recovery_readonly.py)" = '17e556284390f9b71840f9ce9cee3fcbc4c0d03e'
+          test "$(git hash-object customer_frontier/tests/test_canonical_d1_recovery_readonly.py)" = '6bcc9dcda96076e2838fd18d6600f32781b1c122'
+          python3 -m py_compile customer_frontier/qualification/canonical_d1_recovery_readonly.py customer_frontier/tests/test_canonical_d1_recovery_readonly.py
+          python3 -m unittest discover -s customer_frontier/tests -p test_canonical_d1_recovery_readonly.py -v
+      - name: Read only 11 pinned D1 schema name sets and current historical session bookmark
+        shell: bash
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+        run: |
+          set -uo pipefail
+          python3 customer_frontier/qualification/canonical_d1_recovery_readonly.py
+          code=$?
+          test -s axiom-canonical-d1-recovery-readonly.json || exit 5
+          exit "$code"
+      - name: Retain sanitized read-only artifact
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: axiom-canonical-d1-recovery-20261110
+          retention-days: 14
+          if-no-files-found: warn
+          path: |
+            axiom-canonical-d1-recovery-readonly.json
+            axiom-canonical-d1-recovery-readonly.json.sha256
