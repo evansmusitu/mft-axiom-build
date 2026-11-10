@@ -108,23 +108,28 @@ def parse_event(event):
         raise NoGo("AUDIT_ACTOR_TYPE_INVALID")
     if raw.get("method") not in ("GET", "POST", "PUT", "PATCH", "DELETE"):
         raise NoGo("AUDIT_METHOD_UNKNOWN")
+    # The Cloudflare event action 'create' also covers sub-resources of an
+    # already existing D1. Only the exact POST endpoint for creating the
+    # database can produce historical origin evidence; all other create events
+    # are retained as related activity but NEVER counted as a D1 origin.
+    creation_candidate = False
     if kind == "create" and action["result"] == "success":
-        # A random D1-related create must not impersonate the named database
-        # creation. Cloudflare's published raw.uri uses the account-scoped path.
         uri = raw.get("uri")
         if not isinstance(uri, str):
             raise NoGo("CREATION_RAW_URI_MISSING")
         parsed = urllib.parse.urlsplit(uri)
         allowed = {"/accounts/" + ACCOUNT + "/d1/database",
                    "/client/v4/accounts/" + ACCOUNT + "/d1/database"}
-        if parsed.scheme or parsed.netloc or parsed.query or parsed.fragment or parsed.path not in allowed:
-            raise NoGo("CREATION_RAW_URI_WRONG_RESOURCE")
-        if actor.get("context") not in ("api_token", "api_key", "dash", "oauth"):
-            raise NoGo("CREATION_ACTOR_CONTEXT_UNQUALIFIED")
-        status = raw.get("status_code")
-        if type(status) is not int or not 200 <= status <= 299:
-            raise NoGo("CREATION_PROVIDER_STATUS_UNQUALIFIED")
+        creation_candidate = not (parsed.scheme or parsed.netloc or parsed.query or
+                                  parsed.fragment) and parsed.path in allowed
+        if creation_candidate:
+            if actor.get("context") not in ("api_token", "api_key", "dash", "oauth"):
+                raise NoGo("CREATION_ACTOR_CONTEXT_UNQUALIFIED")
+            status = raw.get("status_code")
+            if type(status) is not int or not 200 <= status <= 299:
+                raise NoGo("CREATION_PROVIDER_STATUS_UNQUALIFIED")
     return {
+        "database_create_candidate": creation_candidate,
         "event_id_sha256": sha(event_id),
         "actor_id_sha256": sha(actor_id),
         "actor_type": actor["type"],
@@ -175,7 +180,7 @@ def inspect_logs(responses, *, _events=False):
 
 
 def summarize_events(observed):
-    creates = [e for e in observed if e["action"] == "create" and e["result"] == "success" and e["method"] == "POST"]
+    creates = [e for e in observed if e["action"] == "create" and e["result"] == "success" and e["method"] == "POST" and e["database_create_candidate"]]
     destructive = [e for e in observed if e["action"] == "delete" and e["result"] == "success"]
     # Presence of a create event is *not* ownership admission. An independent
     # human must identify the Cloudflare actor by provider control-plane proof.
