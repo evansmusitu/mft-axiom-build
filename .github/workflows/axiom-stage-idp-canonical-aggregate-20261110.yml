@@ -23,8 +23,8 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          test "$(git hash-object customer_frontier/qualification/stage_canonical_aggregate_readonly.py)" = '2264526ad97394118ed41260a87ae4eb25ac1b3b'
-          test "$(git hash-object customer_frontier/tests/test_stage_canonical_aggregate_readonly.py)" = '298b95d415e64522f56ca25a1d6fe16b0a73f750'
+          test "$(git hash-object customer_frontier/qualification/stage_canonical_aggregate_readonly.py)" = '4a5d364699317c715139e85559df7d02c7e061c1'
+          test "$(git hash-object customer_frontier/tests/test_stage_canonical_aggregate_readonly.py)" = 'e222f603a3fc34a218a4252fac4f6fe0144e70e0'
           python3 -m py_compile customer_frontier/qualification/stage_canonical_aggregate_readonly.py customer_frontier/tests/test_stage_canonical_aggregate_readonly.py
           python3 -m unittest discover -s customer_frontier/tests -p test_stage_canonical_aggregate_readonly.py -v
       - name: Only 4 pinned SELECT count queries against already identified existing identity database
