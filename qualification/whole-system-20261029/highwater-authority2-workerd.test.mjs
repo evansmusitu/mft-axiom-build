@@ -90,6 +90,32 @@ test('workerd: rollback of witness DO still holds when R2 append-only checkpoint
   assert.equal(witness.tip().sequence,1,'restored SQLite must not be promoted');
 });
 
+test('B27: GitHub immutable history survives full authority plus R2 rollback and denies replay',{timeout:90000},async t=>{
+  const anchor=githubFixture('ax-authority2-github-survives'),witness=await witnessFixture();
+  const f=await fixture(t,{persist:true,anchor,highwater:witness});
+  await f.bootstrap();await f.grant();await f.snapshotStore();
+  // Builder, DO, and R2 are deliberately rolled back to before sequence 2.
+  // Only the independently retained GitHub immutable checkpoint survives.
+  const witnessSnapshot=witness.snapshot(),r2Snapshot=witness.r2.snapshot();
+  const firstClient=await f.makeClient(),input=await f.prepare(firstClient);
+  const first=await firstClient.consume(input);
+  assert.equal(first.payload.dispatch_allowed,true);
+  const published=anchor.releases.get(first.payload.anchor.release_id);
+  assert.equal(published?.immutable,true,'original GitHub checkpoint must be sealed');
+  assert.equal(witness.tip().sequence,2);
+  await f.restoreStore();witness.restore(witnessSnapshot);witness.r2.restore(r2Snapshot);
+  // Never wipe the GitHub witness in this case: it is an independent provider.
+  const rebuilt=await f.makeClient();
+  await assert.rejects(async()=>rebuilt.consume(await f.prepare(rebuilt)),
+    /ANCHOR_|LEDGER_REMOTE_DENIED_HOLD/,
+    'immutable duplicate checkpoint must deny replay after ALL other stores restore');
+  assert.equal(published.immutable,true);
+  assert.equal(witness.tip().sequence,1,'rolled-back DO never emitted new permission');
+  const second=await f.request('/v1/operator/grants',f.grantInput());
+  assert.equal(second.status,503,'unresolved replay must hold later authority changes');
+  assert.equal((await second.json()).error,'ANCHOR_PENDING_RECONCILIATION_HOLD');
+});
+
 test('negative B27 workerd: only deleting R2 history TOO permits full global rollback',{timeout:90000},async t=>{
   const anchor=githubFixture('ax-authority2-r2-negative'),witness=await witnessFixture();
   const f=await fixture(t,{persist:true,anchor,highwater:witness});
