@@ -82,6 +82,10 @@ export async function createExternalLedgerClient({origin,ledger_id,genesis_id,ke
 /** Explicit server policy; user payloads cannot select or disable this guard. */
 export async function configuredExternalLedger(env,{tenant_id,work_id}={}){
   const flag=env.AXIOM_EXTERNAL_LEDGER_REQUIRED;
+  // A mandatory independent highwater policy must never be bypassed merely
+  // by leaving the outer ledger flag unset/false in server environment.
+  if(env.AXIOM_HIGHWATER_REQUIRED==='true'&&flag!=='true')
+    deny('HIGHWATER_REQUIRES_EXTERNAL_LEDGER_HOLD');
   if(flag===undefined||flag==='false'){
     if(env.AXIOM_EXTERNAL_LEDGER_CONFIG_JSON||env.AXIOM_EXTERNAL_LEDGER_CONSUMERS_JSON)deny('LEDGER_CONFIGURATION_CANNOT_BE_SILENTLY_IGNORED');
     return {required:false,client:null};
