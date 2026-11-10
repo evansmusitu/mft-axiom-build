@@ -24,12 +24,41 @@ async function principal(r,env,role){const value=r.headers.get('authorization')?
   const h=[...new Uint8Array(await crypto.subtle.digest('SHA-256',enc.encode(value)))].map(x=>x.toString(16).padStart(2,'0')).join('');
   if(h!==registry[role])deny('HIGHWATER_ROLE_DENIED',403);
 }
-async function body(req){if(req.headers.get('origin')||req.headers.get('cookie')||req.headers.get('sec-fetch-site'))deny('HIGHWATER_SERVER_CHANNEL_ONLY',403);
-  if(!req.headers.get('content-type')?.toLowerCase().startsWith('application/json'))deny('HIGHWATER_JSON_REQUIRED',415);
-  if(Number(req.headers.get('content-length')||0)>4096)deny('HIGHWATER_BODY_TOO_LARGE',413);
-  const text=await req.text();if(enc.encode(text).byteLength>4096)deny('HIGHWATER_BODY_TOO_LARGE',413);
+async function body(req){
+  if(req.headers.get('origin')||req.headers.get('cookie')||req.headers.get('sec-fetch-site'))
+    deny('HIGHWATER_SERVER_CHANNEL_ONLY',403);
+  if(!req.headers.get('content-type')?.toLowerCase().startsWith('application/json'))
+    deny('HIGHWATER_JSON_REQUIRED',415);
+  const length=req.headers.get('content-length');
+  if(length!==null&&(!/^(0|[1-9][0-9]*)$/.test(length)||Number(length)>4096))
+    deny('HIGHWATER_BODY_TOO_LARGE',413);
+  // Some clients omit Content-Length or stream indefinitely. Reading text()
+  // first would buffer arbitrarily large requests and hang the serialized DO.
+  if(!req.body||typeof req.body.getReader!=='function')deny('HIGHWATER_JSON_INVALID',400);
+  const reader=req.body.getReader(),decoder=new TextDecoder('utf-8',{fatal:true});
+  let timer,text='',count=0,complete=false;
+  const deadline=new Promise((_,reject)=>{timer=setTimeout(
+    ()=>reject(new Denied('HIGHWATER_BODY_TIMEOUT_HOLD',503)),2000);
+  });
+  try{
+    for(;;){
+      const chunk=await Promise.race([reader.read(),deadline]);
+      if(chunk.done){complete=true;break;}
+      if(!(chunk.value instanceof Uint8Array))deny('HIGHWATER_JSON_INVALID',400);
+      count+=chunk.value.byteLength;
+      if(count>4096)deny('HIGHWATER_BODY_TOO_LARGE',413);
+      try{text+=decoder.decode(chunk.value,{stream:true});}
+      catch{deny('HIGHWATER_JSON_INVALID',400);}
+    }
+    try{text+=decoder.decode();}catch{deny('HIGHWATER_JSON_INVALID',400);}
+  }finally{
+    clearTimeout(timer);
+    if(!complete)try{void reader.cancel().catch(()=>{});}catch{}
+    try{reader.releaseLock();}catch{}
+  }
   let x;try{x=JSON.parse(text);}catch{deny('HIGHWATER_JSON_INVALID',400);}
-  if(canonical(x)!==text)deny('HIGHWATER_CANONICAL_REQUIRED',400);return x;
+  if(canonical(x)!==text)deny('HIGHWATER_CANONICAL_REQUIRED',400);
+  return x;
 }
 const base=['schema','account_id','ledger_id','namespace','key_id','challenge'];
 const eventKeys=['sequence','previous_sequence','previous_head','head','event_digest','artifact_sha256','action_sha256'];
