@@ -82,3 +82,16 @@ export function pinPoolConnectionOptions(pool:{readonly options:object}):()=>boo
     }catch{return false;}
   };
 }
+
+
+/**
+ * Pin a single configuration value (including nested TLS CA/key material)
+ * against later substitutions. This does not inspect a live network peer.
+ */
+export function pinComparableConnectionValue(value:unknown):(candidate:unknown)=>boolean {
+  const expected=capture(value,new WeakSet());
+  return (candidate:unknown)=>{
+    try{return equalSnapshot(candidate,expected);}
+    catch{return false;}
+  };
+}

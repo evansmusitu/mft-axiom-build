@@ -672,3 +672,46 @@ test("Phase 2.10J acquired PostgreSQL client must be genuine and preserve SQL me
     }
   }
 });
+
+
+test("Phase 2.10K checked-out PostgreSQL client must retain approved endpoint role database and TLS identity",async()=>{
+  const approved={
+    host:"approved-db.invalid",port:15432,user:"budget_runtime",database:"axiom_spend",
+    password:"synthetic-only",ssl:{rejectUnauthorized:true,ca:"synthetic-ca"},
+    connectionTimeoutMillis:100,max:1,idleTimeoutMillis:1
+  };
+  const changes=[
+    ["host",{host:"different-db.invalid"}],
+    ["port",{port:15433}],
+    ["role",{user:"alternate_runtime"}],
+    ["database",{database:"unprotected_spend"}],
+    ["tls",{ssl:{rejectUnauthorized:false}}]
+  ] as const;
+  for(const Ledger of [phase2.PostgresProviderSpendLedger,phase2.ProtectedPostgresProviderSpendLedger]){
+    for(const [label,override] of changes){
+      const pool=new pg.Pool(approved);
+      const acquired:any=new pg.Client({...approved,...override});
+      // A real pg.Client can still have been constructed for another endpoint
+      // before being injected into the idle Pool. No TCP or provider calls.
+      acquired._queryable=false;
+      (pool as any)._clients.push(acquired);
+      (pool as any)._idle.push({client:acquired,idleListener:()=>{},timeoutId:undefined});
+      try{
+        const ledger=new Ledger(pool);
+        assert.equal(Ledger.isAuthenticLedger(ledger),true,
+          "Pool-level authority alone cannot attest an injected idle client's origin");
+        await assert.rejects(()=>ledger.reserve({
+          tenantId:"tenant:guard",provider:"adapter:guard",modelId:"model:guard",
+          billingProvider:"openai",requestId:"intent:guard",requestHash:"f".repeat(64),reserveMicroUsd:10
+        }), (error:any)=>error?.code==="BUDGET_STORE_UNAVAILABLE" &&
+          /Untrusted acquired PostgreSQL accounting client/.test(error?.message),
+          "mismatched acquired "+label+" must be caught before client.query/BEGIN");
+      }finally{
+        for(const idle of (pool as any)._idle){if(idle.timeoutId)clearTimeout(idle.timeoutId);}
+        (pool as any)._idle.length=0;
+        (pool as any)._clients.length=0;
+        await pool.end();
+      }
+    }
+  }
+});

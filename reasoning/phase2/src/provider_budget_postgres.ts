@@ -3,7 +3,7 @@ import type { Pool, PoolClient } from "pg";
 import type { TenantScope } from "./types.ts";
 import type { ProviderReservation, ProviderSettlement, ProviderSpendLedger, ProviderSpendStatus } from "./provider_budget.ts";
 import { ProviderBudgetError } from "./provider_budget.ts";
-import { pinPoolConnectionOptions } from "./provider_pool_connection_pin.ts";
+import { pinPoolConnectionOptions, pinComparableConnectionValue } from "./provider_pool_connection_pin.ts";
 
 /**
  * Centralized, multi-worker, tenant-scoped provider accounting.
@@ -94,6 +94,47 @@ function trustedAcquiredClient(client:unknown):client is PoolClient {
     return !!release && "value" in release && typeof release.value==="function";
   }catch{return false;}
 }
+// A genuine pg.Client can be returned from the wrong host, DB, SQL role or
+// SSL configuration after an idle-pool compromise. Construct an unconnected
+// canonical Client ONCE at ledger admission; retain only immutable comparisons
+// of routing fields, never an authenticated socket or returned credentials.
+function pinAcquiredClientConnection(pool:Pool):(client:PoolClient)=>boolean {
+  const template=new pg.Client((pool as unknown as {options:any}).options);
+  const expectedParams=template.connectionParameters as unknown as object;
+  const expectedProto=Object.getPrototypeOf(expectedParams);
+  const parameterFields=[
+    "host","port","database","user","ssl","sslnegotiation","isDomainSocket",
+    "options","client_encoding","replication","application_name",
+    "fallback_application_name"
+  ] as const;
+  const clientFields=["host","port","database","user","ssl","sslNegotiation"] as const;
+  function pinFields(object:object,fields:readonly string[]){
+    return fields.map(key=>{
+      const property=Object.getOwnPropertyDescriptor(object,key);
+      if(!property||!("value" in property))
+        throw new TypeError("Cannot pin PostgreSQL client connection identity");
+      return {key,matches:pinComparableConnectionValue(property.value)};
+    });
+  }
+  const expectedParamsFields=pinFields(expectedParams,parameterFields);
+  const expectedClientFields=pinFields(template,clientFields);
+  function matches(object:object,checks:ReturnType<typeof pinFields>):boolean {
+    return checks.every(({key,matches})=>{
+      const property=Object.getOwnPropertyDescriptor(object,key);
+      return !!property&&"value" in property&&matches(property.value);
+    });
+  }
+  return client=>{
+    try{
+      const desc=Object.getOwnPropertyDescriptor(client,"connectionParameters");
+      if(!desc||!("value" in desc)||!desc.value||typeof desc.value!=="object")
+        return false;
+      return Object.getPrototypeOf(desc.value)===expectedProto &&
+        matches(desc.value,expectedParamsFields) &&
+        matches(client,expectedClientFields);
+    }catch{return false;}
+  };
+}
 type Key={tenantId:string;provider:string;modelId:string};
 const budgetWhere="tenant_id=$1 AND provider=$2 AND model_id=$3";
 const budgetValues=(input:Key)=>[input.tenantId,input.provider,input.modelId];
@@ -103,6 +144,7 @@ export class PostgresProviderSpendLedger implements ProviderSpendLedger {
   // Keep the original operator-approved PG pool unforgeable after construction.
   readonly #pool:Pool;
   readonly #poolOptionsUnchanged:()=>boolean;
+  readonly #clientConnectionMatches:(client:PoolClient)=>boolean;
   static isAuthenticLedger(value:unknown):value is PostgresProviderSpendLedger {
     return typeof value==="object"&&value!==null&&
       #authenticBudgetLedger in value&&
@@ -114,6 +156,7 @@ export class PostgresProviderSpendLedger implements ProviderSpendLedger {
   constructor(pool:Pool){
     if(!trustedPool(pool))throw new TypeError("Trusted, unmodified PostgreSQL Pool is required");
     this.#pool=pool;
+    this.#clientConnectionMatches=pinAcquiredClientConnection(pool);
     this.#poolOptionsUnchanged=pinPoolConnectionOptions(pool as unknown as {readonly options:object});
   }
   private async tx<T>(operation:(client:PoolClient)=>Promise<T>):Promise<T>{
@@ -122,7 +165,7 @@ export class PostgresProviderSpendLedger implements ProviderSpendLedger {
     try{client=await this.#pool.connect();}
     catch{throw new ProviderBudgetError("BUDGET_STORE_UNAVAILABLE","Provider spend store unavailable",503);}
     // Do not invoke the acquired client's query or release hooks if untrusted.
-    if(!trustedAcquiredClient(client))throw new ProviderBudgetError("BUDGET_STORE_UNAVAILABLE",
+    if(!trustedAcquiredClient(client)||!this.#clientConnectionMatches(client))throw new ProviderBudgetError("BUDGET_STORE_UNAVAILABLE",
       "Untrusted acquired PostgreSQL accounting client",503);
     try{
       await client.query("BEGIN");
@@ -273,6 +316,7 @@ export class ProtectedPostgresProviderSpendLedger implements ProviderSpendLedger
   #authenticBudgetLedger=true;
   readonly #pool:Pool;
   readonly #poolOptionsUnchanged:()=>boolean;
+  readonly #clientConnectionMatches:(client:PoolClient)=>boolean;
   static isAuthenticLedger(value:unknown):value is ProtectedPostgresProviderSpendLedger {
     return typeof value==="object"&&value!==null &&
       #authenticBudgetLedger in value&&
@@ -284,6 +328,7 @@ export class ProtectedPostgresProviderSpendLedger implements ProviderSpendLedger
   constructor(pool:Pool){
     if(!trustedPool(pool))throw new TypeError("Trusted, unmodified PostgreSQL Pool is required");
     this.#pool=pool;
+    this.#clientConnectionMatches=pinAcquiredClientConnection(pool);
     this.#poolOptionsUnchanged=pinPoolConnectionOptions(pool as unknown as {readonly options:object});
     Object.freeze(this);
   }
@@ -294,7 +339,7 @@ export class ProtectedPostgresProviderSpendLedger implements ProviderSpendLedger
     try{client=await this.#pool.connect();}
     catch{throw new ProviderBudgetError("BUDGET_STORE_UNAVAILABLE","Provider spend store unavailable",503);}
     // Do not invoke the acquired client's query or release hooks if untrusted.
-    if(!trustedAcquiredClient(client))throw new ProviderBudgetError("BUDGET_STORE_UNAVAILABLE",
+    if(!trustedAcquiredClient(client)||!this.#clientConnectionMatches(client))throw new ProviderBudgetError("BUDGET_STORE_UNAVAILABLE",
       "Untrusted acquired PostgreSQL accounting client",503);
     let active=false;
     try{
