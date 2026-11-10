@@ -3,6 +3,7 @@ import type { Pool, PoolClient } from "pg";
 import type { TenantScope } from "./types.ts";
 import type { ProviderReservation, ProviderSettlement, ProviderSpendLedger, ProviderSpendStatus } from "./provider_budget.ts";
 import { ProviderBudgetError } from "./provider_budget.ts";
+import { pinPoolConnectionOptions } from "./provider_pool_connection_pin.ts";
 
 /**
  * Centralized, multi-worker, tenant-scoped provider accounting.
@@ -73,18 +74,21 @@ export class PostgresProviderSpendLedger implements ProviderSpendLedger {
   #authenticBudgetLedger=true;
   // Keep the original operator-approved PG pool unforgeable after construction.
   readonly #pool:Pool;
+  readonly #poolOptionsUnchanged:()=>boolean;
   static isAuthenticLedger(value:unknown):value is PostgresProviderSpendLedger {
     return typeof value==="object"&&value!==null&&
       #authenticBudgetLedger in value&&
       (value as PostgresProviderSpendLedger).reserve===trustedPostgresReserve&&
-      (value as PostgresProviderSpendLedger).settle===trustedPostgresSettle;
+      (value as PostgresProviderSpendLedger).settle===trustedPostgresSettle &&
+      (value as PostgresProviderSpendLedger).#poolOptionsUnchanged();
   }
   constructor(pool:Pool){
     if(!trustedPool(pool))throw new TypeError("Trusted, unmodified PostgreSQL Pool is required");
     this.#pool=pool;
+    this.#poolOptionsUnchanged=pinPoolConnectionOptions(pool as unknown as {readonly options:object});
   }
   private async tx<T>(operation:(client:PoolClient)=>Promise<T>):Promise<T>{
-    if(!trustedPool(this.#pool))throw new ProviderBudgetError("BUDGET_STORE_UNAVAILABLE","Trusted PostgreSQL accounting pool is unavailable",503);
+    if(!trustedPool(this.#pool)||!this.#poolOptionsUnchanged())throw new ProviderBudgetError("BUDGET_STORE_UNAVAILABLE","Trusted PostgreSQL accounting pool is unavailable",503);
     let client:PoolClient;
     try{client=await this.#pool.connect();}
     catch{throw new ProviderBudgetError("BUDGET_STORE_UNAVAILABLE","Provider spend store unavailable",503);}
@@ -236,19 +240,22 @@ Object.freeze(PostgresProviderSpendLedger);
 export class ProtectedPostgresProviderSpendLedger implements ProviderSpendLedger {
   #authenticBudgetLedger=true;
   readonly #pool:Pool;
+  readonly #poolOptionsUnchanged:()=>boolean;
   static isAuthenticLedger(value:unknown):value is ProtectedPostgresProviderSpendLedger {
     return typeof value==="object"&&value!==null &&
       #authenticBudgetLedger in value&&
       (value as ProtectedPostgresProviderSpendLedger).reserve===trustedProtectedReserve &&
-      (value as ProtectedPostgresProviderSpendLedger).settle===trustedProtectedSettle;
+      (value as ProtectedPostgresProviderSpendLedger).settle===trustedProtectedSettle &&
+      (value as ProtectedPostgresProviderSpendLedger).#poolOptionsUnchanged();
   }
   constructor(pool:Pool){
     if(!trustedPool(pool))throw new TypeError("Trusted, unmodified PostgreSQL Pool is required");
     this.#pool=pool;
+    this.#poolOptionsUnchanged=pinPoolConnectionOptions(pool as unknown as {readonly options:object});
     Object.freeze(this);
   }
   private async execute(which:"reserve"|"settle",parameters:unknown[]):Promise<void>{
-    if(!trustedPool(this.#pool))throw new ProviderBudgetError("BUDGET_STORE_UNAVAILABLE",
+    if(!trustedPool(this.#pool)||!this.#poolOptionsUnchanged())throw new ProviderBudgetError("BUDGET_STORE_UNAVAILABLE",
       "Trusted PostgreSQL accounting pool unavailable",503);
     let client:PoolClient;
     try{client=await this.#pool.connect();}

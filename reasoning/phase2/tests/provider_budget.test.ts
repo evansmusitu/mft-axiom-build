@@ -520,3 +520,24 @@ test("trusted accounting ledger constructor verifier cannot be overwritten to bl
   assert.equal(calls,0,"no paid provider traffic from a fake ledger");
   assert.equal(accounting,0,"fake billing hooks must not run");
 });
+
+
+// Offline first-party PostgreSQL Pool regression: a retained Pool.connect method
+// is NOT sufficient if the underlying connection settings change post-admission.
+test("both PostgreSQL budget ledgers fail closed on mutated Pool connection settings",async()=>{
+  for(const Ledger of [phase2.PostgresProviderSpendLedger,phase2.ProtectedPostgresProviderSpendLedger]){
+    const pool=new pg.Pool({host:"127.0.0.1",port:1,user:"synthetic_worker",database:"central_spend",
+      password:"test-only",connectionTimeoutMillis:50,max:1});
+    try{
+      const ledger=new Ledger(pool);
+      assert.equal(Ledger.isAuthenticLedger(ledger),true);
+      (pool.options as any).host="other-unverified-db.invalid";
+      assert.equal(Ledger.isAuthenticLedger(ledger),false,
+        "changed PostgreSQL destination must invalidate authentic budget store before any call");
+      await assert.rejects(()=>ledger.reserve({
+        tenantId:"tenant:guard",provider:"adapter:guard",modelId:"model:guard",
+        billingProvider:"openai",requestId:"intent:guard",requestHash:"f".repeat(64),reserveMicroUsd:10
+      }), (err:any)=>err?.code==="BUDGET_STORE_UNAVAILABLE");
+    }finally{await pool.end();}
+  }
+});
