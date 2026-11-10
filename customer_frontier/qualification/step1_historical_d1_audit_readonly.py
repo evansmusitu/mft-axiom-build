@@ -217,10 +217,10 @@ def inspect_windows(window_pages):
     if not isinstance(window_pages, list) or len(window_pages) != len(WINDOWS):
         raise NoGo("HISTORICAL_WINDOW_COVERAGE_INCOMPLETE")
     merged = {}
-    for (start, end), pages in zip(WINDOWS, window_pages):
+    for window_index, ((start, end), pages) in enumerate(zip(WINDOWS, window_pages)):
         for event in inspect_logs(pages, _events=True):
             if not start <= event["date"] < end:
-                raise NoGo("AUDIT_EVENT_OUTSIDE_BOUNDED_PROVIDER_WINDOW")
+                raise NoGo("AUDIT_WINDOW_" + str(window_index + 1) + "__EVENT_OUTSIDE_BOUNDED_PROVIDER_WINDOW")
             event_id = event["event_id_sha256"]
             if event_id in merged and merged[event_id] != event:
                 raise NoGo("HISTORICAL_OVERLAP_EVENT_CONFLICT")
