@@ -50,6 +50,16 @@ class HostedTopology(unittest.TestCase):
             with self.subTest(case=workers,settings=settings),self.assertRaises(ValueError):
                 m.assess_topology(workers,settings)
 
+    def test_safely_accepts_exact_observed_catalog_68_but_never_over_budget(self):
+        workers=[{"id":STAGE}]+[{"id":f"private-worker-{i:02d}"} for i in range(67)]
+        settings={item["id"]:setting() for item in workers}
+        out=m.assess_topology(workers,settings)
+        self.assertEqual(out["workers_observed"],68)
+        self.assertFalse(out["identity_reuse_authorized"])
+        workers += [{"id":f"overflow-{i:02d}"} for i in range(13)]
+        settings.update({item["id"]:setting() for item in workers if item["id"] not in settings})
+        with self.assertRaises(ValueError):m.assess_topology(workers,settings)
+
     def test_synthetic_ideal_topology_alone_does_not_authorize_live_login(self):
         name="musitu-axiom-zitadel-private"
         out=m.assess_topology([{"id":STAGE},{"id":name}],
