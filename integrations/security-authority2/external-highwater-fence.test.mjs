@@ -35,6 +35,27 @@ test('tampered signed proof is denied',async()=>{const x=await scenario();x.muta
 test('incorrect signer or administrator account pin denies',async()=>{const x=await scenario();await assert.rejects(externalHighwaterFence({...x.args,pin:{...x.args.pin,account_id:'e'.repeat(32)}}),/HIGHWATER_ACCOUNT_PIN_MISMATCH_HOLD/)});
 test('independent readback mismatched tip denies permit',async()=>{const x=await scenario();x.mutate((e,url)=>url.endsWith('readback')?{...e,payload:{...e.payload,head:sha('c')}}:e);await assert.rejects(externalHighwaterFence(x.args),/HIGHWATER_SIGNATURE_INVALID_HOLD/)});
 test('network/timeout ambiguity never issues a permit',async()=>{const x=await scenario();await assert.rejects(externalHighwaterFence({...x.args,fetchImpl:async()=>{throw Error('disconnect')}}),/HIGHWATER_TRANSPORT_AMBIGUOUS_HOLD/)});
+
+test('B27 bounded high-water request rejects provider ignoring AbortSignal rather than hanging',async()=>{
+ const x=await scenario();
+ const result=await Promise.race([
+   externalHighwaterFence({...x.args,timeoutMs:100,fetchImpl:()=>new Promise(()=>{})})
+     .then(()=>({kind:'accepted'}),e=>({kind:'denied',reason:e.message})),
+   new Promise(resolve=>setTimeout(()=>resolve({kind:'unbounded'}),550))
+ ]);
+ assert.deepEqual(result,{kind:'denied',reason:'HIGHWATER_TRANSPORT_AMBIGUOUS_HOLD'});
+});
+test('B27 bounded high-water readbody rejects provider that never finishes body',async()=>{
+ const x=await scenario();
+ const result=await Promise.race([
+   externalHighwaterFence({...x.args,timeoutMs:100,fetchImpl:async()=>({
+     status:200,text:()=>new Promise(()=>{})
+   })}).then(()=>({kind:'accepted'}),e=>({kind:'denied',reason:e.message})),
+   new Promise(resolve=>setTimeout(()=>resolve({kind:'unbounded'}),550))
+ ]);
+ assert.deepEqual(result,{kind:'denied',reason:'HIGHWATER_TRANSPORT_AMBIGUOUS_HOLD'});
+});
+
 test('shared read-write credential is rejected',async()=>{const x=await scenario();await assert.rejects(externalHighwaterFence({...x.args,read_token:x.args.write_token}),/HIGHWATER_READ_WRITE_ROLES_NOT_SEPARATED_HOLD/)});
 test('concurrent duplicate admissions allow at most one',async()=>{const x=await scenario();const rs=await Promise.allSettled(Array.from({length:8},()=>externalHighwaterFence(x.args)));assert.equal(rs.filter(r=>r.status==='fulfilled').length,1)});
 test('negative counterexample: if independently held witness is also reset, an old admission can be reissued',async()=>{
