@@ -1,0 +1,94 @@
+name: AXIOM governed whole-product source snapshot for 10 Nov handoff (NO RELEASE)
+on:
+  push:
+    branches: [handoff/axiom-source-snapshots-20261110]
+    paths:
+      - .github/workflows/axiom-source-snapshot-handoff-20261110.yml
+permissions:
+  contents: read
+concurrency:
+  group: axiom-source-handoff-once-20261110
+  cancel-in-progress: false
+jobs:
+  freeze-exact-existing-repository-refs:
+    if: >-
+      github.repository == 'evansmusitu/mft-axiom-build' &&
+      github.actor == 'evansmusitu' &&
+      github.ref == 'refs/heads/handoff/axiom-source-snapshots-20261110' &&
+      github.run_attempt == 1
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - name: Read tracked Git trees, no persistent credentials
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Export source snapshots for exact independently identified SHA commits
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p source_snapshots
+          cat > source_snapshots/EXACT_REFS.txt <<'END_REFS'
+          MAIN c3c5aaab90e94f1ca84ac9903f9d481c23c4f350
+          PR001_FRONTIER_DRAFT 8fc1fbb7c5ebbcc1604ecf24c5f4594f2d5667e3
+          PR083_FULLSTACK_VETO fdc89d48f7aa888c67afc4ece3465328cc2a77f6
+          PR190_SANDBOX_REVIEW c22bf1930b8576bc6b3bcc25ffcd40bd08c93ddb
+          PR192_B27_CUSTODY_REVIEW 67135eaa7b9ae323c465f52ec7ba225a2599b6cc
+          PR200_PAYNOW_REVIEW 62fcd29dad7da03c8c515c7daf3b14a1700876d4
+          PR204_OAUTH_RECOVERY_REVIEW a917a04cdd85da38085b41a9cbb0c11131a9998b
+          PR205_INTEGRATION_DRAFT 99d50f0ceae7ed046b6d10748414a61e079b00d0
+          PR206_IDP_HOSTED_READONLY e37217860eacdb47f9d872900f2d35854f4c66ee
+          PR207_IDP_D1_SCHEMA a2931f93af07007db645ecf673cedbc6231083af
+          PR208_IDP_CUSTODY_TOPOLOGY b7aef2c580cc6e76b425c3db1c0f077c330a5895
+          PR209_IDP_CANONICAL_BOOKMARK f4aae9b5fc10aae79a8ceed9b8ccb642030b1cf5
+          PR212_IDP_AGGREGATES_LATEST 6b5fdb139445d7631717b55ef1b24c75b7e589ff
+          END_REFS
+          python3 - <<'PY'
+          import hashlib, json, subprocess, pathlib, os
+          root=pathlib.Path('source_snapshots')
+          refs={}
+          for line in (root/'EXACT_REFS.txt').read_text().splitlines():
+              alias,sha=line.split(' ',1)
+              if len(sha)!=40 or any(c not in '0123456789abcdef' for c in sha):
+                  raise SystemExit('INVALID_GITHUB_COMMIT_PIN')
+              ty=subprocess.run(['git','cat-file','-t',sha],capture_output=True,text=True,check=True).stdout.strip()
+              if ty!='commit':raise SystemExit('REF_DOES_NOT_RESOLVE_TO_COMMIT')
+              tree=subprocess.check_output(['git','rev-parse',sha+'^{tree}'],text=True).strip()
+              output=root/(alias+'__'+sha[:12]+'.zip')
+              with output.open('wb') as dst:
+                  subprocess.run(['git','archive','--format=zip',sha],stdout=dst,check=True)
+              if output.stat().st_size==0:raise SystemExit('EMPTY_SOURCE_ARCHIVE')
+              import zipfile
+              with zipfile.ZipFile(output) as z:
+                  if z.testzip() is not None:raise SystemExit('ARCHIVE_CRC_FAILURE')
+                  paths=z.namelist()
+                  if not paths or len(paths)!=len(set(paths)):raise SystemExit('ZIP_SOURCE_FILES_NOT_UNIQUE')
+                  if any(p.startswith('/') or '..' in pathlib.PurePosixPath(p).parts for p in paths):
+                      raise SystemExit('UNSAFE_ZIP_ENTRY')
+              refs[alias]={'commit_sha':sha,'git_tree_sha':tree,
+                  'archive_name':output.name,'archive_size_bytes':output.stat().st_size,
+                  'archive_sha256':hashlib.sha256(output.read_bytes()).hexdigest(),
+                  'tracked_file_count':len(paths),
+                  'repo':'evansmusitu/mft-axiom-build',
+                  'snapshot_only_not_merged':alias!='MAIN'}
+          assert len(refs)==13
+          manifest={'schema':'musitu.axiom.20261110.exact_source_git_archives.v1',
+                    'whole_product_historical_authority':'20261107 verified predecessor provided separately',
+                    'no_production_changes':True,'release':'NOT_RELEASE',
+                    'pr1_policy':'DRAFT_UNMERGED',
+                    'b27':'FAILED_IN_SYNTHETIC_ATTACK',
+                    'pr83_fullstack':'DELIBERATE_SECURITY_VETO',
+                    'refs':refs}
+          (root/'SOURCE_ARCHIVE_MANIFEST.json').write_text(json.dumps(manifest,indent=2,sort_keys=True)+'\n')
+          print('AXIOM_HANDOFF_EXACT_GITHUB_SOURCE_ARCHIVES_PASS',len(refs),
+                sum(x['tracked_file_count'] for x in refs.values()),'tracked-source-file-instances')
+          PY
+      - name: Upload all detached source trees and manifest, no secrets
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: MUSITU_AXIOM_20261110_EXACT_GITHUB_SOURCE_13_REFS_NO_RELEASE
+          path: source_snapshots/
+          if-no-files-found: error
+          retention-days: 30
+          compression-level: 0
