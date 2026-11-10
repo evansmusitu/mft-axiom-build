@@ -34,7 +34,7 @@ WINDOWS = tuple(((BOUNDS[i] - dt.timedelta(days=1 if i else 0)).isoformat(),
                  (BOUNDS[i + 1] + dt.timedelta(days=1 if i < len(BOUNDS)-2 else 0)).isoformat())
                 for i in range(len(BOUNDS)-1))
 MAX_PAGES = 12
-PAGE_LIMIT = 100
+PAGE_LIMIT = 1000  # Official Cloudflare maximum, avoids cross-window cursor drift
 HEX_SHA = re.compile(r"[0-9a-f]{64}\Z")
 CURSOR = re.compile(r"[A-Za-z0-9_+=/.-]{1,2048}\Z")
 UTC = dt.timezone.utc
@@ -260,12 +260,12 @@ def get(path, token, opener):
         with opener.open(req, timeout=18) as response:
             if response.status != 200:
                 raise NoGo("PROVIDER_NON_200")
-            content = response.read(500001)
+            content = response.read(5000001)
     except urllib.error.HTTPError as exc:
         raise NoGo("PROVIDER_HTTP_"+str(exc.code)) from None
     except (OSError, TimeoutError):
         raise NoGo("PROVIDER_NETWORK_UNAVAILABLE") from None
-    if len(content) > 500000:
+    if len(content) > 5000000:
         raise NoGo("PROVIDER_OVERSIZE")
     try:
         return json.loads(content.decode("utf-8"))
