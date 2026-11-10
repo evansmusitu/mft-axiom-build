@@ -1,0 +1,140 @@
+name: AXIOM Step1 legacy D1 origin and custody aggregate GET (NO RELEASE)
+on:
+  push:
+    branches:
+      - review/axiom-step1-d1-origin-provider-audit-readonly-20261110
+    paths:
+      - .github/workflows/axiom-step1-d1-custody-aggregates-20261110.yml
+permissions:
+  contents: read
+jobs:
+  probe:
+    if: github.repository == 'evansmusitu/mft-axiom-build' && github.actor == 'evansmusitu'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 6
+    steps:
+      - name: Pin D1 origin and read custody/time-travel evidence without customer SQL
+        shell: bash
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+        run: |
+          python3 - <<'PY'
+          import datetime as dt,hashlib,json,os,urllib.error,urllib.parse,urllib.request
+          ACCOUNT="93f395f5121954671f92fffa453d6b61"
+          D1="ccc473f1-fbb5-4b8d-8a24-45f3696ac10f"
+          NAME_SHA="7e98510fc457a669c29dd85ab1d87cc758fe0ba74d0833c20863b53d599b5b36"
+          token=os.getenv("CLOUDFLARE_API_TOKEN","")
+          if not token or any(ch in token for ch in "\r\n"):raise SystemExit("TOKEN_NOT_AVAILABLE")
+          class NoRedirect(urllib.request.HTTPRedirectHandler):
+              def redirect_request(self,*args,**kw):return None
+          opener=urllib.request.build_opener(NoRedirect())
+          root="https://api.cloudflare.com/client/v4/accounts/"+ACCOUNT
+          def sha(text):return hashlib.sha256(text.encode()).hexdigest()
+          def get(path):
+              req=urllib.request.Request(root+path,method="GET",headers={"Authorization":"Bearer "+token,"Accept":"application/json"})
+              try:
+                  with opener.open(req,timeout=18) as response:
+                      data=response.read(7000001)
+                      if len(data)>7000000:raise ValueError("BODY_OVER_LIMIT")
+                      return response.status,json.loads(data)
+              except urllib.error.HTTPError as exc:return exc.code,None
+              except (OSError,ValueError,TimeoutError):return "UNAVAILABLE",None
+          r={"schema":"AXIOM_STEP1_EXISTING_D1_ORIGIN_CUSTODY_BOOKMARK_DIAGNOSTIC_V1",
+              "database_uuid":D1,"method":"GET_ONLY","status":"NO_GO_NOT_REUSE_QUALIFIED",
+              "d1_metadata_sha256_match":False,"created_at_utc":None,
+              "v1_near_creation_events":0,"v1_exact_uuid_resource_matches":0,
+              "v1_metadata_uuid_mentions":0,"v1_metadata_exact_name_mentions":0,
+              "v1_potential_create_action_events":0,"v1_origin_candidates":[],
+              "account_members_status":None,"account_member_count":None,"account_role_counts":{},
+              "time_travel_bookmark_status":None,"time_travel_bookmark_sha256":None,
+              "customer_sql_read":False,"raw_audit_exported":False,"actor_pii_exported":False,
+              "database_mutations":0,"historical_ownership_qualified":False,
+              "current_backup_qualified":False,"independent_restore_qualified":False,
+              "least_privilege_qualified":False,"data_separation_qualified":False,
+              "reuse_authorized":False,"step_2_authorized":False,"release_authority":False}
+          code,db=get("/d1/database/"+D1)
+          r["metadata_http_status"]=code
+          if code==200 and isinstance(db,dict) and db.get("success") is True:
+              item=db.get("result") or {}
+              if item.get("uuid")==D1 and isinstance(item.get("name"),str) and sha(item["name"])==NAME_SHA:
+                  r["d1_metadata_sha256_match"]=True
+                  name=item["name"]
+                  created=item.get("created_at")
+                  r["created_at_utc"]=created if isinstance(created,str) else None
+                  if isinstance(created,str):
+                      when=dt.datetime.fromisoformat(created.replace("Z","+00:00")).astimezone(dt.timezone.utc)
+                      a=(when-dt.timedelta(minutes=15)).isoformat().replace("+00:00","Z")
+                      b=(when+dt.timedelta(minutes=15)).isoformat().replace("+00:00","Z")
+                      query=urllib.parse.urlencode({"since":a,"before":b,"page":1,"per_page":1000,"direction":"asc"})
+                      log_code,log=get("/audit_logs?"+query)
+                      r["v1_http_status"]=log_code
+                      if log_code==200 and isinstance(log,dict) and log.get("success") is True and isinstance(log.get("result"),list):
+                          entries=log["result"]
+                          r["v1_near_creation_events"]=len(entries)
+                          # A non-full first page is only discovery; no completion claim
+                          # without cursor/page exhaustion (separate prior v1 check).
+                          for e in entries:
+                              if not isinstance(e,dict):continue
+                              res=e.get("resource") or {}
+                              action=e.get("action") or {}
+                              if not isinstance(res,dict) or not isinstance(action,dict):continue
+                              resource_exact=res.get("id")==D1
+                              meta=e.get("metadata")
+                              metadata_json=json.dumps(meta,sort_keys=True,ensure_ascii=True) if isinstance(meta,(dict,list,str)) else ""
+                              new=e.get("newValue") if isinstance(e.get("newValue"),str) else ""
+                              old=e.get("oldValue") if isinstance(e.get("oldValue"),str) else ""
+                              meta_uuid=D1 in (metadata_json+"\n"+new+"\n"+old)
+                              meta_name=name in (metadata_json+"\n"+new+"\n"+old)
+                              if resource_exact:r["v1_exact_uuid_resource_matches"]+=1
+                              if meta_uuid:r["v1_metadata_uuid_mentions"]+=1
+                              if meta_name:r["v1_metadata_exact_name_mentions"]+=1
+                              typ=str(action.get("type","")).lower()
+                              create=("create" in typ or "provision" in typ) and action.get("result") is True
+                              if create:r["v1_potential_create_action_events"]+=1
+                              if create and (resource_exact or meta_uuid or meta_name):
+                                  actor=e.get("actor") or {}
+                                  actor_id=actor.get("id") if isinstance(actor,dict) else None
+                                  ident=e.get("id")
+                                  r["v1_origin_candidates"].append({
+                                      "event_sha256":sha(ident) if isinstance(ident,str) else None,
+                                      "actor_id_sha256":sha(actor_id) if isinstance(actor_id,str) else None,
+                                      "resource_id_exact":resource_exact,"metadata_uuid_match":meta_uuid,
+                                      "metadata_name_match":meta_name,
+                                      "owner_authorized":False})
+          bmcode,bm=get("/d1/database/"+D1+"/time_travel/bookmark")
+          r["time_travel_bookmark_status"]=bmcode
+          if bmcode==200 and isinstance(bm,dict) and bm.get("success") is True:
+              bookmark=(bm.get("result") or {}).get("bookmark")
+              if isinstance(bookmark,str) and 8<len(bookmark)<512:
+                  r["time_travel_bookmark_sha256"]=sha(bookmark)
+                  r["time_travel_bookmark_present"]=True
+          memcode,members=get("/members?page=1&per_page=100")
+          r["account_members_status"]=memcode
+          if memcode==200 and isinstance(members,dict) and members.get("success") is True and isinstance(members.get("result"),list):
+              r["account_member_count"]=len(members["result"])
+              for member in members["result"]:
+                  roles=member.get("roles",[]) if isinstance(member,dict) else []
+                  for role in roles:
+                      if not isinstance(role,dict):continue
+                      # Hash role name to avoid exporting team-specific private labels.
+                      label=role.get("name")
+                      if isinstance(label,str):
+                          key=sha(label)
+                          r["account_role_counts"][key]=r["account_role_counts"].get(key,0)+1
+          data=(json.dumps(r,indent=2,sort_keys=True)+"\n").encode()
+          n="axiom_step1_d1_custody_aggregate_20261110.json"
+          open(n,"wb").write(data)
+          open(n+".sha256","w").write(hashlib.sha256(data).hexdigest()+"  "+n+"\n")
+          print("AXIOM_D1_ORIGIN_CUSTODY_BOOKMARK_DIAGNOSTIC_NO_GO; ONLY_GET")
+          
+          PY
+      - name: Save only sanitized provider aggregate counts and bookmark hash
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: axiom-stage-d1-custody-origin-bookmark-20261110
+          retention-days: 5
+          if-no-files-found: error
+          path: |
+            axiom_step1_d1_custody_aggregate_20261110.json
+            axiom_step1_d1_custody_aggregate_20261110.json.sha256
