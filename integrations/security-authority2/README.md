@@ -51,12 +51,12 @@ SHA-256-identified policy readback with `release_eligible:false` and
 `independently_verified:false`; it is **not** a reviewer approval,
 an administrator-proof retention policy or a destructive replay pass.
 
-The command makes **two separately bounded, authenticated read-only Cloudflare GETs**:
-`/accounts/67469478aa9349fa0a57fe3a72da200a/r2/buckets/musitu-axiom-authority2-worm/lock`
+The command makes **three separately bounded, authenticated read-only Cloudflare GETs**:
+`/accounts/67469478aa9349fa0a57fe3a72da200a/r2/buckets/musitu-axiom-b27-highwater-a2/lock`
 and
 `/accounts/67469478aa9349fa0a57fe3a72da200a/workers/scripts/axiom-security-authority2-highwater/settings`.
-The second read verifies the exact Durable Object class `HIGHWATER_STATE / Authority2Highwater`,
-R2 binding `HIGHWATER_WORM / musitu-axiom-authority2-worm`, and existence
+The third GET reads `/accounts/67469478aa9349fa0a57fe3a72da200a/workers/scripts/axiom-security-authority2-highwater/deployments?page=1&per_page=1` and verifies one version at 100% of deployed traffic; this is metadata, not source-byte or signer attestation. The second read verifies the exact Durable Object class `HIGHWATER_STATE / Authority2Highwater`,
+R2 binding `HIGHWATER_WORM / musitu-axiom-b27-highwater-a2`, and existence
 of the three named Worker secrets **without revealing their values**. It rejects
 extra/duplicated bindings. A Cloudflare token restricted to R2 configuration
 read and Workers metadata read may be used when supported by the provider.
@@ -73,3 +73,7 @@ All remain independent release gates.
 An independently retained reviewer transcript and signed custody evidence
 remain required. The external repo-side GitHub immutable anchor does not,
 by itself, qualify operator/admin independence.
+
+### Provider-backed bucket identity reconciliation (10 November 2026)
+
+Cloudflare provider-origin workflow [42641634621](https://github.com/evansmusitu/mft-axiom-build/actions/runs/42641634621) recorded actual creation and policy readback for bucket `musitu-axiom-b27-highwater-a2`, account `67469478aa9349fa0a57fe3a72da200a`, indefinite rule `b27-indefinite` at prefix `b27/`. A separate read-only workflow [42639682908](https://github.com/evansmusitu/mft-axiom-build/actions/runs/42639682908) completed inventory with exactly one bucket. The previous `musitu-axiom-authority2-worm` name was an unprovisioned placeholder and MUST NOT be used for provider acceptance. The Wrangler sample remains non-deployable by default (`workers_dev = false`, `preview_urls = false`, no routes). Credentials used in the provider-write workflow were builder-controlled: this evidence proves provider creation/readback, not independent administration, external signing custody or B27 global nonrollback. Do not merge, deploy, or remove the release veto.
