@@ -23,8 +23,8 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          test "$(git hash-object customer_frontier/qualification/step1_historical_d1_audit_readonly.py)" = '57bf56b9bb3cf047f41d72442655b98bf9bea453'
-          test "$(git hash-object customer_frontier/tests/test_step1_historical_d1_audit_readonly.py)" = 'bc8598e6208286bcc67eb7da4bcf11121972df4f'
+          test "$(git hash-object customer_frontier/qualification/step1_historical_d1_audit_readonly.py)" = 'b62ec40e1455b76e8738594c06477fc989af02fd'
+          test "$(git hash-object customer_frontier/tests/test_step1_historical_d1_audit_readonly.py)" = 'e322a625d13c4709af4e2e73fa5c27d56364a57c'
           python3 -m py_compile customer_frontier/qualification/step1_historical_d1_audit_readonly.py customer_frontier/tests/test_step1_historical_d1_audit_readonly.py
           python3 -m unittest discover -s customer_frontier/tests -p test_step1_historical_d1_audit_readonly.py -v
       - name: GET-only provider resource audit; output sanitized and never authorize reuse
