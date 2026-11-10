@@ -52,9 +52,14 @@ export async function publishGithubCheckpoint({pin,token,payload,fetchImpl=fetch
   successful(await api('POST',root+'/releases/'+draft.id+'/assets?name=checkpoint.json',bytes,true),201);
   successful(await api('PATCH',root+'/releases/'+draft.id,{draft:false,prerelease:true,make_latest:'false'}),200);
   const proof={schema:SCHEMA,repository_id:pin.repository_id,namespace:pin.namespace,tag,release_id:draft.id,asset_digest:await contentDigest(pin,payload)};
-  await verify(api,pin,payload,proof);return proof;
+  await verify(api,pin,payload,proof);
+  // Close same-name repository replacement between initial pin check and proof.
+  await identity(api,pin);return proof;
 }
 export async function verifyGithubCheckpoint({pin,token,payload,fetchImpl=fetch}){
   pin=anchorPin(pin);const api=transport(pin,token,fetchImpl);await identity(api,pin);
-  return verify(api,pin,payload,payload.anchor);
+  await verify(api,pin,payload,payload.anchor);
+  // A valid release proof from a newly replaced same-name repository cannot
+  // inherit the original repository's trusted identity.
+  await identity(api,pin);return true;
 }
