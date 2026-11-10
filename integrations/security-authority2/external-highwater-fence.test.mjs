@@ -65,3 +65,18 @@ test('B27: ambiguous readback after committed append must deny consumer permissi
  await assert.rejects(Promise.race([result,new Promise((_,reject)=>setTimeout(()=>reject(Error('B27_READBACK_DEADLINE_NOT_ENFORCED')),450))]),/HIGHWATER_TRANSPORT_AMBIGUOUS_HOLD/);
  assert.equal(x.peek().sequence,1,'external CAS may have advanced; caller must HOLD and never retry automatically');
 });
+
+test('B27: streamed response reader ignoring abort cannot stall admission',async()=>{
+  const x=await scenario();
+  const stream=new ReadableStream({start(){}});
+  const result=externalHighwaterFence({...x.args,
+    fetchImpl:async()=>new Response(stream,{status:200}),timeoutMs:100});
+  await assert.rejects(Promise.race([result,new Promise((_,reject)=>setTimeout(()=>reject(Error('B27_STREAM_READER_DEADLINE_NOT_ENFORCED')),450))]),/HIGHWATER_TRANSPORT_AMBIGUOUS_HOLD/);
+});
+test('B27: oversized streaming provider response rejected before JSON parse or permit',async()=>{
+ const x=await scenario();
+ const response=()=>new Response(new ReadableStream({start(controller){
+  controller.enqueue(new Uint8Array(18000));controller.close();
+ }}),{status:200,headers:{'content-type':'application/json'}});
+ await assert.rejects(externalHighwaterFence({...x.args,fetchImpl:async()=>response(),timeoutMs:500}),/HIGHWATER_RESPONSE_OVERSIZE_HOLD/);
+});
