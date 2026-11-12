@@ -27,12 +27,12 @@ jobs:
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
         with:
           persist-credentials: false
-      - name: Verify exact source hashes and 12 adversarial tests before Cloudflare token
+      - name: Verify exact source hashes and 14 adversarial tests before Cloudflare token
         shell: bash
         run: |
           set -euo pipefail
-          test "$(git hash-object qualification/mcn072_cloudflare_topology.py)" = "104c6d6dd8333e73b9ef165075b5cbc327634d44"
-          test "$(git hash-object tests/test_mcn072_cloudflare_topology.py)" = "eaae7cd8344e0641bbc0c359d2a20c5b940ab5cd"
+          test "$(git hash-object qualification/mcn072_cloudflare_topology.py)" = "4441bac967e5b1ce76d4042ff792824d34563e2e"
+          test "$(git hash-object tests/test_mcn072_cloudflare_topology.py)" = "709db5c64c18c4c02d9069ce981f52ff9e3dbb2e"
           python3 -B -m py_compile qualification/mcn072_cloudflare_topology.py tests/test_mcn072_cloudflare_topology.py
           python3 -B -m unittest discover -s tests -p 'test_mcn072_cloudflare_topology.py' -v
       - name: Read account-pinned Cloudflare Queues producer and consumer topology GET only
