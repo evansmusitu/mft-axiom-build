@@ -272,7 +272,7 @@ test("Phase 2.10V explanation checks record hash after replay, denying shared-re
 });
 
 
-test("Phase 2.10W explanation requires a replay receipt bound to the exact execution record hash",async()=>{
+test("Phase 2.10X explanation requires a replay receipt bound to the exact execution record hash",async()=>{
   const phase2:any=await import("../src/index.ts");
   for(const mode of ["missing-bound-method","different-replayed-record"] as const){
     const adapter=fakeAdapter(),stored=execution(),put:any[]=[];
