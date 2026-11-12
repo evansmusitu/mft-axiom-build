@@ -180,7 +180,10 @@ export class ModelExplanationService {
     }
   }
 
-  async explain(context:AuthorizedTenantContext,executionIdInput:string,request:ModelExplainRequest,requestHashInput:string):Promise<ModelExplainResult>{
+  async explain(rawContext:AuthorizedTenantContext,executionIdInput:string,request:ModelExplainRequest,requestHashInput:string):Promise<ModelExplainResult>{
+    // Keep proof/audit identity bound to the exact admission context, not a
+    // caller-owned object that may be modified across awaits.
+    const context:AuthorizedTenantContext=structuredClone(rawContext);
     const executionId=required(executionIdInput,"executionId");
     authorized(context,this.tenant.tenantId,executionId);
     const requestHash=digest(requestHashInput,"requestHash");
