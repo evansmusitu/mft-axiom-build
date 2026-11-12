@@ -7,7 +7,7 @@ import subprocess
 import tempfile
 import unittest
 
-SCRIPT = pathlib.Path(__file__).resolve().parents[1] / "step1_owner_device_sign_proposal.sh"
+SCRIPT = pathlib.Path(__file__).resolve().parents[1] / "qualification" / "step1_owner_device_sign_proposal.sh"
 PLAN = b'{"schema":"offline-test-only","action":"PROPOSE_NEW_DISPOSABLE_D1_ONLY","release_status":"NOT_RELEASE"}'
 DIGEST = hashlib.sha256(PLAN).hexdigest()
 
