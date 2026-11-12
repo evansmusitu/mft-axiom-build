@@ -42,7 +42,7 @@ def exact_int(value, limit):
 
 def fetch(path, token, opener):
     if not (re.fullmatch(re.escape(PREFIX) + r'\?page=[1-5]&per_page=100',path)
-            or re.fullmatch(re.escape(PREFIX) + r'/[0-9a-f]{32}(?:/consumers)?',path)):
+            or re.fullmatch(re.escape(PREFIX) + r'/[0-9a-f]{32}(?:/consumers(?:/[0-9a-f]{32})?)?',path)):
         raise ProbeFailure('UNAPPROVED_URL_PATH')
     if not isinstance(token,str) or not token or any(c.isspace() for c in token):
         raise ProbeFailure('TOKEN_UNAVAILABLE_OR_INVALID')
@@ -127,6 +127,7 @@ def inspect(token, opener):
         p=checked_endpoints(body.get('producers'),body.get('producers_total_count'),'PRODUCER')
         consumer_rows=body.get('consumers')
         consumer_list_hash=None
+        consumer_detail_hashes=[]
         if isinstance(consumer_rows,list) and any(
             isinstance(c,dict) and c.get('type')=='worker' and
             (not isinstance(c.get('script_name'),str) or not c.get('script_name'))
@@ -155,6 +156,22 @@ def inspect(token, opener):
                 name=old.get('script_name')
                 if old['type']=='worker' and (not isinstance(name,str) or not name):
                     name=incoming.get('script_name')
+                    if not isinstance(name,str) or not name:
+                        # Lookup one consumer using an exact account/queue/id-pinned
+                        # GET. Never infer a Worker script from an optional field.
+                        exact,digest_exact=fetch(
+                            f'{PREFIX}/{qid}/consumers/{old["consumer_id"]}',token,opener)
+                        exact_item=exact.get('result')
+                        if (type(exact_item) is not dict or
+                            exact_item.get('consumer_id')!=old['consumer_id'] or
+                            exact_item.get('type')!='worker'):
+                            raise ProbeFailure('CONSUMER_EXACT_IDENTITY_CONFLICT')
+                        for prior in (old,incoming):
+                            queue_name=prior.get('queue_name')
+                            if queue_name is not None and exact_item.get('queue_name')!=queue_name:
+                                raise ProbeFailure('CONSUMER_EXACT_QUEUE_NAME_CONFLICT')
+                        name=exact_item.get('script_name')
+                        consumer_detail_hashes.append(digest_exact)
                 elif old['type']=='worker' and incoming.get('script_name') not in (None,name):
                     raise ProbeFailure('CONSUMER_LIST_SCRIPT_CONFLICT')
                 resolved.append({**old, 'script_name':name} if old['type']=='worker' else old)
@@ -170,7 +187,8 @@ def inspect(token, opener):
           'http_pull_consumer_count':c['http_pull_count'],
           'producer_target_sha256':p['target_sha256'],
           'consumer_target_sha256':c['target_sha256'],
-          'consumer_list_sha256':consumer_list_hash})
+          'consumer_list_sha256':consumer_list_hash,
+          'consumer_detail_sha256':consumer_detail_hashes})
     return {'inventory_sha256':list_hashes,'queue_count':len(output),'queues':output,
             'tenant_mapping_verified':False,'postgres_scheduler_correlated':False,
             'independent_witness_verified':False,'mcn072_qualified':False}
