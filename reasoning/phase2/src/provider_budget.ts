@@ -103,7 +103,14 @@ export class SqliteProviderSpendLedger implements ProviderSpendLedger {
     const limitMicroUsd=Number(row.maximum),chargedMicroUsd=Number(row.charged),reservedMicroUsd=Number(row.reserved);
     return {limitMicroUsd,chargedMicroUsd,reservedMicroUsd,availableMicroUsd:Math.max(0,limitMicroUsd-chargedMicroUsd-reservedMicroUsd)};
   }
-  reserve(input:ProviderReservation):void{
+  reserve(rawInput:ProviderReservation):void{
+    // Snapshot untrusted getters before transaction: every budget check and
+    // mutation must use the same validated tenant, request and amount.
+    const input:ProviderReservation={
+      tenantId:rawInput.tenantId,provider:rawInput.provider,modelId:rawInput.modelId,
+      requestId:rawInput.requestId,requestHash:rawInput.requestHash,
+      reserveMicroUsd:rawInput.reserveMicroUsd,billingProvider:rawInput.billingProvider
+    };
     validateRequest(input);money(input.reserveMicroUsd,"reserveMicroUsd",true);
     this.transaction(()=>{
       const row=this.#db.prepare("SELECT limit_micro_usd AS maximum,charged_micro_usd AS charged,reserved_micro_usd AS reserved,suspended FROM axiom_provider_spend_budgets WHERE tenant_id=? AND provider=? AND model_id=?")
@@ -127,7 +134,13 @@ export class SqliteProviderSpendLedger implements ProviderSpendLedger {
         .run(input.reserveMicroUsd,input.tenantId,input.provider,input.modelId);
     });
   }
-  settle(input:ProviderSettlement):void{
+  settle(rawInput:ProviderSettlement):void{
+    const input:ProviderSettlement={
+      tenantId:rawInput.tenantId,provider:rawInput.provider,modelId:rawInput.modelId,
+      requestId:rawInput.requestId,requestHash:rawInput.requestHash,
+      chargeMicroUsd:rawInput.chargeMicroUsd,responseHash:rawInput.responseHash,
+      billingProvider:rawInput.billingProvider
+    };
     validateRequest(input);money(input.chargeMicroUsd,"chargeMicroUsd");
     if(!/^[0-9a-f]{64}$/.test(input.responseHash))throw new TypeError("responseHash must be SHA-256");
     const overage=this.transaction(()=>{
