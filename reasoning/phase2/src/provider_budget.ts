@@ -43,6 +43,16 @@ function token(value:unknown,label:string):number{
   if(!Number.isSafeInteger(value)||Number(value)<0)throw new ProviderBudgetError("BUDGET_USAGE_UNVERIFIABLE",label+" is not valid provider token usage",502);
   return Number(value);
 }
+// JSON.parse objects inherit Object.prototype; only own vendor usage
+// fields qualify as billable token evidence or discounted cache classes.
+function reportedToken(usage:Record<string,unknown>,key:string,required=false):number{
+  if(!Object.hasOwn(usage,key)){
+    if(required)throw new ProviderBudgetError("BUDGET_USAGE_UNVERIFIABLE",
+      "Provider usage is missing required "+key,502);
+    return 0;
+  }
+  return token(usage[key],key);
+}
 function validateRequest(input:ProviderReservation|ProviderSettlement):void{
   named(input.tenantId,"tenantId");named(input.provider,"provider");named(input.modelId,"modelId");named(input.requestId,"requestId");
   if(!/^[0-9a-f]{64}$/.test(input.requestHash))throw new TypeError("requestHash must be a SHA-256 digest");
@@ -203,18 +213,23 @@ export function pricedProviderUsage(responseBody:string,provider:"openai"|"anthr
     throw new ProviderBudgetError("BUDGET_USAGE_UNVERIFIABLE","Provider did not report verifiable token usage",502);
   let input=0,output=0,read=0,write=0;
   if(provider==="openai"){
-    const all=token(u.input_tokens,"input_tokens");
-    output=token(u.output_tokens,"output_tokens");
-    if(token(u.total_tokens,"total_tokens")!==all+output)
+    const all=reportedToken(u,"input_tokens",true);
+    output=reportedToken(u,"output_tokens",true);
+    if(reportedToken(u,"total_tokens",true)!==all+output)
       throw new ProviderBudgetError("BUDGET_USAGE_UNVERIFIABLE","OpenAI token totals do not match",502);
-    read=u.input_tokens_details?.cached_tokens===undefined?0:token(u.input_tokens_details.cached_tokens,"cached_tokens");
+    const details=Object.hasOwn(u,"input_tokens_details")?u.input_tokens_details:undefined;
+    if(details!==undefined){
+      if(!details||typeof details!=="object"||Array.isArray(details))
+        throw new ProviderBudgetError("BUDGET_USAGE_UNVERIFIABLE","Invalid input_tokens_details",502);
+      read=reportedToken(details,"cached_tokens");
+    }
     if(read>all)throw new ProviderBudgetError("BUDGET_USAGE_UNVERIFIABLE","OpenAI cached tokens exceed input tokens",502);
     input=all-read;
   }else if(provider==="anthropic"){
-    input=token(u.input_tokens,"input_tokens");
-    output=token(u.output_tokens,"output_tokens");
-    read=u.cache_read_input_tokens===undefined?0:token(u.cache_read_input_tokens,"cache_read_input_tokens");
-    write=u.cache_creation_input_tokens===undefined?0:token(u.cache_creation_input_tokens,"cache_creation_input_tokens");
+    input=reportedToken(u,"input_tokens",true);
+    output=reportedToken(u,"output_tokens",true);
+    read=reportedToken(u,"cache_read_input_tokens");
+    write=reportedToken(u,"cache_creation_input_tokens");
   }else throw new TypeError("Only pinned OpenAI/Anthropic usage is supported");
   const weighted=BigInt(input)*BigInt(rates.inputMicrosPerMillionTokens)+BigInt(output)*BigInt(rates.outputMicrosPerMillionTokens)
     +BigInt(read)*BigInt(rates.cacheReadMicrosPerMillionTokens)+BigInt(write)*BigInt(rates.cacheWriteMicrosPerMillionTokens);
