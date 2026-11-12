@@ -1,0 +1,62 @@
+name: MCN-072 Whole-Product Audit Branch Source Transfer (NO RELEASE)
+on:
+  push:
+    branches: [audit/mcn072-cloudflare-pg-link-readonly-20261112]
+    paths:
+      - .github/workflows/mcn072-whole-product-source-transfer-20261112.yml
+permissions:
+  contents: read
+concurrency:
+  group: mcn072-whole-product-source-transfer-20261112
+  cancel-in-progress: false
+jobs:
+  export:
+    if: >-
+      github.repository == 'evansmusitu/mft-axiom-build' &&
+      github.ref == 'refs/heads/audit/mcn072-cloudflare-pg-link-readonly-20261112' &&
+      github.event_name == 'push'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 12
+    steps:
+      - name: Checkout exact isolated audit commit without retained credentials
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
+          fetch-depth: 1
+      - name: Create read-only tracked-source archive and manifest
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -z "$(git status --porcelain)"
+          test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
+          mkdir -p /tmp/musitu-mcn072-transfer
+          git archive --format=tar HEAD | gzip -n -9 > /tmp/musitu-mcn072-transfer/github-audit-head-source.tar.gz
+          sha256sum /tmp/musitu-mcn072-transfer/github-audit-head-source.tar.gz > /tmp/musitu-mcn072-transfer/github-audit-head-source.tar.gz.sha256
+          git ls-tree -r --name-only HEAD > /tmp/musitu-mcn072-transfer/tracked-paths.txt
+          (cd /tmp/musitu-mcn072-transfer && sha256sum tracked-paths.txt > tracked-paths.txt.sha256)
+          python3 - <<'PY'
+          import json,os,subprocess
+          from pathlib import Path
+          p=Path('/tmp/musitu-mcn072-transfer')
+          data={
+            'schema':'musitu.mcn072.github_audit_source_transfer.v1',
+            'github_repository':os.environ['GITHUB_REPOSITORY'],
+            'github_branch':os.environ['GITHUB_REF_NAME'],
+            'github_commit':subprocess.check_output(['git','rev-parse','HEAD'],text=True).strip(),
+            'git_tree':subprocess.check_output(['git','rev-parse','HEAD^{tree}'],text=True).strip(),
+            'github_run_id':os.environ.get('GITHUB_RUN_ID'),
+            'tracked_paths':len((p/'tracked-paths.txt').read_text().splitlines()),
+            'secrets_consumed':False,'cloudflare_requests':0,
+            'database_requests':0,'production_mutations':0,
+            'commercial_ga':'NO_GO','mcn072_live_qualified':False}
+          (p/'transfer-manifest.json').write_text(json.dumps(data,sort_keys=True,indent=2)+'\n')
+          PY
+          (cd /tmp/musitu-mcn072-transfer && sha256sum transfer-manifest.json > transfer-manifest.json.sha256)
+          echo "MCN072_SOURCE_SNAPSHOT_SEALED $(git rev-parse HEAD)"
+      - name: Upload exact isolated branch source archive (no secrets, no deployment)
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: musitu-mcn072-audit-source-transfer-20261112
+          path: /tmp/musitu-mcn072-transfer/
+          if-no-files-found: error
+          retention-days: 30
