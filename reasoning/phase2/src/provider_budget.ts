@@ -338,7 +338,11 @@ export class BudgetedModelProviderAdapter implements ModelAdapter,ModelExplanati
     await this.ledger.settle({...identity,chargeMicroUsd,responseHash:sha(result.responseBody)});
     return result;
   }
-  async invoke(input:ModelAdapterInput):Promise<CapturedModelExchange>{
+  async invoke(rawInput:ModelAdapterInput):Promise<CapturedModelExchange>{
+    // Capture the complete JSON-compatible compilation request before any
+    // ledger await. The provider must see precisely the tenant and operation
+    // whose request identity was authorized and reserved, never caller edits.
+    const input:ModelAdapterInput=structuredClone(rawInput);
     if(input?.tenant?.tenantId!==this.tenantId)throw new ProviderBudgetError("BUDGET_TENANT_MISMATCH","Provider budget tenant mismatch",403);
     const hash=named(input.compilationRequestHash,"compilationRequestHash");
     if(!/^[0-9a-f]{64}$/.test(hash)||!Number.isSafeInteger(input.attempt)||input.attempt<0)
@@ -348,7 +352,10 @@ export class BudgetedModelProviderAdapter implements ModelAdapter,ModelExplanati
       modelId:this.manifest.modelId,compilationRequestHash:hash,attempt:input.attempt,mode:input.mode}),
       ()=>this.adapter.invoke(input));
   }
-  async explain(input:ModelExplanationAdapterInput):Promise<CapturedModelExplanationExchange>{
+  async explain(rawInput:ModelExplanationAdapterInput):Promise<CapturedModelExplanationExchange>{
+    // Prompt and byte-limit identities must remain identical after billing
+    // reservation even when the caller supplied getters or nested objects.
+    const input:ModelExplanationAdapterInput=structuredClone(rawInput);
     if(typeof input?.promptBody!=="string"||!input.promptBody.trim())throw new TypeError("promptBody is required");
     const capturedAt=named(input?.capturedAt,"capturedAt");
     if(!Number.isSafeInteger(input?.maxResponseBytes)||input.maxResponseBytes<=0)throw new TypeError("maxResponseBytes must be positive");

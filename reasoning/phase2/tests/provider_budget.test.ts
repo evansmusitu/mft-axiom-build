@@ -791,3 +791,53 @@ test("Phase 2.10N SQLite spend mutations stay bound to validated tenant and valu
     assert.equal(chargeReads,1,"settlement amount is read exactly once");
   }finally{ledger.close();}
 });
+
+
+test("Phase 2.10O paid model input sent upstream must match the exact tenant and prompt actually metered",async()=>{
+  const ledger=new phase2.SqliteProviderSpendLedger(":memory:");
+  const seen:{tenantId?:string;mode?:string;prompt?:string}={};
+  let upstreamCalls=0;
+  const adapter={
+    manifest:manifest("openai"),
+    async invoke(input:any){
+      upstreamCalls++;
+      seen.tenantId=input.tenant.tenantId;
+      seen.mode=input.mode;
+      return exchange(openAi({input_tokens:100,output_tokens:50,total_tokens:150}));
+    },
+    async explain(input:any){
+      upstreamCalls++;
+      seen.prompt=input.promptBody;
+      return exchange(openAi({input_tokens:100,output_tokens:50,total_tokens:150}));
+    }
+  };
+  try{
+    ledger.provision(scope("tenant:a"),"test:openai","test-model",1000);
+    const wrapped=new phase2.BudgetedModelProviderAdapter({
+      adapter,ledger,tenantId:"tenant:a",prices,requestReserveMicroUsd:300
+    });
+    let tenantReads=0,modeReads=0;
+    await wrapped.invoke({
+      tenant:{get tenantId(){return ++tenantReads===1?"tenant:a":"tenant:b";}},
+      compilationRequestHash:"d".repeat(64),attempt:0,
+      get mode(){modeReads++;return modeReads<=2?"INITIAL":"REPAIR";},
+      capturedAt:"2026-11-12T00:00:00.000Z"
+    } as any);
+    assert.equal(seen.tenantId,"tenant:a",
+      "a metered tenant:a reservation must not invoke paid provider on tenant:b input");
+    assert.equal(seen.mode,"INITIAL",
+      "paid request mode must not change after request identity was computed");
+    assert.equal(tenantReads,1,"provider must receive a private snapshot rather than re-read a tenant getter");
+    assert.equal(modeReads,1,"validated model mode must be captured once");
+    let promptReads=0;
+    await wrapped.explain({
+      capturedAt:"2026-11-12T00:00:00.000Z",
+      get promptBody(){return ++promptReads<=3?"approved prompt":"unmetered changed prompt";},
+      maxResponseBytes:4096
+    } as any);
+    assert.equal(seen.prompt,"approved prompt","provider prompt must be the exact metered prompt");
+    assert.equal(promptReads,1,"explanation intent must be captured once before reservation");
+    assert.equal(upstreamCalls,2);
+    assert.equal(ledger.status(scope("tenant:a"),"test:openai","test-model").chargedMicroUsd,400);
+  }finally{ledger.close();}
+});
