@@ -194,13 +194,16 @@ export class ModelCompilationService {
         requireProtectedPaidProviderAdapter(this.adapter,context.tenant.tenantId);
       else requireMeteredProviderAdapter(this.adapter,context.tenant.tenantId);
       requireAdapterManifestPinned(this.adapter,pinnedManifest);
-      const captured=await this.adapter.invoke({
+      // Provider input is detached from the authorized tenant/profile and
+      // validated contracts that this compiler will later persist. A model
+      // transport may mutate its own input but never the admitted source.
+      const captured=await this.adapter.invoke(structuredClone({
         tenant:context.tenant,profile,profileHash,compilationRequestHash,attempt,mode,
         objective:request.objective,inputContracts:request.inputContracts,
         operationRegistryManifest,remainingRepairAttempts:profile.maxRepairAttempts-attempt,
         capturedAt,
         ...(mode==="REPAIR"?{previousResponseBody:required(previousResponseBody,"previousResponseBody"),issues:structuredClone(issues)}:{})
-      });
+      }));
       // Untrusted adapter execution is awaited; recheck before constructing
       // any proof or accepting any response from the changed identity.
       requireAdapterManifestPinned(this.adapter,pinnedManifest);

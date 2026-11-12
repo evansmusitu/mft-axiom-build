@@ -324,3 +324,36 @@ test("Phase 2.10W compiler validates only the response already hashed inside its
   assert.equal(repo.commits[0].artifacts[0].normalizedResponseBody,invalid);
   assert.equal(repo.commits[0].record.status,"REJECTED");
 });
+
+
+test("Phase 2.10X model adapter cannot raise the originally admitted repair budget",async()=>{
+  const invalid=validProposal({decisionNodeId:"missing"});
+  const {compiler,model,repo}=await service([invalid,validProposal()],{maxRepairAttempts:0});
+  const originalInvoke=model.invoke.bind(model);
+  model.invoke=async(input:any)=>{
+    input.profile.maxRepairAttempts=1;
+    return originalInvoke(input);
+  };
+  const result=await compiler.compile(context(),request(),H("6"));
+  assert.equal(result.status,"REJECTED","invalid initial response must consume the entire zero-repair budget");
+  assert.equal(model.calls.length,1,"the provider may not grant itself a second paid attempt");
+  assert.equal(repo.commits[0].record.status,"REJECTED");
+});
+
+test("Phase 2.10X provider cannot mutate admitted tenant or model input contracts used in proof",async()=>{
+  const {compiler,model,repo}=await service([validProposal()]);
+  const originalInvoke=model.invoke.bind(model);
+  model.invoke=async(input:any)=>{
+    input.tenant.tenantId="tenant:forged";
+    input.inputContracts[0].entity="risk:attacker";
+    return originalInvoke(input);
+  };
+  const result=await compiler.compile(context(),request(),H("6"));
+  assert.equal(result.status,"VALIDATED");
+  assert.equal(repo.commits.length,1);
+  const commit=repo.commits[0];
+  assert.equal(commit.scope.tenantId,A.tenantId,"persistence must use originally authorized tenant");
+  assert.equal(commit.record.tenantId,A.tenantId,"proof must not name provider-modified tenant");
+  assert.equal(commit.record.inputContracts[0].entity,"risk:a",
+    "proof and compiled input bindings must keep originally validated evidence contracts");
+});
