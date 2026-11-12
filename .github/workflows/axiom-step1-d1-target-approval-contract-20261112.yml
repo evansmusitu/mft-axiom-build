@@ -24,8 +24,8 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          test "$(git hash-object customer_frontier/qualification/step1_d1_restore_target_admission.mjs)" = "d8b559d47aab97539cef5c9d8611e13496182fde"
-          test "$(git hash-object customer_frontier/tests/step1_d1_restore_target_admission.test.mjs)" = "cf581f284bf413e54d85d0581723fc15967f90db"
+          test "$(git hash-object customer_frontier/qualification/step1_d1_restore_target_admission.mjs)" = "2e6ae4dc074e39911950d44a8d2fe79127dc9285"
+          test "$(git hash-object customer_frontier/tests/step1_d1_restore_target_admission.test.mjs)" = "d84f6bfdcd31069697040de692a0591bd156fea2"
       - name: Verify 15 adversarial negative+positive scoped approval conditions (no secrets)
         shell: bash
         run: |
@@ -44,5 +44,5 @@ jobs:
         run: |
           echo "STEP1_RESTORE_TARGET_NOT_CREATED"
           echo "SOURCE_D1_UNCHANGED"
-          echo "OWNER_AND_INDEPENDENT_CUSTODIAN_APPROVAL_NOT_PRESENT"
+          echo "INDEPENDENT_OWNER_AND_CUSTODIAN_ATTESTATION_NOT_PROVEN"
           echo "STEP1_NOT_CLOSED STEP2_NOT_AUTHORIZED NOT_RELEASE"
