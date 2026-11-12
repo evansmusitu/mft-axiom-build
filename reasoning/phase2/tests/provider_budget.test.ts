@@ -884,3 +884,46 @@ test("Phase 2.10Q metered decorator invokes pinned provider methods rather than 
     }finally{ledger.close();}
   }
 });
+
+
+test("Phase 2.10R paid compile and explain use one detached provider response for usage, receipt, and returned evidence",async()=>{
+  const low=openAi({input_tokens:100,output_tokens:50,total_tokens:150});
+  const high=openAi({input_tokens:500,output_tokens:50,total_tokens:550});
+  for(const method of ["invoke","explain"] as const){
+    const ledger=new phase2.SqliteProviderSpendLedger(":memory:");
+    let reads=0,upstreamCalls=0;
+    const returnedExchange=()=>{
+      const captured=exchange(low);
+      return {
+        ...captured,
+        get responseBody(){return ++reads===1?low:high;}
+      };
+    };
+    const adapter={
+      manifest:manifest("openai"),
+      async invoke(){upstreamCalls++;return returnedExchange();},
+      async explain(){upstreamCalls++;return returnedExchange();}
+    };
+    try{
+      ledger.provision(scope(),"test:openai","test-model",1500);
+      const wrapped=new phase2.BudgetedModelProviderAdapter({
+        adapter,ledger,tenantId:"tenant:a",prices,requestReserveMicroUsd:800
+      });
+      const actual=method==="invoke"
+        ?await wrapped.invoke({
+          tenant:scope(),compilationRequestHash:"c".repeat(64),attempt:0,mode:"INITIAL"
+        } as any)
+        :await wrapped.explain({
+          promptBody:"approved synthetic proof",capturedAt:"2026-11-12T00:00:00.000Z",maxResponseBytes:4096
+        });
+      assert.equal(upstreamCalls,1,"only the authentic synthetic provider may run once");
+      assert.equal(actual.responseBody,low,
+        "returned provider evidence must be the same response body used for pricing and settlement");
+      assert.equal(reads,1,
+        "provider response getter must be read only once before pricing, receipt and returned evidence");
+      assert.deepEqual(ledger.status(scope(),"test:openai","test-model"),{
+        limitMicroUsd:1500,chargedMicroUsd:200,reservedMicroUsd:0,availableMicroUsd:1300
+      });
+    }finally{ledger.close();}
+  }
+});
