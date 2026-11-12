@@ -26,9 +26,11 @@ function approve(plan=makePlan(),both=[owner,custodian]){
     ownerTrustedSpkiSha256:owner.pin,custodianTrustedSpkiSha256:custodian.pin,now:'2026-11-12T12:00:00.000Z'};
 }
 const check=fn=>assert.throws(fn,e=>e instanceof NoGo);
-test('two independently pinned Ed25519 keys permit only creation, never restore/release',()=>{
+test('two distinct pinned Ed25519 signatures still never authorize creation/restore/release',()=>{
   const r=verifyApproval(approve());
-  assert.equal(r.status,'ONLY_NEW_DISPOSABLE_D1_CREATION_APPROVED');
+  assert.equal(r.status,'PINNED_TWO_SIGNATURES_VALID_CUSTODY_NOT_ATTESTED_NO_GO');
+  assert.equal(r.creation_authorized,false);
+  assert.equal(r.human_custody_independence_verified,false);
   for(const f of ['backup_export_authorized','customer_data_restore_authorized','current_backup_qualified','independent_restore_qualified','step_1_closed','step_2_authorized','release_authority'])assert.equal(r[f],false);
 });
 test('no trusted pins: deny even with genuine signatures',()=>check(()=>verifyApproval({...approve(),ownerTrustedSpkiSha256:undefined})));
