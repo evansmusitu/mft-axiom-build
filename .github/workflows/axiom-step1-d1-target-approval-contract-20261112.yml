@@ -1,0 +1,48 @@
+name: AXIOM Step1 independently signed D1 restore-target creation gate (OFFLINE; NOT RELEASE)
+on:
+  push:
+    branches:
+      - review/axiom-step1-d1-origin-provider-audit-readonly-20261110
+    paths:
+      - .github/workflows/axiom-step1-d1-target-approval-contract-20261112.yml
+permissions:
+  contents: read
+jobs:
+  approval-contract:
+    if: >-
+      github.repository == 'evansmusitu/mft-axiom-build' &&
+      github.actor == 'evansmusitu' &&
+      github.ref == 'refs/heads/review/axiom-step1-d1-origin-provider-audit-readonly-20261110' &&
+      github.run_attempt == 1
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          persist-credentials: false
+      - name: Pin signed-admission source and adversarial test files
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git hash-object customer_frontier/qualification/step1_d1_restore_target_admission.mjs)" = "d8b559d47aab97539cef5c9d8611e13496182fde"
+          test "$(git hash-object customer_frontier/tests/step1_d1_restore_target_admission.test.mjs)" = "cf581f284bf413e54d85d0581723fc15967f90db"
+      - name: Verify 15 adversarial negative+positive scoped approval conditions (no secrets)
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --test customer_frontier/tests/step1_d1_restore_target_admission.test.mjs
+      - name: Reconfirm absent independent approvals cannot create a D1
+        shell: bash
+        run: |
+          set -euo pipefail
+          if node customer_frontier/qualification/step1_d1_restore_target_admission.mjs; then
+            echo "FAIL: unsafe implicit D1 creation approval"
+            exit 1
+          fi
+          echo "PASS: no owner/custodian pins or signature; fail-closed before mutations"
+      - name: Explicitly retain release veto
+        run: |
+          echo "STEP1_RESTORE_TARGET_NOT_CREATED"
+          echo "SOURCE_D1_UNCHANGED"
+          echo "OWNER_AND_INDEPENDENT_CUSTODIAN_APPROVAL_NOT_PRESENT"
+          echo "STEP1_NOT_CLOSED STEP2_NOT_AUTHORIZED NOT_RELEASE"
