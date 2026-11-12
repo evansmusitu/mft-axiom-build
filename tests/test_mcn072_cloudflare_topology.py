@@ -70,6 +70,12 @@ class TestTopology(unittest.TestCase):
     with self.assertRaises(mod.ProbeFailure):mod.inspect('token',Opener(producers=[{'type':'unknown','script':'name'}]))
   def test_duplicate_workers_do_not_create_linkage(self):
     with self.assertRaises(mod.ProbeFailure):mod.inspect('token',Opener(producers=[{'type':'worker','script':'same'},{'type':'worker','script':'same'}]))
+  def test_absent_producer_name_reports_safe_role_code(self):
+    with self.assertRaisesRegex(mod.ProbeFailure,'PRODUCER_WORKER_SCRIPT_MISSING_OR_INVALID'):
+      mod.inspect('token',Opener(producers=[{'type':'worker'}]))
+  def test_absent_consumer_name_reports_safe_role_code(self):
+    with self.assertRaisesRegex(mod.ProbeFailure,'CONSUMER_WORKER_SCRIPT_MISSING_OR_INVALID'):
+      mod.inspect('token',Opener(consumers=[{'type':'worker','consumer_id':'c'*32}]))
   def test_missing_count_fails(self):
     o=Opener()
     old=o.open
