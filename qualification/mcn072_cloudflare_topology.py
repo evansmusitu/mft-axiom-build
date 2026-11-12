@@ -30,9 +30,9 @@ class NoRedirect(urllib.request.HTTPRedirectHandler):
     def redirect_request(self, req, fp, code, msg, headers, newurl):
         return None
 
-def hash_id(s):
+def hash_id(s, field="RESOURCE"):
     if not isinstance(s, str) or not s or len(s) > 255 or any(ord(c) < 33 for c in s):
-        raise ProbeFailure('SCRIPT_OR_RESOURCE_IDENTIFIER_INVALID')
+        raise ProbeFailure(field+'_MISSING_OR_INVALID')
     return hashlib.sha256(s.encode('utf-8')).hexdigest()
 
 def exact_int(value, limit):
@@ -78,17 +78,17 @@ def checked_endpoints(entries,total,role):
         kind=entry.get('type')
         if role=='PRODUCER':
             if kind=='worker':
-                target=entry.get('script');worker_count+=1
+                target=entry.get('script');field='PRODUCER_WORKER_SCRIPT';worker_count+=1
             elif kind=='r2_bucket':
-                target=entry.get('bucket_name');r2_count+=1
+                target=entry.get('bucket_name');field='PRODUCER_R2_BUCKET';r2_count+=1
             else:raise ProbeFailure('UNKNOWN_PRODUCER_TYPE')
         else:
             if kind=='worker':
-                target=entry.get('script_name');worker_count+=1
+                target=entry.get('script_name');field='CONSUMER_WORKER_SCRIPT';worker_count+=1
             elif kind=='http_pull':
-                target=entry.get('consumer_id');http_pull_count+=1
+                target=entry.get('consumer_id');field='CONSUMER_HTTP_PULL_ID';http_pull_count+=1
             else:raise ProbeFailure('UNKNOWN_CONSUMER_TYPE')
-        names.append(hash_id(target))
+        names.append(hash_id(target,field))
     if len(names)!=len(set(names)):
         raise ProbeFailure(role+'_DUPLICATE_TARGET')
     return {'worker_count':worker_count,'http_pull_count':http_pull_count,
