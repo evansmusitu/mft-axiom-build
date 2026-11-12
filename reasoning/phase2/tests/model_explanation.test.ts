@@ -228,3 +228,45 @@ test("Phase 2.10T explanation audit retains originally authorized principal and 
   assert.equal(put[0].record.authorizationDecisionHash,initialDecision,
     "authorization decision evidence must not be read again after provider awaits");
 });
+
+
+test("Phase 2.10V explanation denies corrupted execution content even if replay reports MATCH",async()=>{
+  const phase2:any=await import("../src/index.ts");
+  const adapter=fakeAdapter(),{service,stored,put}=deps(phase2,adapter);
+  const originalHash=stored.recordHash;
+  stored.snapshotHash=H("f"); // recordHash remains the original trusted digest
+  assert.equal(stored.recordHash,originalHash);
+  await assert.rejects(
+    ()=>service.explain(context(),stored.id,{profileId:profile.profileId},H("9")),
+    (error:any)=>error?.code==="MODEL_EXPLANATION_PROOF_REJECTED"&&error?.httpStatus===422,
+    "a replay MATCH alone cannot authorize provider prompt generation from corrupted persisted proof content"
+  );
+  assert.equal(adapter.calls.length,0,"tampered execution must not reach model provider");
+  assert.equal(put.length,0,"tampered explanation evidence must not be written");
+});
+
+test("Phase 2.10V explanation checks record hash after replay, denying shared-record mutation",async()=>{
+  const phase2:any=await import("../src/index.ts");
+  const adapter=fakeAdapter(),stored=execution(),put:any[]=[];
+  const profiles=new phase2.ModelExplanationRegistry([{profile,tenantIds:[tenant.tenantId]}]);
+  let reads=0;
+  const service=new phase2.ModelExplanationService({
+    tenant,profiles,
+    repository:{async put(_scope:any,record:any){put.push(record);},async get(){throw Error("unused");}},
+    executions:{async get(){reads++;return stored;}},
+    plane:{async replayStored(){
+      stored.certificate.core.decisionStatus="REJECTED";
+      return {status:"MATCH" as const,diagnostics:[]};
+    }},
+    adapters:[adapter],productionBillingRequired:false,
+    now:()=>new Date("2026-10-07T20:20:00.000Z")
+  });
+  await assert.rejects(
+    ()=>service.explain(context(),stored.id,{profileId:profile.profileId},H("9")),
+    (error:any)=>error?.code==="MODEL_EXPLANATION_PROOF_REJECTED"&&error?.httpStatus===422,
+    "a mutable repository record changing during awaited replay must fail integrity verification"
+  );
+  assert.equal(reads,1);
+  assert.equal(adapter.calls.length,0);
+  assert.equal(put.length,0);
+});
