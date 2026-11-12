@@ -24,8 +24,8 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          test "$(git hash-object customer_frontier/qualification/step1_d1_restore_target_admission.mjs)" = "2e6ae4dc074e39911950d44a8d2fe79127dc9285"
-          test "$(git hash-object customer_frontier/tests/step1_d1_restore_target_admission.test.mjs)" = "d84f6bfdcd31069697040de692a0591bd156fea2"
+          test "$(git hash-object customer_frontier/qualification/step1_d1_restore_target_admission.mjs)" = "197ec42060f3c2b57dc61e88e230b5e7e954fc9f"
+          test "$(git hash-object customer_frontier/tests/step1_d1_restore_target_admission.test.mjs)" = "3c8a86f55ffce40c224bbfd0faa2701be79282a2"
       - name: Verify 15 adversarial negative+positive scoped approval conditions (no secrets)
         shell: bash
         run: |
