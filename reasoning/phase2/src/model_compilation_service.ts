@@ -142,11 +142,12 @@ export class ModelCompilationService {
     if(!options?.adapter||typeof options.adapter.invoke!=="function")throw new TypeError("model adapter is required");
     if(options.productionBillingRequired!==undefined&&typeof options.productionBillingRequired!=="boolean")
       throw new TypeError("productionBillingRequired must be boolean");
-    if(options.productionBillingRequired===true)
+    // Production-safe default: only an explicit false permits offline paid-provider fixtures.
+    if(options.productionBillingRequired!==false)
       requireProtectedPaidProviderAdapter(options.adapter);
     else requireMeteredProviderAdapter(options.adapter);
     this.profiles=options.profiles;this.repository=options.repository;this.registry=options.registry;this.adapter=options.adapter;
-    this.productionBillingRequired=options.productionBillingRequired===true;
+    this.productionBillingRequired=options.productionBillingRequired!==false;
     this.now=options.now??(()=>new Date().toISOString());
   }
 

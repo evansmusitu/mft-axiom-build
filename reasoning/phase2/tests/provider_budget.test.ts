@@ -112,12 +112,12 @@ test("trusted compile and explanation services reject unbudgeted OpenAI and Anth
   const makeCompiler=(adapter:any)=>new phase2.ModelCompilationService({
     profiles:{resolve(){throw new Error("not used");}} as any,
     repository:{commitCompilation(){throw new Error("not used");}} as any,
-    registry:{manifest(){return [];}} as any,adapter
+    registry:{manifest(){return [];}} as any,adapter,productionBillingRequired:false
   });
   const makeExplainer=(adapter:any)=>new phase2.ModelExplanationService({
     tenant:scope(),profiles:{} as any,repository:{} as any,executions:{} as any,
     plane:{async replayStored(){return {status:"MATCH" as const,diagnostics:[]};}},
-    adapters:[adapter]
+    adapters:[adapter],productionBillingRequired:false
   });
   for(const provider of ["openai","anthropic"] as const){
     let calls=0;
@@ -151,7 +151,7 @@ test("budgeted explanation registration denies a different tenant without spendi
       tenant:scope("tenant:b"),
       profiles:{} as any,repository:{} as any,executions:{} as any,
       plane:{async replayStored(){return {status:"MATCH" as const,diagnostics:[]};}},
-      adapters:[x.wrapped]
+      adapters:[x.wrapped],productionBillingRequired:false
     }),/tenant mismatch/i);
     assert.equal(x.calls,0);
     assert.equal(x.ledger.status(scope(),"test:openai","test-model").chargedMicroUsd,0);
@@ -926,4 +926,30 @@ test("Phase 2.10R paid compile and explain use one detached provider response fo
       });
     }finally{ledger.close();}
   }
+});
+
+
+test("Phase 2.10S unspecified billing mode denies paid SQLite adapters at both service admission boundaries",()=>{
+  const x=setup("openai");
+  const compiler=(mode?:boolean)=>new phase2.ModelCompilationService({
+    profiles:{resolve(){throw Error("must not resolve");}} as any,
+    repository:{commitCompilation(){throw Error("must not commit");}} as any,
+    registry:{manifest(){return [];}} as any,
+    adapter:x.wrapped,...(mode===undefined?{}:{productionBillingRequired:mode})
+  });
+  const explainer=(mode?:boolean)=>new phase2.ModelExplanationService({
+    tenant:scope(),profiles:{} as any,repository:{} as any,executions:{} as any,
+    plane:{async replayStored(){return {status:"MATCH" as const,diagnostics:[]};}},
+    adapters:[x.wrapped],...(mode===undefined?{}:{productionBillingRequired:mode})
+  });
+  try{
+    for(const admission of [compiler,explainer]){
+      assert.throws(()=>admission(),(e:any)=>e?.code==="BUDGET_PROTECTED_LEDGER_REQUIRED",
+        "omitted productionBillingRequired must not silently admit local spending ledgers for paid providers");
+      assert.throws(()=>admission(true),(e:any)=>e?.code==="BUDGET_PROTECTED_LEDGER_REQUIRED");
+      assert.doesNotThrow(()=>admission(false),
+        "offline fixture mode remains available only through an explicit opt-out");
+    }
+    assert.equal(x.calls,0,"admission must not invoke the upstream model provider");
+  }finally{x.ledger.close();}
 });

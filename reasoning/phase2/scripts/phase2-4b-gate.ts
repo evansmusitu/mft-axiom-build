@@ -161,6 +161,7 @@ const explainerProfiles=new ModelExplanationRegistry([{
 }]);
 const explainer=new ModelExplanationService({
   tenant:tenantA,profiles:explainerProfiles,repository:explanations,executions,plane,adapters:[meteredOpenAi],
+  productionBillingRequired:false,
   now:()=>new Date("2026-10-08T10:00:02.000Z")
 });
 
@@ -219,10 +220,10 @@ try{
   }
 
   const openAiCompiler=new ModelCompilationService({
-    profiles,repository:compilations,registry,adapter:meteredOpenAi,now:()=>"2026-10-08T10:00:00.100Z"
+    profiles,repository:compilations,registry,adapter:meteredOpenAi,productionBillingRequired:false,now:()=>"2026-10-08T10:00:00.100Z"
   });
   const anthropicCompiler=new ModelCompilationService({
-    profiles,repository:compilations,registry,adapter:meteredAnthropic,now:()=>"2026-10-08T10:00:00.200Z"
+    profiles,repository:compilations,registry,adapter:meteredAnthropic,productionBillingRequired:false,now:()=>"2026-10-08T10:00:00.200Z"
   });
   const objective="Approve only when observed risk is no greater than the trusted maximum";
   const openAiRequest={profileId:openAiProfile.profileId,objective,inputContracts};
@@ -289,7 +290,7 @@ try{
   const mismatchService=new ModelExplanationService({
     tenant:tenantA,profiles:explainerProfiles,repository:explanations,executions,
     plane:{async replayStored(){return {status:"MISMATCH" as const,diagnostics:["forced mismatch"]};}},
-    adapters:[meteredOpenAi],now:()=>new Date("2026-10-08T10:00:03.000Z")
+    adapters:[meteredOpenAi],productionBillingRequired:false,now:()=>new Date("2026-10-08T10:00:03.000Z")
   });
   const callsBeforeMismatch=openAiExplainCalls;
   await assert.rejects(
