@@ -100,7 +100,8 @@ export function openSqlExport({envelope,custodianPrivateKey,expectedCustodianSpk
   HEX.test(expectedBookmarkSha256||''),'BOOKMARK_PIN_DRIFT');
  fail(expectedCatalogSha256===envelope.catalog_sha256 &&
   HEX.test(expectedCatalogSha256||''),'CATALOG_PIN_DRIFT');
- const keyObj=createPrivateKey(custodianPrivateKey);
+ const keyObj=custodianPrivateKey?.type==='private' && custodianPrivateKey?.asymmetricKeyType==='x25519'
+  ? custodianPrivateKey : createPrivateKey(custodianPrivateKey);
  fail(keyObj.asymmetricKeyType==='x25519','CUSTODIAN_PRIVATE_KEY_NOT_X25519');
  fail(sha(publicDer(keyObj))===expectedCustodianSpkiSha256,'INCORRECT_CUSTODIAN_PRIVATE_KEY');
  const eph=decode(envelope.ephemeral_spki_der_b64,'EPHEMERAL',4096);
