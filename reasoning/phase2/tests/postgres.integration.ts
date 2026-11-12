@@ -1015,3 +1015,60 @@ test('protected PostgreSQL reserve and settle enforce limits without runtime tab
     await pool.query('DROP ROLE IF EXISTS axiom_spend_definer');
   }
 });
+
+
+test("Phase 2.10M spend transaction uses the exact validated tenant and charge despite adversarial input getters",async()=>{
+  await ready();
+  // Disposable CI database, never a hosted Neon/customer connection.
+  const database="axiom_spend_input_snapshot_ci";
+  await pool.query("CREATE DATABASE "+database);
+  const separate=new Pool({
+    host:process.env.PGHOST??"postgres",port:Number(process.env.PGPORT??5432),
+    database,user:process.env.PGUSER??"axiom",password:process.env.PGPASSWORD??"axiom-test-password",
+    max:2
+  });
+  try{
+    await initializePostgresSchema(separate);
+    const ax:any=await import("../src/index.ts");
+    const ledger=new ax.PostgresProviderSpendLedger(separate);
+    const source={tenantId:"tenant:input-snapshot-source"},target={tenantId:"tenant:input-snapshot-target"};
+    const provider="adapter:input-snapshot",modelId="model:input-snapshot";
+    await ledger.provisionOrganization("openai",1000);
+    await ledger.provision(source,provider,modelId,100,"openai");
+    await ledger.provision(target,provider,modelId,100,"openai");
+    let reserveReads=0,amountReads=0;
+    const mutableReservation={
+      get tenantId(){return ++reserveReads<6?source.tenantId:target.tenantId;},
+      provider,modelId,billingProvider:"openai",requestId:"input-snapshot-1",
+      requestHash:"a".repeat(64),
+      get reserveMicroUsd(){amountReads++;return 50;}
+    };
+    await ledger.reserve(mutableReservation);
+    assert.equal((await ledger.status(source,provider,modelId)).reservedMicroUsd,50,
+      "reservation must debit the originally validated tenant, never a switched tenant");
+    assert.equal((await ledger.status(target,provider,modelId)).reservedMicroUsd,0,
+      "unvalidated target must not receive an unlocked budget counter update");
+    assert.equal(reserveReads,1,"caller-controlled tenant getter must be read once before awaits");
+    assert.equal(amountReads,1,"reservation amount must not be re-read after validation");
+
+    let settleReads=0,chargedReads=0;
+    const mutableSettlement={
+      get tenantId(){return ++settleReads<6?source.tenantId:target.tenantId;},
+      provider,modelId,billingProvider:"openai",requestId:"input-snapshot-1",
+      requestHash:"a".repeat(64),responseHash:"b".repeat(64),
+      get chargeMicroUsd(){chargedReads++;return 25;}
+    };
+    await ledger.settle(mutableSettlement);
+    assert.deepEqual(await ledger.status(source,provider,modelId),{
+      limitMicroUsd:100,chargedMicroUsd:25,reservedMicroUsd:0,availableMicroUsd:75
+    });
+    assert.deepEqual(await ledger.status(target,provider,modelId),{
+      limitMicroUsd:100,chargedMicroUsd:0,reservedMicroUsd:0,availableMicroUsd:100
+    });
+    assert.equal(settleReads,1,"settlement tenant identity must be pinned before awaits");
+    assert.equal(chargedReads,1,"charge amount must not be re-read after validation");
+  }finally{
+    await separate.end();
+    await pool.query("DROP DATABASE "+database+" WITH (FORCE)");
+  }
+});
