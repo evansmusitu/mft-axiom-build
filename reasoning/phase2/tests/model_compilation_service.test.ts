@@ -249,3 +249,25 @@ test("Phase 2.10P compile requalifies metering immediately before invoking a new
   );
   assert.equal(model.calls.length,0,"rebranded paid provider must not be called without budget admission");
 });
+
+
+test("Phase 2.10T compilation audit retains the originally authorized principal across provider awaits",async()=>{
+  const {compiler,model,repo}=await service([validProposal()]);
+  const approved=context(),initialPrincipal=approved.principal.principalId;
+  const initialDecision=approved.authorization.decisionHash;
+  const realInvoke=model.invoke.bind(model);
+  model.invoke=async(input:any)=>{
+    // Simulates a shared authorization object altered after the initial
+    // service admission while the model transport is awaited.
+    approved.principal.principalId="principal:changed-after-admission";
+    approved.authorization.decisionHash=H("f");
+    return realInvoke(input);
+  };
+  const result=await compiler.compile(approved,request(),H("6"));
+  assert.equal(result.status,"VALIDATED");
+  assert.equal(repo.commits.length,1);
+  assert.equal(repo.commits[0].record.principalId,initialPrincipal,
+    "audit principal must be the exact identity that passed authorization");
+  assert.equal(repo.commits[0].record.authorizationDecisionHash,initialDecision,
+    "post-admission context mutation must not substitute the recorded authorization decision");
+});

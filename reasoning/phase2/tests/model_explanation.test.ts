@@ -206,3 +206,25 @@ test("Phase 2.10P explanation requalifies metering after async replay before cal
     assert.equal(adapter.calls.length,0,"unmetered rebranded explanation provider must not be called");
   }finally{adapter.manifest.provider=original;}
 });
+
+
+test("Phase 2.10T explanation audit retains originally authorized principal and decision across provider awaits",async()=>{
+  const phase2:any=await import("../src/index.ts");
+  const adapter=fakeAdapter(),approved=context();
+  const initialPrincipal=approved.principal.principalId;
+  const initialDecision=approved.authorization.decisionHash;
+  const {service,stored,put}=deps(phase2,adapter);
+  const realExplain=adapter.explain.bind(adapter);
+  adapter.explain=async(input:any)=>{
+    approved.principal.principalId="principal:changed-after-admission";
+    approved.authorization.decisionHash=H("f");
+    return realExplain(input);
+  };
+  const result=await service.explain(approved,stored.id,{profileId:profile.profileId},H("9"));
+  assert.equal(result.status,"CREATED");
+  assert.equal(put.length,1);
+  assert.equal(put[0].record.principalId,initialPrincipal,
+    "explanation record must name the principal actually admitted before provider work");
+  assert.equal(put[0].record.authorizationDecisionHash,initialDecision,
+    "authorization decision evidence must not be read again after provider awaits");
+});

@@ -152,10 +152,13 @@ export class ModelCompilationService {
   }
 
   async compile(
-    context:AuthorizedTenantContext,
+    rawContext:AuthorizedTenantContext,
     requestInput:ModelCompileRequest,
     compilationRequestHashInput:string
   ):Promise<ModelCompileResult> {
+    // Detach the authorized principal, tenant and decision once before any
+    // awaited provider work; the persisted audit must name this admitted identity.
+    const context:AuthorizedTenantContext=structuredClone(rawContext);
     assertCompileContext(context);
     const compilationRequestHash=digest(compilationRequestHashInput,"compilationRequestHash");
     const resolved=this.profiles.resolve(context.tenant,required(requestInput?.profileId,"profileId"));
