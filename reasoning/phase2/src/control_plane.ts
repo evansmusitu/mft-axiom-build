@@ -289,4 +289,18 @@ export class ReasoningControlPlane {
     }
     return this.replayRecord(record);
   }
+
+  /** Internal receipt: identify exactly which stored record was replayed,
+   * without changing the public replayStored wire contract.
+   */
+  async replayStoredBound(recordId:string):Promise<ReplayResult&{recordHash?:string}> {
+    let record:PlatformExecutionRecord;
+    try{
+      record=await this.executions.get(this.tenant,recordId);
+    }catch(err){
+      return {status:"MISMATCH",diagnostics:[err instanceof Error?err.message:String(err)]};
+    }
+    const replay=await this.replayRecord(record);
+    return {...replay,recordHash:record.recordHash};
+  }
 }
