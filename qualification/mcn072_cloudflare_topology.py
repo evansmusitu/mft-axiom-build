@@ -30,8 +30,11 @@ class NoRedirect(urllib.request.HTTPRedirectHandler):
     def redirect_request(self, req, fp, code, msg, headers, newurl):
         return None
 
+def valid_target(s):
+    return isinstance(s,str) and 0<len(s)<=255 and all(ord(c)>=33 for c in s)
+
 def hash_id(s, field="RESOURCE"):
-    if not isinstance(s, str) or not s or len(s) > 255 or any(ord(c) < 33 for c in s):
+    if not valid_target(s):
         raise ProbeFailure(field+'_MISSING_OR_INVALID')
     return hashlib.sha256(s.encode('utf-8')).hexdigest()
 
@@ -154,9 +157,9 @@ def inspect(token, opener):
                 if type(incoming) is not dict or incoming.get('type')!=old.get('type'):
                     raise ProbeFailure('CONSUMER_LIST_IDENTITY_CONFLICT')
                 name=old.get('script_name')
-                if old['type']=='worker' and (not isinstance(name,str) or not name):
+                if old['type']=='worker' and not valid_target(name):
                     name=incoming.get('script_name')
-                    if not isinstance(name,str) or not name:
+                    if not valid_target(name):
                         # Lookup one consumer using an exact account/queue/id-pinned
                         # GET. Never infer a Worker script from an optional field.
                         exact,digest_exact=fetch(
@@ -172,6 +175,8 @@ def inspect(token, opener):
                                 raise ProbeFailure('CONSUMER_EXACT_QUEUE_NAME_CONFLICT')
                         name=exact_item.get('script_name')
                         consumer_detail_hashes.append(digest_exact)
+                        if not valid_target(name):
+                            raise ProbeFailure('CONSUMER_EXACT_WORKER_SCRIPT_UNVERIFIABLE')
                 elif old['type']=='worker' and incoming.get('script_name') not in (None,name):
                     raise ProbeFailure('CONSUMER_LIST_SCRIPT_CONFLICT')
                 resolved.append({**old, 'script_name':name} if old['type']=='worker' else old)
