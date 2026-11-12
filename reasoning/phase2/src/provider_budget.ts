@@ -330,7 +330,10 @@ export class BudgetedModelProviderAdapter implements ModelAdapter,ModelExplanati
     this.assertUntamperedAdapter();
     this.assertUntamperedLedger();
     // Ambiguous errors deliberately leave a durable reservation: never auto-refetch.
-    const result=await run();
+    // Paid upstream exchange may expose mutable accessors or retained objects.
+    // Detach once before pricing: returned evidence, receipt digest, and billed
+    // usage must refer to the same exact provider response bytes.
+    const result=structuredClone(await run());
     const chargeMicroUsd=pricedProviderUsage(result.responseBody,this.provider,this.prices);
     // A patched settlement hook or swapped transport cannot turn usage into a successful call.
     this.assertUntamperedAdapter();
