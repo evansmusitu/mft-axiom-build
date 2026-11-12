@@ -149,14 +149,14 @@ export class ModelExplanationService {
   private readonly profiles:ModelExplanationRegistry;
   private readonly repository:ModelExplanationRepository;
   private readonly executions:ExecutionRepository;
-  private readonly plane:{replayStored(id:string):Promise<{status:"MATCH"|"MISMATCH";diagnostics:string[]}>};
+  private readonly plane:{replayStored(id:string):Promise<{status:"MATCH"|"MISMATCH";diagnostics:string[]}>;replayStoredBound?(id:string):Promise<{status:"MATCH"|"MISMATCH";diagnostics:string[];recordHash?:string}>};
   private readonly adapters:Map<string,ModelExplanationAdapter>;
   private readonly productionBillingRequired:boolean;
   private readonly now:()=>Date|string;
 
   constructor(deps:{
     tenant:TenantScope;profiles:ModelExplanationRegistry;repository:ModelExplanationRepository;
-    executions:ExecutionRepository;plane:{replayStored(id:string):Promise<{status:"MATCH"|"MISMATCH";diagnostics:string[]}>};
+    executions:ExecutionRepository;plane:{replayStored(id:string):Promise<{status:"MATCH"|"MISMATCH";diagnostics:string[]}>;replayStoredBound?(id:string):Promise<{status:"MATCH"|"MISMATCH";diagnostics:string[];recordHash?:string}>};
     adapters:ModelExplanationAdapter[];now?:()=>Date|string;
     /** Trusted deployment gate; offline fixtures must explicitly opt out. */
     productionBillingRequired?:boolean;
@@ -195,7 +195,12 @@ export class ModelExplanationService {
     catch{throw new ModelExplanationError("MODEL_EXPLANATION_NOT_FOUND","Execution not found",404);}
     if(execution?.tenantId!==this.tenant.tenantId||execution?.id!==executionId)throw new ModelExplanationError("MODEL_EXPLANATION_NOT_FOUND","Execution not found",404);
 
-    const replay=await this.plane.replayStored(executionId);
+    // A replay status without a record-identity receipt cannot authenticate
+    // the separately retrieved execution used to build a paid explanation.
+    if(typeof this.plane.replayStoredBound!=="function")
+      throw new ModelExplanationError("MODEL_EXPLANATION_PROOF_REJECTED",
+        "Record-hash-bound replay authority is required",422);
+    const replay=await this.plane.replayStoredBound(executionId);
     if(replay.status!=="MATCH")throw new ModelExplanationError("MODEL_EXPLANATION_PROOF_REJECTED","Stored execution did not replay exactly",422);
 
     // Replay status authenticates neither an alternate repository's returned
@@ -212,6 +217,10 @@ export class ModelExplanationService {
       throw new ModelExplanationError("MODEL_EXPLANATION_PROOF_REJECTED",
         "Execution proof content does not match its verified record hash",422);
     }
+
+    if(replay.recordHash!==verifiedExecution.recordHash)
+      throw new ModelExplanationError("MODEL_EXPLANATION_PROOF_REJECTED",
+        "Replayed execution record hash does not match the verified explanation proof",422);
 
     const promptBody=proofBody(verifiedExecution);
     if(Buffer.byteLength(promptBody,"utf8")>profile.maxPromptBytes)throw new ModelExplanationError("MODEL_EXPLANATION_PROOF_REJECTED","Explanation proof prompt exceeds profile limit",422);
