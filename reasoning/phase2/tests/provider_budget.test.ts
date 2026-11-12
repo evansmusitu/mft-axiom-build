@@ -715,3 +715,42 @@ test("Phase 2.10K checked-out PostgreSQL client must retain approved endpoint ro
     }
   }
 });
+
+
+test("Phase 2.10L acquired PostgreSQL client must retain pinned credential identity before any SQL",async()=>{
+  const approved={
+    host:"approved-db.invalid",port:15432,user:"budget_runtime",database:"axiom_spend",
+    password:"synthetic-approved-credential",ssl:{rejectUnauthorized:true,ca:"synthetic-ca"},
+    connectionTimeoutMillis:100,max:1,idleTimeoutMillis:1
+  };
+  for(const Ledger of [phase2.PostgresProviderSpendLedger,phase2.ProtectedPostgresProviderSpendLedger]){
+    for(const mutation of ["client-password","connection-parameters-password"] as const){
+      const pool=new pg.Pool(approved);
+      const acquired:any=new pg.Client(approved);
+      if(mutation==="client-password")acquired.password="synthetic-unapproved-credential";
+      else acquired.connectionParameters.password="synthetic-unapproved-credential";
+      // Inject only a disconnected genuine pg.Client; never open a socket.
+      // A missing admission check would reach query() and yield a different error.
+      acquired._queryable=false;
+      (pool as any)._clients.push(acquired);
+      (pool as any)._idle.push({client:acquired,idleListener:()=>{},timeoutId:undefined});
+      try{
+        const ledger=new Ledger(pool);
+        assert.equal(Ledger.isAuthenticLedger(ledger),true,
+          "pool admission alone cannot establish an acquired client's credential identity");
+        await assert.rejects(()=>ledger.reserve({
+          tenantId:"tenant:credential",provider:"adapter:credential",modelId:"model:credential",
+          billingProvider:"openai",requestId:"intent:credential",
+          requestHash:"a".repeat(64),reserveMicroUsd:10
+        }), (error:any)=>error?.code==="BUDGET_STORE_UNAVAILABLE" &&
+          /Untrusted acquired PostgreSQL accounting client/.test(error?.message),
+          "modified "+mutation+" must be rejected before accounting SQL");
+      }finally{
+        for(const idle of (pool as any)._idle){if(idle.timeoutId)clearTimeout(idle.timeoutId);}
+        (pool as any)._idle.length=0;
+        (pool as any)._clients.length=0;
+        await pool.end();
+      }
+    }
+  }
+});

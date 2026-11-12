@@ -1,4 +1,5 @@
 import pg from "pg";
+import { createHmac, randomBytes, timingSafeEqual } from "node:crypto";
 import type { Pool, PoolClient } from "pg";
 import type { TenantScope } from "./types.ts";
 import type { ProviderReservation, ProviderSettlement, ProviderSpendLedger, ProviderSpendStatus } from "./provider_budget.ts";
@@ -98,22 +99,38 @@ function trustedAcquiredClient(client:unknown):client is PoolClient {
 // SSL configuration after an idle-pool compromise. Construct an unconnected
 // canonical Client ONCE at ledger admission; retain only immutable comparisons
 // of routing fields, never an authenticated socket or returned credentials.
+// Compare acquired client credentials without retaining another plaintext
+// password snapshot. All fixture values are synthetic; this is not server
+// authentication or proof that a live TLS peer owns the expected identity.
+function pinCredentialIdentity(value:unknown):(candidate:unknown)=>boolean {
+  const kind=typeof value==="string"?"string":Buffer.isBuffer(value)?"buffer":null;
+  if(!kind)return pinComparableConnectionValue(value);
+  const key=randomBytes(32);
+  const expected=createHmac("sha256",key).update(value as string|Buffer).digest();
+  return candidate=>{
+    if(kind==="string"?typeof candidate!=="string":!Buffer.isBuffer(candidate))return false;
+    try{
+      const actual=createHmac("sha256",key).update(candidate as string|Buffer).digest();
+      return timingSafeEqual(expected,actual);
+    }catch{return false;}
+  };
+}
 function pinAcquiredClientConnection(pool:Pool):(client:PoolClient)=>boolean {
   const template=new pg.Client((pool as unknown as {options:any}).options);
   const expectedParams=template.connectionParameters as unknown as object;
   const expectedProto=Object.getPrototypeOf(expectedParams);
   const parameterFields=[
-    "host","port","database","user","ssl","sslnegotiation","isDomainSocket",
+    "host","port","database","user","password","ssl","sslnegotiation","isDomainSocket",
     "options","client_encoding","replication","application_name",
     "fallback_application_name"
   ] as const;
-  const clientFields=["host","port","database","user","ssl","sslNegotiation"] as const;
+  const clientFields=["host","port","database","user","password","ssl","sslNegotiation"] as const;
   function pinFields(object:object,fields:readonly string[]){
     return fields.map(key=>{
       const property=Object.getOwnPropertyDescriptor(object,key);
       if(!property||!("value" in property))
         throw new TypeError("Cannot pin PostgreSQL client connection identity");
-      return {key,matches:pinComparableConnectionValue(property.value)};
+      return {key,matches:key==="password"?pinCredentialIdentity(property.value):pinComparableConnectionValue(property.value)};
     });
   }
   const expectedParamsFields=pinFields(expectedParams,parameterFields);
