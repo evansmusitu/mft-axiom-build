@@ -28,6 +28,7 @@ class Opener:
     self.wrong_queue=wrong_queue
     self.calls=[]
     self.consumer_list=self.consumers
+    self.consumer_detail=(self.consumers[0] if self.consumers else {})
   def open(self,req,timeout):
     assert req.get_method()=='GET'
     self.calls.append(req.full_url)
@@ -35,6 +36,8 @@ class Opener:
     if self.bad=='forbidden':raise urllib.error.HTTPError(req.full_url,403,'forbidden',{},None)
     if req.full_url.endswith('/consumers'):
       return Response({'success':True,'result':self.consumer_list})
+    if '/consumers/' in req.full_url:
+      return Response({'success':True,'result':self.consumer_detail})
     if '?page=' in req.full_url:
       return Response({'success':True,'result':[{'queue_id':QUEUE}],
         'result_info':{'page':1,'total_pages':1,'total_count':1}})
@@ -110,5 +113,39 @@ class TestTopology(unittest.TestCase):
     r=mod.inspect('token',Opener())
     self.assertFalse(r['independent_witness_verified'])
     self.assertFalse(r['tenant_mapping_verified'])
+
+
+  def test_exact_consumer_get_recovers_worker_name_with_matching_id(self):
+    consumer_id='c'*32
+    o=Opener(consumers=[{'type':'worker','consumer_id':consumer_id}])
+    o.consumer_list=[{'type':'worker','consumer_id':consumer_id}]
+    o.consumer_detail={'type':'worker','consumer_id':consumer_id,'script_name':'witnessed-actual-worker'}
+    result=mod.inspect('test-token',o)
+    self.assertEqual(result['queues'][0]['worker_consumer_count'],1)
+    self.assertEqual(len(o.calls),4)
+    self.assertTrue(o.calls[-1].endswith('/consumers/'+consumer_id))
+    self.assertNotIn('witnessed-actual-worker',json.dumps(result))
+    self.assertFalse(result['postgres_scheduler_correlated'])
+    self.assertFalse(result['mcn072_qualified'])
+
+  def test_exact_consumer_get_rejects_conflicting_identity(self):
+    consumer_id='c'*32
+    o=Opener(consumers=[{'type':'worker','consumer_id':consumer_id}])
+    o.consumer_list=[{'type':'worker','consumer_id':consumer_id}]
+    o.consumer_detail={'type':'worker','consumer_id':'d'*32,'script_name':'other'}
+    with self.assertRaisesRegex(mod.ProbeFailure,'CONSUMER_EXACT_IDENTITY_CONFLICT'):
+      mod.inspect('test-token',o)
+
+  def test_exact_consumer_get_rejects_conflicting_type(self):
+    consumer_id='c'*32
+    o=Opener(consumers=[{'type':'worker','consumer_id':consumer_id}])
+    o.consumer_list=[{'type':'worker','consumer_id':consumer_id}]
+    o.consumer_detail={'type':'http_pull','consumer_id':consumer_id,'script_name':'forged'}
+    with self.assertRaisesRegex(mod.ProbeFailure,'CONSUMER_EXACT_IDENTITY_CONFLICT'):
+      mod.inspect('test-token',o)
+
+  def test_exact_consumer_get_path_rejects_other_id_shapes(self):
+    with self.assertRaisesRegex(mod.ProbeFailure,'UNAPPROVED_URL_PATH'):
+      mod.fetch(mod.PREFIX+'/'+QUEUE+'/consumers/../secret','token',Opener())
 
 if __name__=='__main__':unittest.main()
