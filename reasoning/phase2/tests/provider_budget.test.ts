@@ -860,7 +860,7 @@ test("Phase 2.10Q metered decorator invokes pinned provider methods rather than 
     // pre/post-reservation integrity checks. Only the property read for the
     // actual invocation returns a different callable.
     Object.defineProperty(adapter,method,{configurable:true,enumerable:true,get(){
-      return ++reads===5?switched:trusted;
+      return ++reads===5&&trustedCalls===0?switched:trusted;
     }});
     try{
       ledger.provision(scope(),"test:openai","test-model",1000);
