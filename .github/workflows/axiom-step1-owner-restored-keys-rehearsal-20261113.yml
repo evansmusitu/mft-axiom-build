@@ -1,0 +1,46 @@
+name: AXIOM Step1 owner restored-key rehearsal SYNTHETIC ONLY (NOT RELEASE)
+on:
+  push:
+    branches:
+      - review/axiom-step1-owner-sole-authority-policy-20261112-not-release
+    paths:
+      - .github/workflows/axiom-step1-owner-restored-keys-rehearsal-20261113.yml
+      - customer_frontier/qualification/step1_owner_restored_keys_rehearsal.py
+      - customer_frontier/tests/test_step1_owner_restored_keys_rehearsal.py
+permissions: { contents: read }
+jobs:
+  synthetic-owner-recovery-test-only:
+    if: >-
+      github.repository == 'evansmusitu/mft-axiom-build' &&
+      github.ref == 'refs/heads/review/axiom-step1-owner-sole-authority-policy-20261112-not-release' &&
+      github.run_attempt == 1
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - name: Checkout isolated candidate without persisted credentials
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          persist-credentials: false
+      - name: Verify there are no real owner keys, tokens, or trusted production pins
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -z "${AXIOM_TRUSTED_OWNER_ED25519_SPKI_SHA256:-}"
+          test -z "${AXIOM_TRUSTED_OWNER_X25519_SPKI_SHA256:-}"
+          test ! -e 'private/owner_ed25519_pkcs8_encrypted.pem'
+          test ! -e 'private/owner_x25519_pkcs8_encrypted.pem'
+          python3 --version
+          openssl version
+      - name: Python syntax, 15 synthetic deny/cryptographic tests
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -m py_compile customer_frontier/qualification/step1_owner_restored_keys_rehearsal.py
+          python3 -m unittest discover -s customer_frontier/tests -p 'test_step1_owner_restored_keys_rehearsal.py' -v
+      - name: Do not authorize D1, spend, release or Step2
+        shell: bash
+        run: |
+          set -euo pipefail
+          grep -Fq "'step1_closed':False" customer_frontier/qualification/step1_owner_restored_keys_rehearsal.py
+          grep -Fq "'release_status':'NOT_RELEASE'" customer_frontier/qualification/step1_owner_restored_keys_rehearsal.py
+          echo 'AXIOM_OWNER_RESTORED_KEY_SYNTHETIC_REHEARSAL_ONLY_NO_GO_NOT_RELEASE'
