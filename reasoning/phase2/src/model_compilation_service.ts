@@ -9,6 +9,7 @@ import type {
 } from "./types.ts";
 import type { ModelAdapter } from "./model_adapter.ts";
 import { createModelExchangeArtifact } from "./model_adapter.ts";
+import { requireMeteredProviderAdapter, requireProtectedPaidProviderAdapter } from "./provider_budget.ts";
 import {
   ModelCompilerRegistry, assembleModelProgram, canonicalModelInputContracts, parseModelProposal
 } from "./model_compiler.ts";
@@ -121,6 +122,8 @@ export interface ModelCompilationServiceOptions {
   repository:ModelCompilationRepository;
   registry:OperationRegistry;
   adapter:ModelAdapter;
+  /** Explicit trusted deployment gate; default false preserves offline fixtures only. */
+  productionBillingRequired?:boolean;
   now?:()=>string;
 }
 
@@ -129,6 +132,7 @@ export class ModelCompilationService {
   private readonly repository:ModelCompilationRepository;
   private readonly registry:OperationRegistry;
   private readonly adapter:ModelAdapter;
+  private readonly productionBillingRequired:boolean;
   private readonly now:()=>string;
 
   constructor(options:ModelCompilationServiceOptions){
@@ -136,7 +140,13 @@ export class ModelCompilationService {
     if(!options?.repository||typeof options.repository.commitCompilation!=="function")throw new TypeError("model compilation repository is required");
     if(!options?.registry||typeof options.registry.manifest!=="function")throw new TypeError("operation registry is required");
     if(!options?.adapter||typeof options.adapter.invoke!=="function")throw new TypeError("model adapter is required");
+    if(options.productionBillingRequired!==undefined&&typeof options.productionBillingRequired!=="boolean")
+      throw new TypeError("productionBillingRequired must be boolean");
+    if(options.productionBillingRequired===true)
+      requireProtectedPaidProviderAdapter(options.adapter);
+    else requireMeteredProviderAdapter(options.adapter);
     this.profiles=options.profiles;this.repository=options.repository;this.registry=options.registry;this.adapter=options.adapter;
+    this.productionBillingRequired=options.productionBillingRequired===true;
     this.now=options.now??(()=>new Date().toISOString());
   }
 
@@ -163,6 +173,12 @@ export class ModelCompilationService {
     for(let attempt=0;attempt<=profile.maxRepairAttempts;attempt++){
       const mode=attempt===0?"INITIAL" as const:"REPAIR" as const;
       const capturedAt=required(this.now(),"model capture time");
+      // The constructor check cannot authorize a newly paid/rebranded adapter
+      // after async work or between repair attempts. Requalify immediately
+      // before each provider invocation.
+      if(this.productionBillingRequired)
+        requireProtectedPaidProviderAdapter(this.adapter,context.tenant.tenantId);
+      else requireMeteredProviderAdapter(this.adapter,context.tenant.tenantId);
       const captured=await this.adapter.invoke({
         tenant:context.tenant,profile,profileHash,compilationRequestHash,attempt,mode,
         objective:request.objective,inputContracts:request.inputContracts,
