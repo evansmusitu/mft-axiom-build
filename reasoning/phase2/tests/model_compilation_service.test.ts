@@ -235,3 +235,125 @@ test("repair state uses previous normalized proposal instead of raw provider env
   assert.equal(result.status,"VALIDATED");
   assert.equal(calls[1].previousResponseBody,badNormalized);
 });
+
+
+test("Phase 2.10P compile requalifies metering immediately before invoking a newly paid adapter",async()=>{
+  const {compiler,model}=await service([validProposal()]);
+  assert.equal(model.manifest.provider,"fixture");
+  // The constructor accepted only the original nonpaid fixture. A later
+  // provider reclassification must not bypass the durable spend ledger.
+  model.manifest.provider="openai";
+  await assert.rejects(
+    ()=>compiler.compile(context(),request(),H("6")),
+    (error:any)=>error?.code==="BUDGET_ENFORCEMENT_REQUIRED"
+  );
+  assert.equal(model.calls.length,0,"rebranded paid provider must not be called without budget admission");
+});
+
+
+test("Phase 2.10T compilation audit retains the originally authorized principal across provider awaits",async()=>{
+  const {compiler,model,repo}=await service([validProposal()]);
+  const approved=context(),initialPrincipal=approved.principal.principalId;
+  const initialDecision=approved.authorization.decisionHash;
+  const realInvoke=model.invoke.bind(model);
+  model.invoke=async(input:any)=>{
+    // Simulates a shared authorization object altered after the initial
+    // service admission while the model transport is awaited.
+    approved.principal.principalId="principal:changed-after-admission";
+    approved.authorization.decisionHash=H("f");
+    return realInvoke(input);
+  };
+  const result=await compiler.compile(approved,request(),H("6"));
+  assert.equal(result.status,"VALIDATED");
+  assert.equal(repo.commits.length,1);
+  assert.equal(repo.commits[0].record.principalId,initialPrincipal,
+    "audit principal must be the exact identity that passed authorization");
+  assert.equal(repo.commits[0].record.authorizationDecisionHash,initialDecision,
+    "post-admission context mutation must not substitute the recorded authorization decision");
+});
+
+
+test("Phase 2.10V compilation never persists a provider identity changed during awaited adapter invocation",async()=>{
+  for(const [field,changed] of [
+    ["modelId","other-model"],
+    ["version","2.0.0"],
+    ["implementationHash",H("a")],
+    ["provider","openai"]
+  ] as const){
+    const {compiler,model,repo}=await service([validProposal()]);
+    const invoke=model.invoke.bind(model);
+    model.invoke=async(input:any)=>{
+      // A transport that changes its declared identity after initial admission
+      // cannot label previously approved evidence with the new identity.
+      (model.manifest as any)[field]=changed;
+      return invoke(input);
+    };
+    await assert.rejects(
+      ()=>compiler.compile(context(),request(),H("6")),
+      (error:any)=>error?.code==="MODEL_ADAPTER_IDENTITY_CHANGED",
+      "compiler must refuse changed "+field+" before proof artifacts or records are committed"
+    );
+    assert.equal(repo.commits.length,0,"no successful audit record may attest a changed provider "+field);
+    assert.equal(model.calls.length,1,"synthetic adapter was actually invoked once");
+  }
+});
+
+
+test("Phase 2.10W compiler validates only the response already hashed inside its proof artifact",async()=>{
+  const {phase2,registry,profiles,repo}=await service([],{maxRepairAttempts:0});
+  const invalid=JSON.stringify({proposal:validProposal({decisionNodeId:"missing"})});
+  const valid=JSON.stringify({proposal:validProposal()});
+  let normalizedReads=0;
+  const model={
+    manifest:{adapterId:"model:test",version:"1.0.0",implementationHash:H("5"),provider:"fixture",modelId:"fixture-model"},
+    async invoke(input:any){
+      return {
+        capturedAt:input.capturedAt,requestBody:"{}",responseBody:valid,
+        get normalizedResponseBody(){return ++normalizedReads===1?invalid:valid;}
+      };
+    }
+  };
+  const compiler=new phase2.ModelCompilationService({
+    profiles,repository:repo,registry,adapter:model,now:clock()
+  });
+  const result=await compiler.compile(context(),request(),H("6"));
+  assert.equal(normalizedReads,1,"once captured, the normalized provider body must never be re-read");
+  assert.equal(result.status,"REJECTED",
+    "the compiler must reject the invalid proposal that the persisted artifact actually attests");
+  assert.equal(repo.commits.length,1);
+  assert.equal(repo.commits[0].artifacts[0].normalizedResponseBody,invalid);
+  assert.equal(repo.commits[0].record.status,"REJECTED");
+});
+
+
+test("Phase 2.10X model adapter cannot raise the originally admitted repair budget",async()=>{
+  const invalid=validProposal({decisionNodeId:"missing"});
+  const {compiler,model,repo}=await service([invalid,validProposal()],{maxRepairAttempts:0});
+  const originalInvoke=model.invoke.bind(model);
+  model.invoke=async(input:any)=>{
+    input.profile.maxRepairAttempts=1;
+    return originalInvoke(input);
+  };
+  const result=await compiler.compile(context(),request(),H("6"));
+  assert.equal(result.status,"REJECTED","invalid initial response must consume the entire zero-repair budget");
+  assert.equal(model.calls.length,1,"the provider may not grant itself a second paid attempt");
+  assert.equal(repo.commits[0].record.status,"REJECTED");
+});
+
+test("Phase 2.10X provider cannot mutate admitted tenant or model input contracts used in proof",async()=>{
+  const {compiler,model,repo}=await service([validProposal()]);
+  const originalInvoke=model.invoke.bind(model);
+  model.invoke=async(input:any)=>{
+    input.tenant.tenantId="tenant:forged";
+    input.inputContracts[0].entity="risk:attacker";
+    return originalInvoke(input);
+  };
+  const result=await compiler.compile(context(),request(),H("6"));
+  assert.equal(result.status,"VALIDATED");
+  assert.equal(repo.commits.length,1);
+  const commit=repo.commits[0];
+  assert.equal(commit.scope.tenantId,A.tenantId,"persistence must use originally authorized tenant");
+  assert.equal(commit.record.tenantId,A.tenantId,"proof must not name provider-modified tenant");
+  assert.equal(commit.record.inputContracts[0].entity,"risk:a",
+    "proof and compiled input bindings must keep originally validated evidence contracts");
+});

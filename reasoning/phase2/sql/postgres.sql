@@ -222,3 +222,44 @@ CREATE TABLE IF NOT EXISTS axiom_tenant_fair_served(
  tenant_id TEXT PRIMARY KEY,
  last_ordinal BIGINT NOT NULL CHECK(last_ordinal>0)
 );
+
+
+-- Phase 2.10A central provider-cost reserve/settle accounting.
+-- Operator access to budget provisioning must be restricted by DB grants/IAM.
+CREATE TABLE IF NOT EXISTS axiom_provider_spend_budgets(
+ tenant_id TEXT NOT NULL,
+ provider TEXT NOT NULL,
+ model_id TEXT NOT NULL,
+ limit_micro_usd BIGINT NOT NULL CHECK(limit_micro_usd>=0),
+ charged_micro_usd BIGINT NOT NULL DEFAULT 0 CHECK(charged_micro_usd>=0),
+ reserved_micro_usd BIGINT NOT NULL DEFAULT 0 CHECK(reserved_micro_usd>=0),
+ suspended BOOLEAN NOT NULL DEFAULT FALSE,
+ PRIMARY KEY(tenant_id,provider,model_id)
+);
+CREATE TABLE IF NOT EXISTS axiom_provider_spend_requests(
+ tenant_id TEXT NOT NULL,
+ provider TEXT NOT NULL,
+ model_id TEXT NOT NULL,
+ request_id TEXT NOT NULL,
+ request_hash TEXT NOT NULL,
+ reserve_micro_usd BIGINT NOT NULL CHECK(reserve_micro_usd>0),
+ status TEXT NOT NULL CHECK(status IN ('RESERVED','SETTLED','OVERAGE')),
+ charge_micro_usd BIGINT CHECK(charge_micro_usd>=0),
+ response_hash TEXT,
+ PRIMARY KEY(tenant_id,provider,model_id,request_id),
+ FOREIGN KEY(tenant_id,provider,model_id)
+   REFERENCES axiom_provider_spend_budgets(tenant_id,provider,model_id)
+);
+
+-- Phase 2.10B: vendor organization cap across tenants, adapters and models.
+-- Existing budgets receive NULL vendor and fail closed until audited backfill.
+ALTER TABLE axiom_provider_spend_budgets
+  ADD COLUMN IF NOT EXISTS billing_provider TEXT
+  CHECK (billing_provider IN ('openai','anthropic'));
+CREATE TABLE IF NOT EXISTS axiom_provider_spend_organizations(
+ billing_provider TEXT PRIMARY KEY CHECK(billing_provider IN ('openai','anthropic')),
+ limit_micro_usd BIGINT NOT NULL CHECK(limit_micro_usd>=0),
+ charged_micro_usd BIGINT NOT NULL DEFAULT 0 CHECK(charged_micro_usd>=0),
+ reserved_micro_usd BIGINT NOT NULL DEFAULT 0 CHECK(reserved_micro_usd>=0),
+ suspended BOOLEAN NOT NULL DEFAULT FALSE
+);
