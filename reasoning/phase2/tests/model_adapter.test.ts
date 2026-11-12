@@ -204,3 +204,25 @@ test("Phase-2.4B preserves legacy artifacts while independently binding normaliz
   assert.equal("normalizedResponseBody" in legacy,false);
   assert.deepEqual(phase2.verifyModelExchangeArtifact({tenantId:"tenant:model"},legacy),legacy);
 });
+
+
+test("Phase 2.10W proof artifacts hash exactly one snapshot of each provider response field",async()=>{
+  const phase2:any=await import("../src/index.ts");
+  const originalRequest='{"request":"pinned"}',originalResponse=validResponse();
+  let requestReads=0,responseReads=0;
+  const captured={
+    capturedAt:"2026-10-06T18:00:00.000Z",
+    get requestBody(){return ++requestReads===1?originalRequest:'{"request":"changed"}';},
+    get responseBody(){return ++responseReads===1?originalResponse:'{"response":"changed"}';}
+  };
+  const artifact=phase2.createModelExchangeArtifact({
+    tenantId:"tenant:model",manifest,profileId:profile.profileId,profileHash:input().profileHash,
+    compilationRequestHash:H("d"),attempt:0,mode:"INITIAL",captured
+  });
+  assert.equal(artifact.requestBody,originalRequest);
+  assert.equal(artifact.responseBody,originalResponse);
+  assert.equal(requestReads,1,"the request payload must be read once before hashing");
+  assert.equal(responseReads,1,"the response payload must be read once before hashing");
+  assert.deepEqual(phase2.verifyModelExchangeArtifact({tenantId:"tenant:model"},artifact),artifact,
+    "artifact hashes must verify against the same observed bytes");
+});
