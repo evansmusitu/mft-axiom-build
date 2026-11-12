@@ -754,3 +754,40 @@ test("Phase 2.10L acquired PostgreSQL client must retain pinned credential ident
     }
   }
 });
+
+
+test("Phase 2.10N SQLite spend mutations stay bound to validated tenant and values with adversarial getters",()=>{
+  const ledger=new phase2.SqliteProviderSpendLedger(":memory:");
+  const a={tenantId:"tenant:sqlite-pinned-source"},b={tenantId:"tenant:sqlite-pinned-target"};
+  const provider="adapter:sqlite-pinned",modelId="model:sqlite-pinned";
+  try{
+    ledger.provision(a,provider,modelId,100);
+    ledger.provision(b,provider,modelId,100);
+    let reservationReads=0,amountReads=0;
+    ledger.reserve({
+      get tenantId(){return ++reservationReads<5?a.tenantId:b.tenantId;},
+      provider,modelId,requestId:"sqlite-pinned-1",requestHash:"a".repeat(64),
+      get reserveMicroUsd(){amountReads++;return 50;}
+    });
+    assert.equal(ledger.status(a,provider,modelId).reservedMicroUsd,50,
+      "the originally validated SQLite tenant must receive its own reserved amount");
+    assert.equal(ledger.status(b,provider,modelId).reservedMicroUsd,0,
+      "a changed getter must not direct a budget UPDATE to another tenant");
+    assert.equal(reservationReads,1,"reservation identity is read exactly once");
+    assert.equal(amountReads,1,"reservation cost is read exactly once");
+    let settlementReads=0,chargeReads=0;
+    ledger.settle({
+      get tenantId(){return ++settlementReads<5?a.tenantId:b.tenantId;},
+      provider,modelId,requestId:"sqlite-pinned-1",requestHash:"a".repeat(64),
+      get chargeMicroUsd(){chargeReads++;return 25;},responseHash:"b".repeat(64)
+    });
+    assert.deepEqual(ledger.status(a,provider,modelId),{
+      limitMicroUsd:100,chargedMicroUsd:25,reservedMicroUsd:0,availableMicroUsd:75
+    });
+    assert.deepEqual(ledger.status(b,provider,modelId),{
+      limitMicroUsd:100,chargedMicroUsd:0,reservedMicroUsd:0,availableMicroUsd:100
+    });
+    assert.equal(settlementReads,1,"settlement identity is read exactly once");
+    assert.equal(chargeReads,1,"settlement amount is read exactly once");
+  }finally{ledger.close();}
+});
