@@ -8,6 +8,7 @@ on:
       - customer_frontier/qualification/step1_owner_device_signed_proposal.mjs
       - customer_frontier/qualification/step1_owner_device_sign_proposal.sh
       - customer_frontier/tests/step1_owner_device_signed_proposal.test.mjs
+      - customer_frontier/tests/test_step1_owner_device_sign_confirmation.py
 permissions: { contents: read }
 jobs:
   signed-proposal-offline:
@@ -33,6 +34,8 @@ jobs:
           bash -n customer_frontier/qualification/step1_owner_device_sign_proposal.sh
       - name: Run synthetic Ed25519 OpenSSL interoperability and NO_GO tests
         run: node --test customer_frontier/tests/step1_owner_device_signed_proposal.test.mjs
+      - name: Verify exact owner-review digest confirmation with mock signer only
+        run: python3 -m unittest -v customer_frontier/tests/test_step1_owner_device_sign_confirmation.py
       - name: Confirm owner-owned keys not generated or attached and runtime stays blocked
         run: |
           test ! -d "private"
