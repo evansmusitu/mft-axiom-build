@@ -209,7 +209,8 @@ export class ModelCompilationService {
         compilationRequestHash,attempt,mode,captured
       });
       artifacts.push(artifact);
-      const normalizedResponseBody=captured.normalizedResponseBody??captured.responseBody;
+      // Parse only the bytes bound to the persisted proof digest.
+      const normalizedResponseBody=artifact.normalizedResponseBody??artifact.responseBody;
       previousResponseBody=normalizedResponseBody;
 
       try{
