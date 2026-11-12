@@ -93,7 +93,7 @@ class TestTopology(unittest.TestCase):
     with self.assertRaisesRegex(mod.ProbeFailure,'PRODUCER_WORKER_SCRIPT_MISSING_OR_INVALID'):
       mod.inspect('token',Opener(producers=[{'type':'worker'}]))
   def test_absent_consumer_name_reports_safe_role_code(self):
-    with self.assertRaisesRegex(mod.ProbeFailure,'CONSUMER_WORKER_SCRIPT_MISSING_OR_INVALID'):
+    with self.assertRaisesRegex(mod.ProbeFailure,'CONSUMER_EXACT_WORKER_SCRIPT_UNVERIFIABLE'):
       mod.inspect('token',Opener(consumers=[{'type':'worker','consumer_id':'c'*32}]))
   def test_missing_count_fails(self):
     o=Opener()
@@ -147,5 +147,24 @@ class TestTopology(unittest.TestCase):
   def test_exact_consumer_get_path_rejects_other_id_shapes(self):
     with self.assertRaisesRegex(mod.ProbeFailure,'UNAPPROVED_URL_PATH'):
       mod.fetch(mod.PREFIX+'/'+QUEUE+'/consumers/../secret','token',Opener())
+
+
+  def test_invalid_list_name_uses_exact_consumer_get(self):
+    cid='c'*32
+    o=Opener(consumers=[{'type':'worker','consumer_id':cid}])
+    o.consumer_list=[{'type':'worker','consumer_id':cid,'script_name':' '}]
+    o.consumer_detail={'type':'worker','consumer_id':cid,'script_name':'canonical-worker'}
+    result=mod.inspect('test-token',o)
+    self.assertEqual(result['queues'][0]['worker_consumer_count'],1)
+    self.assertEqual(len(o.calls),4)
+    self.assertNotIn('canonical-worker',json.dumps(result))
+
+  def test_unusable_exact_script_reports_specific_fail_closed_code(self):
+    cid='c'*32
+    o=Opener(consumers=[{'type':'worker','consumer_id':cid}])
+    o.consumer_list=[{'type':'worker','consumer_id':cid}]
+    o.consumer_detail={'type':'worker','consumer_id':cid,'script_name':' '}
+    with self.assertRaisesRegex(mod.ProbeFailure,'CONSUMER_EXACT_WORKER_SCRIPT_UNVERIFIABLE'):
+      mod.inspect('test-token',o)
 
 if __name__=='__main__':unittest.main()
