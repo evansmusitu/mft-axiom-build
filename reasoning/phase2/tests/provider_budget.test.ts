@@ -112,12 +112,12 @@ test("trusted compile and explanation services reject unbudgeted OpenAI and Anth
   const makeCompiler=(adapter:any)=>new phase2.ModelCompilationService({
     profiles:{resolve(){throw new Error("not used");}} as any,
     repository:{commitCompilation(){throw new Error("not used");}} as any,
-    registry:{manifest(){return [];}} as any,adapter
+    registry:{manifest(){return [];}} as any,adapter,productionBillingRequired:false
   });
   const makeExplainer=(adapter:any)=>new phase2.ModelExplanationService({
     tenant:scope(),profiles:{} as any,repository:{} as any,executions:{} as any,
     plane:{async replayStored(){return {status:"MATCH" as const,diagnostics:[]};}},
-    adapters:[adapter]
+    adapters:[adapter],productionBillingRequired:false
   });
   for(const provider of ["openai","anthropic"] as const){
     let calls=0;
@@ -151,7 +151,7 @@ test("budgeted explanation registration denies a different tenant without spendi
       tenant:scope("tenant:b"),
       profiles:{} as any,repository:{} as any,executions:{} as any,
       plane:{async replayStored(){return {status:"MATCH" as const,diagnostics:[]};}},
-      adapters:[x.wrapped]
+      adapters:[x.wrapped],productionBillingRequired:false
     }),/tenant mismatch/i);
     assert.equal(x.calls,0);
     assert.equal(x.ledger.status(scope(),"test:openai","test-model").chargedMicroUsd,0);
