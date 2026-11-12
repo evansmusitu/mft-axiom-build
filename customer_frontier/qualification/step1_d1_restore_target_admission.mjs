@@ -1,8 +1,9 @@
 /**
  * MUSITU AXIOM: Step 1 staging D1 restore-target creation approval and topology gate.
  * Offline only. No Cloudflare calls, mutations, customer SQL, secret or token writes.
- * Even two valid independent signed approvals authorize only a NEW empty staging
- * recovery-target creation, never any source-D1 overwrite or data restore.
+ * Two distinct valid signatures only demonstrate cryptographic control of keys.
+ * They cannot independently prove the owner/custodian are separate real people
+ * or that a provider has approved a zero-spend creation. No D1 mutation is authorized.
  */
 import { createPublicKey, verify, createHash } from 'node:crypto';
 import { readFileSync } from 'node:fs';
@@ -31,7 +32,7 @@ function b64(value){
   assert(bytes.toString('base64')===value,'NONCANONICAL_BASE64');
   return bytes;
 }
-/** Returns verification of permission to CREATE a new empty, isolated target only. */
+/** Checks two pin-matched signatures offline; never independently grants cloud authority. */
 export function verifyApproval({payload,owner,custodian,ownerTrustedSpkiSha256,custodianTrustedSpkiSha256,now}) {
   assert(typeof payload==='string'&&Buffer.byteLength(payload,'utf8')<=4096,'BAD_APPROVAL_PAYLOAD');
   const plan=JSON.parse(payload);
@@ -66,8 +67,9 @@ export function verifyApproval({payload,owner,custodian,ownerTrustedSpkiSha256,c
     assert(sig.length===64 && verify(null,message,key,sig),'INVALID_INDEPENDENT_SIGNATURE');
   }
   return Object.freeze({schema:'musitu.axiom.step1.creation-admission-receipt.v1',
-    status:'ONLY_NEW_DISPOSABLE_D1_CREATION_APPROVED',
-    signed_plan_sha256:sha(message),trusted_independent_keys:true,
+    status:'PINNED_TWO_SIGNATURES_VALID_CUSTODY_NOT_ATTESTED_NO_GO',
+    signed_plan_sha256:sha(message),two_distinct_pinned_keys_verified:true,
+    human_custody_independence_verified:false,creation_authorized:false,
     source_database_unchanged:true,production_changes_authorized:false,
     backup_export_authorized:false,customer_data_restore_authorized:false,
     current_backup_qualified:false,independent_restore_qualified:false,
