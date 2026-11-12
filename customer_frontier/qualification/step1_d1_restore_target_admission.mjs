@@ -99,8 +99,9 @@ export function verifyEmptyTarget({sourceMetadata,targetMetadata,workers,workerS
   }
   assert(consumers===0,'TARGET_CURRENTLY_BOUND');
   return Object.freeze({schema:'musitu.axiom.step1.empty-target-topology.v1',
-    status:'EMPTY_ISOLATED_METADATA_ONLY_NOT_APPROVED_FOR_RESTORE',target_uuid_sha256:sha(targetMetadata.uuid),
-    worker_count:workers.length,worker_consumers:0,target_tables:0,
+    status:'UNVERIFIED_TARGET_METADATA_ONLY_NO_GO',target_uuid_sha256:sha(targetMetadata.uuid),
+    worker_count:workers.length,worker_consumers:0,
+    target_tables_untrusted_metadata_hint:0,target_emptiness_independently_verified:false,
     independent_owner_approval_verified:false,source_data_backup_qualified:false,
     source_database_unchanged:true,step_1_closed:false,step_2_authorized:false,release_authority:false});
 }
