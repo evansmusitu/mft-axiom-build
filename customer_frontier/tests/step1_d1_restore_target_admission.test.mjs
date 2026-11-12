@@ -59,6 +59,8 @@ const workerSettings={'musitu-axiom-customer-staging':{bindings:[]},'other-worke
 const verify=(t=targetMetadata,w=workerSettings,s=sourceMetadata)=>verifyEmptyTarget({sourceMetadata:s,targetMetadata:t,workers,workerSettings:w});
 test('empty, unbound metadata only is explicitly not a restore acceptance',()=>{
   const r=verify();assert.equal(r.worker_consumers,0);
+  assert.equal(r.status,'UNVERIFIED_TARGET_METADATA_ONLY_NO_GO');
+  assert.equal(r.target_emptiness_independently_verified,false);
   for(const f of ['source_data_backup_qualified','independent_owner_approval_verified','step_1_closed','step_2_authorized','release_authority'])assert.equal(r[f],false);
 });
 test('source database and OAuth-only DR database never accepted',()=>{
