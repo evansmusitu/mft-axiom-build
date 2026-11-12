@@ -56,3 +56,24 @@ The test creates an isolated throwaway database with fake provider-spend tables,
 The protected function ACL permits execution only to its independently reviewed owner and the named current runtime login. This is a **read-only privilege audit**, not tenant authorization inside the functions or a deployed Worker inventory.
 
 The test functions are intentionally inert and separate from the protected budget migration in stacked draft #104. Passing this check does **not** prove that the live SQL bodies are deployed, transaction-safe, tenant-authenticated or invoice-reconciled. No Cloudflare/Neon network is contacted. **Release NO-GO.**
+
+## 2026-11-12 G1 strict origin TLS evidence (draft #239)
+
+The operator may set G1_REQUIRE_ORIGIN_TLS=true only for a closed, approved
+scheduled staging diagnostic. The fixed catalog SELECT now reads pg_stat_ssl
+for the current PostgreSQL backend PID, checking origin_tls_active and
+origin_tls_version. Strict mode refuses missing/false TLS and versions below
+TLS 1.2 with STAGING_ORIGIN_TLS_UNVERIFIED. Public fetch() remains HTTP 404;
+the scheduled result logs generic success/failure only, and always reports
+productionBillingEnforced=false.
+
+CA and DNS/SAN hostname verify-full at the private Cloudflare VPC origin are
+NOT demonstrated by pg_stat_ssl.ssl=true; independent real Cloudflare, AWS
+and Neon native control-plane receipts are mandatory. No live SQL, Worker
+deployment, public ingress exception, password, database role or provider
+spend is authorized by this source-only diagnostic.
+
+See docs/acceptance/2026-11-12-g1-private-neon-cloudflare-operator-acceptance.md
+for the G1-only operator network route, owner/time/cost authorization, least
+privilege SQL, cross-worker atomicity captures and independent signatures.
+**G1 remains NO-GO until genuine signed live evidence exists.**
