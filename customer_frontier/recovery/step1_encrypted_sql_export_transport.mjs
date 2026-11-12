@@ -43,8 +43,10 @@ function publicDer(key){
 }
 function derive(privateKey,publicKey,salt,metadata){
  const raw=diffieHellman({privateKey,publicKey});
- const info=Buffer.from('MUSITU_AXIOM_STEP1_D1_EXPORT_V1:'+sha(JSON.stringify(metadata)));
- return Buffer.from(hkdfSync('sha256',raw,salt,info,32));
+ try{
+  const info=Buffer.from('MUSITU_AXIOM_STEP1_D1_EXPORT_V1:'+sha(JSON.stringify(metadata)));
+  return Buffer.from(hkdfSync('sha256',raw,salt,info,32));
+ }finally{raw.fill(0)}
 }
 function payloadMetadata(v){
  return {schema:SCHEMA,source_account:ACCOUNT,source_database:DATABASE,
@@ -117,8 +119,18 @@ export function openSqlExport({envelope,custodianPrivateKey,expectedCustodianSpk
   const decipher=createDecipheriv('aes-256-gcm',key,iv,{authTagLength:16});
   decipher.setAAD(Buffer.from(JSON.stringify(metadata)));
   decipher.setAuthTag(tag);
-  try{return Buffer.concat([decipher.update(ciphertext),decipher.final()])}
-  catch {throw new BackupNoGo('CIPHERTEXT_OR_METADATA_NOT_AUTHENTIC')}
+  let unauthenticated;
+  try{
+   unauthenticated=decipher.update(ciphertext);
+   const tail=decipher.final();
+   const verified=Buffer.concat([unauthenticated,tail]);
+   unauthenticated.fill(0);
+   tail.fill(0);
+   return verified;
+  }catch {
+   if(unauthenticated)unauthenticated.fill(0);
+   throw new BackupNoGo('CIPHERTEXT_OR_METADATA_NOT_AUTHENTIC');
+  }
  }finally{key.fill(0)}
 }
 /** Static capability statement: cryptography alone never admits custody/recovery. */
