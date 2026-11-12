@@ -81,20 +81,33 @@ export class MusituAxiomEvidenceAdapter implements EvidenceAdapter {
       const value=await this.secretResolver.resolve(this.authSecretRef);
       headers.authorization=value;secrets.push(value);
     }
-    const controller=new AbortController(),timer=setTimeout(()=>controller.abort(),op.timeoutMs);
-    let response:Response;
-    try{
-      response=await this.fetchFn(new URL("/v1/compute",this.base),{
-        method:"POST",headers,redirect:"manual",signal:controller.signal,
-        body:JSON.stringify({operation:op.operationId,args:input.parameters})
-      });
-    }catch{
-      if(controller.signal.aborted)throw new EvidenceAdapterError("UPSTREAM_TIMEOUT","MUSITU Axiom compute request timed out",504);
-      throw new EvidenceAdapterError("UPSTREAM_NETWORK","MUSITU Axiom compute request failed",502);
-    }finally{clearTimeout(timer);}
-    return captureBoundedJsonResponse({
-      response,allowedStatus:[200],allowedMediaTypes:op.responseMediaTypes,
-      maxResponseBytes:op.maxResponseBytes,secrets
+    const controller=new AbortController();
+    let timer:ReturnType<typeof setTimeout>|undefined;
+    const timeout=()=>new EvidenceAdapterError("UPSTREAM_TIMEOUT","MUSITU Axiom compute request timed out",504);
+    const deadline=new Promise<never>((_resolve,reject)=>{
+      timer=setTimeout(()=>{controller.abort();reject(timeout());},op.timeoutMs);
     });
+    const operation=(async()=>{
+      let response:Response;
+      try{
+        response=await this.fetchFn(new URL("/v1/compute",this.base),{
+          method:"POST",headers,redirect:"manual",signal:controller.signal,
+          body:JSON.stringify({operation:op.operationId,args:input.parameters})
+        });
+      }catch{
+        if(controller.signal.aborted)throw timeout();
+        throw new EvidenceAdapterError("UPSTREAM_NETWORK","MUSITU Axiom compute request failed",502);
+      }
+      return captureBoundedJsonResponse({
+        response,allowedStatus:[200],allowedMediaTypes:op.responseMediaTypes,
+        maxResponseBytes:op.maxResponseBytes,secrets
+      });
+    })();
+    try{
+      return await Promise.race([operation,deadline]);
+    }catch(error){
+      if(controller.signal.aborted)throw timeout();
+      throw error;
+    }finally{if(timer!==undefined)clearTimeout(timer);}
   }
 }

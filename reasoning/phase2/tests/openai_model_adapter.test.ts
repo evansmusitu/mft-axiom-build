@@ -80,6 +80,7 @@ test("OpenAI Responses adapter uses fixed capability surface and normalizes one 
     manifest,
     apiKeySecretRef:"secret:openai",
     timeoutMs:1000,
+    maxOutputTokens:256,
     maxResponseBytes:16384,
     secretResolver:{async resolve(ref:string){resolves++;assert.equal(ref,"secret:openai");return "sk-test-super-secret";}},
     fetchFn:async(url:any,init:any)=>{calls.push({url:String(url),init});return response(openAiResponse());}
@@ -119,7 +120,7 @@ test("OpenAI adapter repair sends canonical AXIOM repair envelope but no provide
   const phase2:any=await import("../src/index.ts");
   let sent:any;
   const adapter=new phase2.OpenAiResponsesModelAdapter({
-    manifest,apiKeySecretRef:"secret:openai",timeoutMs:1000,maxResponseBytes:16384,
+    manifest,apiKeySecretRef:"secret:openai",timeoutMs:1000,maxOutputTokens:256,maxResponseBytes:16384,
     secretResolver:{async resolve(){return "key";}},
     fetchFn:async(_url:any,init:any)=>{sent=JSON.parse(String(init.body));return response(openAiResponse());}
   });
@@ -139,7 +140,7 @@ test("OpenAI adapter repair sends canonical AXIOM repair envelope but no provide
 test("OpenAI adapter rejects ambiguous or malformed Responses output instead of guessing",async()=>{
   const phase2:any=await import("../src/index.ts");
   const make=(body:string)=>new phase2.OpenAiResponsesModelAdapter({
-    manifest,apiKeySecretRef:"secret:openai",timeoutMs:1000,maxResponseBytes:16384,
+    manifest,apiKeySecretRef:"secret:openai",timeoutMs:1000,maxOutputTokens:256,maxResponseBytes:16384,
     secretResolver:{async resolve(){return "key";}},
     fetchFn:async()=>response(body)
   });
@@ -164,7 +165,7 @@ test("OpenAI adapter rejects ambiguous or malformed Responses output instead of 
 test("OpenAI adapter fails closed on transport policy, bounds, secret echo, and unsafe origin",async()=>{
   const phase2:any=await import("../src/index.ts");
   const base:any={
-    manifest,apiKeySecretRef:"secret:openai",timeoutMs:1000,maxResponseBytes:16384,
+    manifest,apiKeySecretRef:"secret:openai",timeoutMs:1000,maxOutputTokens:256,maxResponseBytes:16384,
     secretResolver:{async resolve(){return "sk-sensitive";}}
   };
   assert.throws(()=>new phase2.OpenAiResponsesModelAdapter({...base,origin:"http://api.openai.com",fetchFn:async()=>response(openAiResponse())}),/https/i);
@@ -192,7 +193,7 @@ test("OpenAI adapter rejects outbound secret leakage before provider network I/O
   const phase2:any=await import("../src/index.ts");
   let calls=0;
   const adapter=new phase2.OpenAiResponsesModelAdapter({
-    manifest,apiKeySecretRef:"secret:openai",timeoutMs:1000,maxResponseBytes:16384,
+    manifest,apiKeySecretRef:"secret:openai",timeoutMs:1000,maxOutputTokens:256,maxResponseBytes:16384,
     secretResolver:{async resolve(){return "objective-secret";}},
     fetchFn:async()=>{calls++;return response(openAiResponse());}
   });
@@ -205,7 +206,7 @@ test("OpenAI Responses adapter generates bounded advisory explanation JSON witho
   const phase2:any=await import("../src/index.ts");
   const calls:any[]=[];
   const adapter=new phase2.OpenAiResponsesModelAdapter({
-    manifest,apiKeySecretRef:"secret:openai",timeoutMs:1000,maxResponseBytes:16384,
+    manifest,apiKeySecretRef:"secret:openai",timeoutMs:1000,maxOutputTokens:256,maxResponseBytes:16384,
     secretResolver:{async resolve(){return "openai-explain-secret";}},
     fetchFn:async(url:any,init:any)=>{
       calls.push({url:String(url),init});
@@ -242,7 +243,7 @@ test("OpenAI Responses adapter generates bounded advisory explanation JSON witho
 test("OpenAI advisory explanation rejects malformed provider explanation content",async()=>{
   const phase2:any=await import("../src/index.ts");
   const make=(content:any)=>new phase2.OpenAiResponsesModelAdapter({
-    manifest,apiKeySecretRef:"secret:openai",timeoutMs:1000,maxResponseBytes:16384,
+    manifest,apiKeySecretRef:"secret:openai",timeoutMs:1000,maxOutputTokens:256,maxResponseBytes:16384,
     secretResolver:{async resolve(){return "explanation-secret-fixture-openai";}},
     fetchFn:async()=>response(openAiResponse(JSON.stringify(content)))
   });
@@ -262,7 +263,7 @@ test("OpenAI adapter rejects a completed response attributed to a different mode
   const wrong=JSON.parse(openAiResponse());
   wrong.model="different-model";
   const adapter=new phase2.OpenAiResponsesModelAdapter({
-    manifest,apiKeySecretRef:"secret:openai",timeoutMs:1000,maxResponseBytes:16384,
+    manifest,apiKeySecretRef:"secret:openai",timeoutMs:1000,maxOutputTokens:256,maxResponseBytes:16384,
     secretResolver:{async resolve(){return "openai-model-identity-secret";}},
     fetchFn:async()=>response(JSON.stringify(wrong))
   });
@@ -270,4 +271,22 @@ test("OpenAI adapter rejects a completed response attributed to a different mode
     ()=>adapter.invoke(adapterInput()),
     (e:any)=>e?.httpStatus===502&&/model/i.test(e?.message??"")
   );
+});
+
+
+test("OpenAI model provider deadline covers an HTTP 200 response body that never finishes",async()=>{
+  const ax:any=await import("../src/index.ts");
+  const stream=new ReadableStream<Uint8Array>({
+    start(controller){controller.enqueue(new TextEncoder().encode('{"partial":'));}
+  });
+  const adapter=new ax.OpenAiResponsesModelAdapter({
+    manifest,apiKeySecretRef:"secret:openai",timeoutMs:25,maxOutputTokens:256,maxResponseBytes:16384,
+    secretResolver:{async resolve(){return "test-token";}},
+    fetchFn:async()=>new Response(stream,{status:200,headers:{"content-type":"application/json"}})
+  });
+  const result=await Promise.race([
+    adapter.invoke(adapterInput()).then(()=>({status:"unexpected-success"}),e=>({status:"error",code:e?.code,httpStatus:e?.httpStatus})),
+    new Promise(resolve=>setTimeout(()=>resolve({status:"stalled"}),300))
+  ]) as any;
+  assert.deepEqual(result,{status:"error",code:"MODEL_UPSTREAM_TIMEOUT",httpStatus:504});
 });
