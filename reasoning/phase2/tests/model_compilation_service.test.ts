@@ -297,3 +297,30 @@ test("Phase 2.10V compilation never persists a provider identity changed during 
     assert.equal(model.calls.length,1,"synthetic adapter was actually invoked once");
   }
 });
+
+
+test("Phase 2.10W compiler validates only the response already hashed inside its proof artifact",async()=>{
+  const {phase2,registry,profiles,repo}=await service([],{maxRepairAttempts:0});
+  const invalid=JSON.stringify({proposal:validProposal({decisionNodeId:"missing"})});
+  const valid=JSON.stringify({proposal:validProposal()});
+  let normalizedReads=0;
+  const model={
+    manifest:{adapterId:"model:test",version:"1.0.0",implementationHash:H("5"),provider:"fixture",modelId:"fixture-model"},
+    async invoke(input:any){
+      return {
+        capturedAt:input.capturedAt,requestBody:"{}",responseBody:valid,
+        get normalizedResponseBody(){return ++normalizedReads===1?invalid:valid;}
+      };
+    }
+  };
+  const compiler=new phase2.ModelCompilationService({
+    profiles,repository:repo,registry,adapter:model,now:clock()
+  });
+  const result=await compiler.compile(context(),request(),H("6"));
+  assert.equal(normalizedReads,1,"once captured, the normalized provider body must never be re-read");
+  assert.equal(result.status,"REJECTED",
+    "the compiler must reject the invalid proposal that the persisted artifact actually attests");
+  assert.equal(repo.commits.length,1);
+  assert.equal(repo.commits[0].artifacts[0].normalizedResponseBody,invalid);
+  assert.equal(repo.commits[0].record.status,"REJECTED");
+});
