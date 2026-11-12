@@ -27,11 +27,14 @@ class Opener:
     self.bad=bad
     self.wrong_queue=wrong_queue
     self.calls=[]
+    self.consumer_list=self.consumers
   def open(self,req,timeout):
     assert req.get_method()=='GET'
     self.calls.append(req.full_url)
     if self.bad=='redirect':raise urllib.error.HTTPError(req.full_url,302,'redirect',{},None)
     if self.bad=='forbidden':raise urllib.error.HTTPError(req.full_url,403,'forbidden',{},None)
+    if req.full_url.endswith('/consumers'):
+      return Response({'success':True,'result':self.consumer_list})
     if '?page=' in req.full_url:
       return Response({'success':True,'result':[{'queue_id':QUEUE}],
         'result_info':{'page':1,'total_pages':1,'total_count':1}})
@@ -56,6 +59,19 @@ class TestTopology(unittest.TestCase):
     self.assertEqual(r['queues'][0]['worker_consumer_count'],1)
     self.assertNotIn('secret_worker',json.dumps(r))
     self.assertFalse(r['mcn072_qualified'])
+  def test_verified_consumer_list_can_fill_missing_worker_name(self):
+    consumer_id='c'*32
+    o=Opener(consumers=[{'type':'worker','consumer_id':consumer_id}])
+    o.consumer_list=[{'type':'worker','consumer_id':consumer_id,'script_name':'current-worker'}]
+    r=mod.inspect('secret-test-token',o)
+    self.assertEqual(r['queues'][0]['worker_consumer_count'],1)
+    self.assertEqual(len(o.calls),3)
+    self.assertNotIn('current-worker',json.dumps(r))
+    self.assertFalse(r['postgres_scheduler_correlated'])
+  def test_consumer_list_identity_conflict_fails_closed(self):
+    o=Opener(consumers=[{'type':'worker','consumer_id':'c'*32}])
+    o.consumer_list=[{'type':'worker','consumer_id':'d'*32,'script_name':'current-worker'}]
+    with self.assertRaises(mod.ProbeFailure):mod.inspect('token',o)
   def test_missing_secret_no_network(self):
     o=Opener()
     with self.assertRaises(mod.ProbeFailure):mod.inspect('',o)
