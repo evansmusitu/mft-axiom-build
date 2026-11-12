@@ -271,3 +271,29 @@ test("Phase 2.10T compilation audit retains the originally authorized principal 
   assert.equal(repo.commits[0].record.authorizationDecisionHash,initialDecision,
     "post-admission context mutation must not substitute the recorded authorization decision");
 });
+
+
+test("Phase 2.10V compilation never persists a provider identity changed during awaited adapter invocation",async()=>{
+  for(const [field,changed] of [
+    ["modelId","other-model"],
+    ["version","2.0.0"],
+    ["implementationHash",H("a")],
+    ["provider","openai"]
+  ] as const){
+    const {compiler,model,repo}=await service([validProposal()]);
+    const invoke=model.invoke.bind(model);
+    model.invoke=async(input:any)=>{
+      // A transport that changes its declared identity after initial admission
+      // cannot label previously approved evidence with the new identity.
+      (model.manifest as any)[field]=changed;
+      return invoke(input);
+    };
+    await assert.rejects(
+      ()=>compiler.compile(context(),request(),H("6")),
+      (error:any)=>error?.code==="MODEL_ADAPTER_IDENTITY_CHANGED",
+      "compiler must refuse changed "+field+" before proof artifacts or records are committed"
+    );
+    assert.equal(repo.commits.length,0,"no successful audit record may attest a changed provider "+field);
+    assert.equal(model.calls.length,1,"synthetic adapter was actually invoked once");
+  }
+});
