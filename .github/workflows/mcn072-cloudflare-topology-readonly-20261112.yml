@@ -1,0 +1,54 @@
+name: MUSITU MCN-072 queue producer-consumer topology GET-only (NO RELEASE)
+
+on:
+  push:
+    branches:
+      - audit/mcn072-cloudflare-pg-link-readonly-20261112
+    paths:
+      - .github/workflows/mcn072-cloudflare-topology-readonly-20261112.yml
+
+permissions:
+  contents: read
+
+concurrency:
+  group: mcn072-cloudflare-topology-readonly-20261112
+  cancel-in-progress: false
+
+jobs:
+  observe:
+    if: >-
+      github.repository == 'evansmusitu/mft-axiom-build' &&
+      github.ref == 'refs/heads/audit/mcn072-cloudflare-pg-link-readonly-20261112' &&
+      github.event_name == 'push'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 8
+    steps:
+      - name: Checkout with no persisted credentials
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
+      - name: Verify exact source hashes and 12 adversarial tests before Cloudflare token
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git hash-object qualification/mcn072_cloudflare_topology.py)" = "104c6d6dd8333e73b9ef165075b5cbc327634d44"
+          test "$(git hash-object tests/test_mcn072_cloudflare_topology.py)" = "eaae7cd8344e0641bbc0c359d2a20c5b940ab5cd"
+          python3 -B -m py_compile qualification/mcn072_cloudflare_topology.py tests/test_mcn072_cloudflare_topology.py
+          python3 -B -m unittest discover -s tests -p 'test_mcn072_cloudflare_topology.py' -v
+      - name: Read account-pinned Cloudflare Queues producer and consumer topology GET only
+        shell: bash
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+        run: |
+          set -euo pipefail
+          python3 -B qualification/mcn072_cloudflare_topology.py
+      - name: Preserve sanitized and explicitly non-qualifying topology evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: musitu-mcn072-cloudflare-topology-getonly-20261112
+          path: |
+            mcn072-cloudflare-topology-readonly.json
+            mcn072-cloudflare-topology-readonly.json.sha256
+          if-no-files-found: warn
+          retention-days: 7
