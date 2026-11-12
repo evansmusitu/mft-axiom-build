@@ -270,3 +270,31 @@ test("Phase 2.10V explanation checks record hash after replay, denying shared-re
   assert.equal(adapter.calls.length,0);
   assert.equal(put.length,0);
 });
+
+
+test("Phase 2.10W explanation requires a replay receipt bound to the exact execution record hash",async()=>{
+  const phase2:any=await import("../src/index.ts");
+  for(const mode of ["missing-bound-method","different-replayed-record"] as const){
+    const adapter=fakeAdapter(),stored=execution(),put:any[]=[];
+    const plane:any={async replayStored(){return {status:"MATCH" as const,diagnostics:[]};}};
+    if(mode==="different-replayed-record"){
+      plane.replayStoredBound=async()=>({
+        status:"MATCH" as const,diagnostics:[],recordHash:H("f")
+      });
+    }
+    const service=new phase2.ModelExplanationService({
+      tenant,profiles:new phase2.ModelExplanationRegistry([{profile,tenantIds:[tenant.tenantId]}]),
+      repository:{async put(_scope:any,record:any){put.push(record);},async get(){throw Error("unused");}},
+      executions:{async get(){return structuredClone(stored);}},
+      plane,adapters:[adapter],productionBillingRequired:false,
+      now:()=>new Date("2026-10-07T20:20:00.000Z")
+    });
+    await assert.rejects(
+      ()=>service.explain(context(),stored.id,{profileId:profile.profileId},H("9")),
+      (error:any)=>error?.code==="MODEL_EXPLANATION_PROOF_REJECTED"&&error?.httpStatus===422,
+      "replay MATCH must attest the exact retrieved record hash, never an unrelated or unbound replay"
+    );
+    assert.equal(adapter.calls.length,0,mode+": denied before model provider");
+    assert.equal(put.length,0,mode+": no evidence record committed");
+  }
+});
