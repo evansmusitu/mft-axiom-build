@@ -350,7 +350,9 @@ export class BudgetedModelProviderAdapter implements ModelAdapter,ModelExplanati
     if(input.mode!=="INITIAL"&&input.mode!=="REPAIR")throw new TypeError("Compilation mode is required");
     return this.metered(JSON.stringify({type:"compile",tenantId:this.tenantId,adapterId:this.manifest.adapterId,
       modelId:this.manifest.modelId,compilationRequestHash:hash,attempt:input.attempt,mode:input.mode}),
-      ()=>this.adapter.invoke(input));
+      // Call the constructor-pinned authority; never re-read a mutable getter
+      // between the identity check and the actual paid provider invocation.
+      ()=>this.pinnedAdapterInvoke.call(this.adapter,input));
   }
   async explain(rawInput:ModelExplanationAdapterInput):Promise<CapturedModelExplanationExchange>{
     // Prompt and byte-limit identities must remain identical after billing
@@ -361,7 +363,7 @@ export class BudgetedModelProviderAdapter implements ModelAdapter,ModelExplanati
     if(!Number.isSafeInteger(input?.maxResponseBytes)||input.maxResponseBytes<=0)throw new TypeError("maxResponseBytes must be positive");
     return this.metered(JSON.stringify({type:"explain",tenantId:this.tenantId,adapterId:this.manifest.adapterId,
       modelId:this.manifest.modelId,promptHash:sha(input.promptBody),capturedAt,maxResponseBytes:input.maxResponseBytes}),
-      ()=>this.adapter.explain(input));
+      ()=>this.pinnedAdapterExplain.call(this.adapter,input));
   }
 }
 
