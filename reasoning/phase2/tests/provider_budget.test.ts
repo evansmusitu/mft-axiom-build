@@ -953,3 +953,45 @@ test("Phase 2.10S unspecified billing mode denies paid SQLite adapters at both s
     assert.equal(x.calls,0,"admission must not invoke the upstream model provider");
   }finally{x.ledger.close();}
 });
+
+
+test("Phase 2.10U missing vendor token counts cannot inherit polluted JavaScript prototype values",()=>{
+  const fields={input_tokens:100,output_tokens:50,total_tokens:150};
+  const previous=Object.fromEntries(Object.keys(fields).map(k=>[k,Object.getOwnPropertyDescriptor(Object.prototype,k)]));
+  try{
+    for(const [k,value] of Object.entries(fields))
+      Object.defineProperty(Object.prototype,k,{configurable:true,writable:true,value});
+    for(const provider of ["openai","anthropic"] as const){
+      assert.throws(
+        ()=>phase2.pricedProviderUsage(JSON.stringify({usage:{}}),provider,prices),
+        (e:any)=>e?.code==="BUDGET_USAGE_UNVERIFIABLE",
+        "required token usage must be explicitly provided by the vendor response, never inherited"
+      );
+    }
+  }finally{
+    for(const [k,desc] of Object.entries(previous)){
+      if(desc)Object.defineProperty(Object.prototype,k,desc);
+      else delete (Object.prototype as any)[k];
+    }
+  }
+});
+
+test("Phase 2.10U absent cached-token details cannot inherit low-price or extra token classes",()=>{
+  const fields={input_tokens_details:{cached_tokens:100},cache_read_input_tokens:100};
+  const previous=Object.fromEntries(Object.keys(fields).map(k=>[k,Object.getOwnPropertyDescriptor(Object.prototype,k)]));
+  try{
+    for(const [k,value] of Object.entries(fields))
+      Object.defineProperty(Object.prototype,k,{configurable:true,writable:true,value});
+    const openBody=openAi({input_tokens:100,output_tokens:50,total_tokens:150});
+    const anthropicBody=anthropic({input_tokens:100,output_tokens:50});
+    assert.equal(phase2.pricedProviderUsage(openBody,"openai",prices),200,
+      "unreported OpenAI cached tokens must not discount the bill from inherited details");
+    assert.equal(phase2.pricedProviderUsage(anthropicBody,"anthropic",prices),200,
+      "unreported Anthropic cache usage must not be counted from an inherited field");
+  }finally{
+    for(const [k,desc] of Object.entries(previous)){
+      if(desc)Object.defineProperty(Object.prototype,k,desc);
+      else delete (Object.prototype as any)[k];
+    }
+  }
+});
