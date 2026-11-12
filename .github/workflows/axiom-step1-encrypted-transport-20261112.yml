@@ -24,7 +24,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          test "$(git hash-object customer_frontier/recovery/step1_encrypted_sql_export_transport.mjs)" = "7ee20964d812756b1dda7e91e02f55107e2e5739"
+          test "$(git hash-object customer_frontier/recovery/step1_encrypted_sql_export_transport.mjs)" = "f3aa8597136f235eba1302ffd3b40ae3c4b70a4e"
           test "$(git hash-object customer_frontier/tests/step1_encrypted_sql_export_transport.test.mjs)" = "ff3d74e3030ad04f5ad1b02016fcc8fb80128817"
           node --test customer_frontier/tests/step1_encrypted_sql_export_transport.test.mjs
       - name: Enforce no customer SQL export, provider call or backup artifacts
