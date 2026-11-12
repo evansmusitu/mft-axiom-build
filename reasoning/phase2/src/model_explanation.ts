@@ -4,6 +4,7 @@ import type {
   AuthorizedTenantContext, ModelAdapterManifest, ModelExplainRequest, ModelExplainResult,
   ModelExplanationContent, ModelExplanationProfile, ModelExplanationRecord, TenantScope
 } from "./types.ts";
+import { requireMeteredProviderAdapter, requireProtectedPaidProviderAdapter } from "./provider_budget.ts";
 
 const HEX64=/^[0-9a-f]{64}$/;
 const MAX_EXPLANATION_ITEMS=8;
@@ -150,20 +151,30 @@ export class ModelExplanationService {
   private readonly executions:ExecutionRepository;
   private readonly plane:{replayStored(id:string):Promise<{status:"MATCH"|"MISMATCH";diagnostics:string[]}>};
   private readonly adapters:Map<string,ModelExplanationAdapter>;
+  private readonly productionBillingRequired:boolean;
   private readonly now:()=>Date|string;
 
   constructor(deps:{
     tenant:TenantScope;profiles:ModelExplanationRegistry;repository:ModelExplanationRepository;
     executions:ExecutionRepository;plane:{replayStored(id:string):Promise<{status:"MATCH"|"MISMATCH";diagnostics:string[]}>};
     adapters:ModelExplanationAdapter[];now?:()=>Date|string;
+    /** Trusted deployment gate; offline fixtures must explicitly opt out. */
+    productionBillingRequired?:boolean;
   }){
+    if(deps.productionBillingRequired!==undefined&&typeof deps.productionBillingRequired!=="boolean")
+      throw new TypeError("productionBillingRequired must be boolean");
     this.tenant={tenantId:required(deps.tenant?.tenantId,"tenantId")};
     this.profiles=deps.profiles;this.repository=deps.repository;this.executions=deps.executions;this.plane=deps.plane;this.now=deps.now??(()=>new Date());
+    this.productionBillingRequired=deps.productionBillingRequired!==false;
     this.adapters=new Map();
     if(!Array.isArray(deps.adapters)||deps.adapters.length===0)throw new TypeError("At least one model explanation adapter is required");
     for(const adapter of deps.adapters){
       const manifest=cloneManifest(adapter?.manifest);
       if(typeof adapter?.explain!=="function")throw new TypeError("Model explanation adapter must implement explain");
+      // Never silently downgrade missing production billing mode to an offline ledger.
+      if(deps.productionBillingRequired!==false)
+        requireProtectedPaidProviderAdapter(adapter,this.tenant.tenantId);
+      else requireMeteredProviderAdapter(adapter,this.tenant.tenantId);
       if(this.adapters.has(manifest.adapterId))throw new TypeError(`Duplicate model explanation adapter: ${manifest.adapterId}`);
       this.adapters.set(manifest.adapterId,adapter);
     }
@@ -191,6 +202,11 @@ export class ModelExplanationService {
     const adapterManifest=cloneManifest(adapter.manifest);
     if(adapterManifest.adapterId!==profile.adapterId)throw new ModelExplanationError("MODEL_EXPLANATION_PROFILE_FORBIDDEN","Explanation profile adapter mismatch",403);
 
+    // Replay and repository reads are awaited; an adapter may have changed
+    // its declared provider since registration. Admit actual paid status anew.
+    if(this.productionBillingRequired)
+      requireProtectedPaidProviderAdapter(adapter,this.tenant.tenantId);
+    else requireMeteredProviderAdapter(adapter,this.tenant.tenantId);
     const capturedAt=canonicalNow(this.now());
     let captured:CapturedModelExplanationExchange;
     try{captured=await adapter.explain({capturedAt,promptBody,maxResponseBytes:profile.maxResponseBytes});}

@@ -118,3 +118,25 @@ test("HTTP JSON evidence adapter rejects non-schema parameters before secret res
   assert.equal(secretCalls,0);
   assert.equal(fetchCalls,0);
 });
+
+
+test("HTTP JSON evidence deadline includes a successful headers response with a stalled body",async()=>{
+  const phase2:any=await import("../src/index.ts");
+  const configured=operation({timeoutMs:25});
+  const stream=new ReadableStream<Uint8Array>({
+    start(controller){controller.enqueue(new TextEncoder().encode('{"never":'));}
+  });
+  const adapter=new phase2.HttpJsonEvidenceAdapter({
+    adapterId:"http-json:deadline",version:"1.0.0",implementationHash:H("b"),
+    operations:[{manifest:configured,origin:"https://market.example",method:"GET",
+      pathTemplate:"/v1",allowedStatus:[200],validateParameters:()=>{}}],
+    secretResolver:new phase2.StaticSecretResolver({}),
+    fetchFn:async()=>new Response(stream,{status:200,headers:{"content-type":"application/json"}})
+  });
+  const result=await Promise.race([
+    adapter.acquire({tenant:{tenantId:"tenant:a"},operation:configured,parameters:{}})
+      .then(()=>({status:"unexpected-success"}),e=>({status:"error",code:e?.code,httpStatus:e?.httpStatus})),
+    new Promise(resolve=>setTimeout(()=>resolve({status:"stalled"}),300))
+  ]) as any;
+  assert.deepEqual(result,{status:"error",code:"UPSTREAM_TIMEOUT",httpStatus:504});
+});

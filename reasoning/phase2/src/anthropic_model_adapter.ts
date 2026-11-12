@@ -29,7 +29,7 @@ function checkedManifest(input:ModelAdapterManifest):ModelAdapterManifest{
   return out;
 }
 function positiveInteger(value:unknown,label:string):number{
-  if(!Number.isInteger(value)||Number(value)<=0)throw new TypeError(`${label} must be a positive integer`);
+  if(!Number.isSafeInteger(value)||Number(value)<=0||Number(value)>16384)throw new TypeError(`${label} must be a safe integer between 1 and 16384`);
   return Number(value);
 }
 function canonicalIso(value:unknown):string{
@@ -53,8 +53,8 @@ function outputText(raw:string,expectedModel:string):string{
 
 export class AnthropicMessagesModelAdapter implements ModelAdapter {
   readonly manifest:ModelAdapterManifest;
-  private readonly maxTokens:number;
-  private readonly transport:BoundedModelProviderTransport;
+  readonly #maxTokens:number;
+  readonly #transport:BoundedModelProviderTransport;
 
   constructor(config:{
     manifest:ModelAdapterManifest;
@@ -70,8 +70,8 @@ export class AnthropicMessagesModelAdapter implements ModelAdapter {
     this.manifest=checkedManifest(config.manifest);
     const apiKeySecretRef=required(config.apiKeySecretRef,"apiKeySecretRef");
     const anthropicVersion=required(config.anthropicVersion,"anthropicVersion");
-    this.maxTokens=positiveInteger(config.maxTokens,"maxTokens");
-    this.transport=new BoundedModelProviderTransport({
+    this.#maxTokens=positiveInteger(config.maxTokens,"maxTokens");
+    this.#transport=new BoundedModelProviderTransport({
       origin:config.origin??"https://api.anthropic.com",
       path:"/v1/messages",
       timeoutMs:config.timeoutMs,
@@ -82,6 +82,10 @@ export class AnthropicMessagesModelAdapter implements ModelAdapter {
       secretResolver:config.secretResolver,
       fetchFn:config.fetchFn
     });
+    // Lock the registered paid-provider identity and prevent JS property-shadow
+    // writes from downgrading metering admission after construction.
+    Object.freeze(this.manifest);
+    Object.freeze(this);
   }
 
   async explain(input:ModelExplanationAdapterInput):Promise<CapturedModelExplanationExchange>{
@@ -89,12 +93,12 @@ export class AnthropicMessagesModelAdapter implements ModelAdapter {
     const promptBody=required(input?.promptBody,"promptBody");
     if(!Number.isInteger(input?.maxResponseBytes)||input.maxResponseBytes<=0)throw new TypeError("maxResponseBytes must be a positive integer");
     const requestBody=canonicalize({
-      max_tokens:this.maxTokens,
+      max_tokens:this.#maxTokens,
       messages:[{role:"user",content:promptBody}],
       model:this.manifest.modelId,
       output_config:{format:{type:"json_schema",schema:modelProviderExplanationWireSchema()}}
     } as any);
-    const responseBody=await this.transport.postJson(requestBody,input.maxResponseBytes);
+    const responseBody=await this.#transport.postJson(requestBody,input.maxResponseBytes);
     const normalizedResponseBody=normalizeModelProviderExplanationWire(outputText(responseBody,this.manifest.modelId));
     return {capturedAt,requestBody,responseBody,normalizedResponseBody};
   }
@@ -103,12 +107,12 @@ export class AnthropicMessagesModelAdapter implements ModelAdapter {
     const capturedAt=canonicalIso(input?.capturedAt);
     const gatewayBody=canonicalModelAdapterRequestBody(input,this.manifest);
     const requestBody=canonicalize({
-      max_tokens:this.maxTokens,
+      max_tokens:this.#maxTokens,
       messages:[{role:"user",content:gatewayBody}],
       model:this.manifest.modelId,
       output_config:{format:{type:"json_schema",schema:modelProviderProposalWireSchema(input.profile)}}
     } as any);
-    const responseBody=await this.transport.postJson(requestBody,input.profile.maxModelResponseBytes);
+    const responseBody=await this.#transport.postJson(requestBody,input.profile.maxModelResponseBytes);
     const normalizedResponseBody=normalizeModelProviderProposalWire(outputText(responseBody,this.manifest.modelId));
     return {capturedAt,requestBody,responseBody,normalizedResponseBody};
   }
