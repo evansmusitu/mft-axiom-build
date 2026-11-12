@@ -61,7 +61,7 @@ def validate_full_catalog(pages):
             entries.append((ident, name))
     _require(total == len(entries), 'CATALOG_INCOMPLETE')
     _require(SOURCE in seen_uuids, 'ORIGINAL_DATABASE_NOT_LISTED')
-    _require(RESERVED_OAUTH_DR in seen_uuids, 'RESERVED_DATABASE_NOT_LISTED')
+    # Historical OAuth DR ID may be absent or moved. Record drift; never reuse it.
     digest = hashlib.sha256(json.dumps(sorted(entries), separators=(',',':')).encode()).hexdigest()
     return {'database_count':total,
             'complete_catalog_pages':len(pages),
@@ -100,6 +100,7 @@ def metadata_receipt(pages, source_detail, subscriptions, captured_at=None):
       'source_account':ACCOUNT,'source_database':SOURCE,
       **result,
       'source_uuid_detail_matched':src,
+      'historical_reserved_oauth_dr_presence_unreconciled':not result['reserved_oauth_dr_present'],
       'workers_paid_active':paid,
       'database_quantity_within_published_included_band':paid and result['database_count'] < 100000,
       'published_paid_database_allowance':100000,
@@ -116,7 +117,9 @@ def metadata_receipt(pages, source_detail, subscriptions, captured_at=None):
       'tenant_least_privilege_qualified':False,
       'b27_synthetic_cas':'FAIL','pr83_fullstack':'FAIL',
       'step1_closed':False,'step2_authorized':False,'release':'NOT_RELEASE',
-      'status':'TARGET_NAME_INVENTORY_ONLY_NO_GO' if result['proposed_target_name_absent'] else 'TARGET_NAME_COLLISION_NO_GO'
+      'status':('RESERVED_OAUTH_DR_NOT_LISTED_RECONCILIATION_NO_GO' if not result['reserved_oauth_dr_present']
+                else 'TARGET_NAME_INVENTORY_ONLY_NO_GO' if result['proposed_target_name_absent']
+                else 'TARGET_NAME_COLLISION_NO_GO')
     }
 
 

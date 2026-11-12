@@ -33,8 +33,12 @@ class TestTargetCatalog(unittest.TestCase):
         self.assertFalse(r['proposed_target_name_absent'])
     def test_absent_source_denies(self):
         with self.assertRaises(m.AuditNoGo):m.validate_full_catalog([pg([normal,reserved])])
-    def test_absent_reserved_denies(self):
-        with self.assertRaises(m.AuditNoGo):m.validate_full_catalog([pg([source,normal])])
+    def test_absent_reserved_records_drift_without_reuse_or_recovery_approval(self):
+        r=m.metadata_receipt([pg([source,normal])],{'success':True,'result':{'uuid':m.SOURCE}},sub)
+        self.assertFalse(r['reserved_oauth_dr_present'])
+        self.assertTrue(r['historical_reserved_oauth_dr_presence_unreconciled'])
+        self.assertEqual(r['status'],'RESERVED_OAUTH_DR_NOT_LISTED_RECONCILIATION_NO_GO')
+        self.assertFalse(r['step1_closed'])
     def test_duplicate_uuid_denies(self):
         with self.assertRaises(m.AuditNoGo):m.validate_full_catalog([pg([source,reserved,source])])
     def test_duplicate_name_denies(self):
