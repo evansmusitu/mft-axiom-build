@@ -132,6 +132,7 @@ export class ModelCompilationService {
   private readonly repository:ModelCompilationRepository;
   private readonly registry:OperationRegistry;
   private readonly adapter:ModelAdapter;
+  private readonly productionBillingRequired:boolean;
   private readonly now:()=>string;
 
   constructor(options:ModelCompilationServiceOptions){
@@ -145,6 +146,7 @@ export class ModelCompilationService {
       requireProtectedPaidProviderAdapter(options.adapter);
     else requireMeteredProviderAdapter(options.adapter);
     this.profiles=options.profiles;this.repository=options.repository;this.registry=options.registry;this.adapter=options.adapter;
+    this.productionBillingRequired=options.productionBillingRequired===true;
     this.now=options.now??(()=>new Date().toISOString());
   }
 
@@ -171,6 +173,12 @@ export class ModelCompilationService {
     for(let attempt=0;attempt<=profile.maxRepairAttempts;attempt++){
       const mode=attempt===0?"INITIAL" as const:"REPAIR" as const;
       const capturedAt=required(this.now(),"model capture time");
+      // The constructor check cannot authorize a newly paid/rebranded adapter
+      // after async work or between repair attempts. Requalify immediately
+      // before each provider invocation.
+      if(this.productionBillingRequired)
+        requireProtectedPaidProviderAdapter(this.adapter,context.tenant.tenantId);
+      else requireMeteredProviderAdapter(this.adapter,context.tenant.tenantId);
       const captured=await this.adapter.invoke({
         tenant:context.tenant,profile,profileHash,compilationRequestHash,attempt,mode,
         objective:request.objective,inputContracts:request.inputContracts,
