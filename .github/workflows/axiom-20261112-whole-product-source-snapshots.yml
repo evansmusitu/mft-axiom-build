@@ -1,0 +1,73 @@
+name: AXIOM 12 Nov governed exact source snapshots (READ ONLY; NOT RELEASE)
+on:
+  push:
+    branches:
+      - review/axiom-step1-d1-origin-provider-audit-readonly-20261110
+    paths:
+      - .github/workflows/axiom-20261112-whole-product-source-snapshots.yml
+permissions:
+  contents: read
+jobs:
+  source-snapshots:
+    if: >-
+      github.repository == 'evansmusitu/mft-axiom-build' &&
+      github.actor == 'evansmusitu' &&
+      github.ref == 'refs/heads/review/axiom-step1-d1-origin-provider-audit-readonly-20261110' &&
+      github.run_attempt == 1
+    runs-on: ubuntu-24.04
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          persist-credentials: false
+          fetch-depth: 1
+          path: source-pr216
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          persist-credentials: false
+          ref: 77030d450da9b5ce452902e10d9ee91bcff2e99e
+          fetch-depth: 1
+          path: source-pr192
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          persist-credentials: false
+          ref: b656bbbdb7fdd6156bb3c34ff64160e59c66d886
+          fetch-depth: 1
+          path: source-pr217
+      - name: Produce three separately preserved complete Git-tracked source archives
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p handoff-source
+          test "$(git -C source-pr216 rev-parse HEAD)" = "$GITHUB_SHA"
+          test "$(git -C source-pr192 rev-parse HEAD)" = "77030d450da9b5ce452902e10d9ee91bcff2e99e"
+          test "$(git -C source-pr217 rev-parse HEAD)" = "b656bbbdb7fdd6156bb3c34ff64160e59c66d886"
+          git -C source-pr216 archive --format=zip HEAD -o "$GITHUB_WORKSPACE/handoff-source/PR216_STEP1_LATEST_FULL_SOURCE.zip"
+          git -C source-pr192 archive --format=zip HEAD -o "$GITHUB_WORKSPACE/handoff-source/PR192_B27_LATEST_FULL_SOURCE.zip"
+          git -C source-pr217 archive --format=zip HEAD -o "$GITHUB_WORKSPACE/handoff-source/PR217_PROVIDER_INTEGRATION_DRAFT_FULL_SOURCE.zip"
+          (cd handoff-source && sha256sum PR216_STEP1_LATEST_FULL_SOURCE.zip PR192_B27_LATEST_FULL_SOURCE.zip PR217_PROVIDER_INTEGRATION_DRAFT_FULL_SOURCE.zip > SOURCE_ZIP_SHA256.txt)
+          python3 - <<'PY'
+          import json,os
+          data={"schema":"musitu.axiom.20261112.governed_exact_multihead_source.v1",
+          "repo":"evansmusitu/mft-axiom-build","main_immutable_from_previous_handoff":"c3c5aaab90e94f1ca84ac9903f9d481c23c4f350",
+          "source_refs":{
+           "PR216_STEP1_LATEST_FULL_SOURCE.zip":os.environ["GITHUB_SHA"],
+           "PR192_B27_LATEST_FULL_SOURCE.zip":"77030d450da9b5ce452902e10d9ee91bcff2e99e",
+           "PR217_PROVIDER_INTEGRATION_DRAFT_FULL_SOURCE.zip":"b656bbbdb7fdd6156bb3c34ff64160e59c66d886"},
+          "all_draft_unmerged":True,"pr1_isolated":True,"step1_not_closed":True,
+          "pr83_fullstack_veto_preserved":True,"release_status":"NOT_RELEASE",
+          "source_recovery":"FULL_TRACKED_TREES_NOT_GIT_HISTORY_NO_SECRETS"}
+          with open("handoff-source/HEADS_AND_GOVERNANCE.json","w") as f:json.dump(data,f,sort_keys=True,indent=2)
+          PY
+          unzip -tq handoff-source/PR216_STEP1_LATEST_FULL_SOURCE.zip
+          unzip -tq handoff-source/PR192_B27_LATEST_FULL_SOURCE.zip
+          unzip -tq handoff-source/PR217_PROVIDER_INTEGRATION_DRAFT_FULL_SOURCE.zip
+          echo "PASS: each full tracked source tree independently snapshotted; no merge, mutation or release"
+      - name: Store pinned multi-head sources and sha256 receipts
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: axiom-20261112-complete-pr216-pr192-pr217-source-trees-no-release
+          retention-days: 30
+          if-no-files-found: error
+          path: handoff-source/
+          compression-level: 0
