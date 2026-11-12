@@ -190,3 +190,19 @@ test("provider receives immutable proof text only and cannot mutate trusted exec
   assert.equal(stored.snapshotHash,H("1"));
   assert.equal(put[0].record.executionRecordHash,stored.recordHash);
 });
+
+
+test("Phase 2.10P explanation requalifies metering after async replay before calling a newly paid adapter",async()=>{
+  const phase2:any=await import("../src/index.ts");
+  const adapter=fakeAdapter(),original=adapter.manifest.provider;
+  const {service,stored}=deps(phase2,adapter);
+  try{
+    assert.equal(original,"fixture");
+    adapter.manifest.provider="anthropic";
+    await assert.rejects(
+      ()=>service.explain(context(),stored.id,{profileId:profile.profileId},H("9")),
+      (error:any)=>error?.code==="BUDGET_ENFORCEMENT_REQUIRED"
+    );
+    assert.equal(adapter.calls.length,0,"unmetered rebranded explanation provider must not be called");
+  }finally{adapter.manifest.provider=original;}
+});

@@ -151,6 +151,7 @@ export class ModelExplanationService {
   private readonly executions:ExecutionRepository;
   private readonly plane:{replayStored(id:string):Promise<{status:"MATCH"|"MISMATCH";diagnostics:string[]}>};
   private readonly adapters:Map<string,ModelExplanationAdapter>;
+  private readonly productionBillingRequired:boolean;
   private readonly now:()=>Date|string;
 
   constructor(deps:{
@@ -164,6 +165,7 @@ export class ModelExplanationService {
       throw new TypeError("productionBillingRequired must be boolean");
     this.tenant={tenantId:required(deps.tenant?.tenantId,"tenantId")};
     this.profiles=deps.profiles;this.repository=deps.repository;this.executions=deps.executions;this.plane=deps.plane;this.now=deps.now??(()=>new Date());
+    this.productionBillingRequired=deps.productionBillingRequired===true;
     this.adapters=new Map();
     if(!Array.isArray(deps.adapters)||deps.adapters.length===0)throw new TypeError("At least one model explanation adapter is required");
     for(const adapter of deps.adapters){
@@ -199,6 +201,11 @@ export class ModelExplanationService {
     const adapterManifest=cloneManifest(adapter.manifest);
     if(adapterManifest.adapterId!==profile.adapterId)throw new ModelExplanationError("MODEL_EXPLANATION_PROFILE_FORBIDDEN","Explanation profile adapter mismatch",403);
 
+    // Replay and repository reads are awaited; an adapter may have changed
+    // its declared provider since registration. Admit actual paid status anew.
+    if(this.productionBillingRequired)
+      requireProtectedPaidProviderAdapter(adapter,this.tenant.tenantId);
+    else requireMeteredProviderAdapter(adapter,this.tenant.tenantId);
     const capturedAt=canonicalNow(this.now());
     let captured:CapturedModelExplanationExchange;
     try{captured=await adapter.explain({capturedAt,promptBody,maxResponseBytes:profile.maxResponseBytes});}
