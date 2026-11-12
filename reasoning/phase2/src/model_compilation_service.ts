@@ -8,7 +8,7 @@ import type {
   ModelCompileResult, ModelCompilerProfile, ModelExchangeArtifact, ModelInputContract
 } from "./types.ts";
 import type { ModelAdapter } from "./model_adapter.ts";
-import { createModelExchangeArtifact } from "./model_adapter.ts";
+import { createModelExchangeArtifact, ModelAdapterError } from "./model_adapter.ts";
 import { requireMeteredProviderAdapter, requireProtectedPaidProviderAdapter } from "./provider_budget.ts";
 import {
   ModelCompilerRegistry, assembleModelProgram, canonicalModelInputContracts, parseModelProposal
@@ -92,6 +92,14 @@ function adapterIdentity(adapter:ModelAdapter,profile:ModelCompilerProfile):void
   required(m.version,"model adapter version");digest(m.implementationHash,"model adapter implementationHash");
   required(m.provider,"model adapter provider");required(m.modelId,"model adapter modelId");
 }
+function requireAdapterManifestPinned(adapter:ModelAdapter,pinned:ModelAdapter["manifest"]):void {
+  const m=adapter?.manifest;
+  if(!m||m.adapterId!==pinned.adapterId||m.version!==pinned.version||
+     m.implementationHash!==pinned.implementationHash||m.provider!==pinned.provider||
+     m.modelId!==pinned.modelId)
+    throw new ModelAdapterError("MODEL_ADAPTER_IDENTITY_CHANGED",
+      "Model adapter manifest changed during compilation; proof commit denied",503);
+}
 function terminalCompilationId(input:{
   tenantId:string;principalId:string;compilationRequestHash:string;profileHash:string;
   adapterManifest:ModelAdapter["manifest"];compilerManifest:ReturnType<typeof compilerManifest>;
@@ -164,6 +172,8 @@ export class ModelCompilationService {
     const resolved=this.profiles.resolve(context.tenant,required(requestInput?.profileId,"profileId"));
     const {profile,profileHash}=resolved;
     adapterIdentity(this.adapter,profile);
+    const pinnedManifest:ModelAdapter["manifest"]=Object.freeze({...this.adapter.manifest});
+    requireAdapterManifestPinned(this.adapter,pinnedManifest);
     const request=canonicalRequest(requestInput,profile);
     const fullRegistryManifest=this.registry.manifest();
     const operationRegistryManifestHash=hashJson(fullRegistryManifest as any);
@@ -183,6 +193,7 @@ export class ModelCompilationService {
       if(this.productionBillingRequired)
         requireProtectedPaidProviderAdapter(this.adapter,context.tenant.tenantId);
       else requireMeteredProviderAdapter(this.adapter,context.tenant.tenantId);
+      requireAdapterManifestPinned(this.adapter,pinnedManifest);
       const captured=await this.adapter.invoke({
         tenant:context.tenant,profile,profileHash,compilationRequestHash,attempt,mode,
         objective:request.objective,inputContracts:request.inputContracts,
@@ -190,8 +201,11 @@ export class ModelCompilationService {
         capturedAt,
         ...(mode==="REPAIR"?{previousResponseBody:required(previousResponseBody,"previousResponseBody"),issues:structuredClone(issues)}:{})
       });
+      // Untrusted adapter execution is awaited; recheck before constructing
+      // any proof or accepting any response from the changed identity.
+      requireAdapterManifestPinned(this.adapter,pinnedManifest);
       const artifact=createModelExchangeArtifact({
-        tenantId:context.tenant.tenantId,manifest:this.adapter.manifest,profileId:profile.profileId,profileHash,
+        tenantId:context.tenant.tenantId,manifest:pinnedManifest,profileId:profile.profileId,profileHash,
         compilationRequestHash,attempt,mode,captured
       });
       artifacts.push(artifact);
@@ -217,14 +231,14 @@ export class ModelCompilationService {
     const finalIssues=status==="REJECTED"?structuredClone(issues):[];
     const compilationId=terminalCompilationId({
       tenantId:context.tenant.tenantId,principalId:context.principal.principalId,compilationRequestHash,profileHash,
-      adapterManifest:this.adapter.manifest,compilerManifest:compiler,operationRegistryManifestHash,
+      adapterManifest:pinnedManifest,compilerManifest:compiler,operationRegistryManifestHash,
       exchangeArtifactHashes,status,compiledProgramHash,finalIssues
     });
     const core:any={
       compilationId,tenantId:context.tenant.tenantId,principalId:context.principal.principalId,
       authorizationDecisionHash:digest(context.authorization.decisionHash,"authorizationDecisionHash"),
       compilationRequestHash,profileId:profile.profileId,profileVersion:profile.version,profileHash,
-      adapterManifest:structuredClone(this.adapter.manifest),compilerManifest:compiler,operationRegistryManifestHash,
+      adapterManifest:structuredClone(pinnedManifest),compilerManifest:compiler,operationRegistryManifestHash,
       objective:request.objective,inputContracts:structuredClone(request.inputContracts),
       exchangeArtifactIds,exchangeArtifactHashes,finalIssues,status,
       ...(compiledProgram?{compiledProgram,compiledProgramHash}:{}),
