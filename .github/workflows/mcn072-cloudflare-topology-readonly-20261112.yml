@@ -31,7 +31,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          test "$(git hash-object qualification/mcn072_cloudflare_topology.py)" = "f15a0d1d8604b048aafc99df2443a302a45f8cf5"
+          test "$(git hash-object qualification/mcn072_cloudflare_topology.py)" = "d309b6b7bda342eb1ba3b23a2a9164139dcf37a6"
           test "$(git hash-object tests/test_mcn072_cloudflare_topology.py)" = "3e2c4d0791b44c805fe2abc9d905e9c276f74e98"
           python3 -B -m py_compile qualification/mcn072_cloudflare_topology.py tests/test_mcn072_cloudflare_topology.py
           python3 -B -m unittest discover -s tests -p 'test_mcn072_cloudflare_topology.py' -v
