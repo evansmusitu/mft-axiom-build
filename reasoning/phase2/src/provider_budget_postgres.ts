@@ -38,6 +38,34 @@ function context(input:ProviderReservation|ProviderSettlement):void{
   id(input.modelId,"modelId");id(input.requestId,"requestId");
   sha(input.requestHash,"requestHash");
 }
+// Capture every untrusted reservation/settlement field exactly once before the
+// first await. Never use a caller-owned object to select a PostgreSQL row or
+// amount after validation: a mutable getter can otherwise move an UPDATE to a
+// different tenant than the tenant whose budget row was locked.
+function snapshotReservation(source:ProviderReservation):ProviderReservation {
+  const input:ProviderReservation={
+    tenantId:source.tenantId,provider:source.provider,modelId:source.modelId,
+    requestId:source.requestId,requestHash:source.requestHash,
+    reserveMicroUsd:source.reserveMicroUsd,billingProvider:source.billingProvider
+  };
+  context(input);
+  amount(input.reserveMicroUsd,"reserveMicroUsd",true);
+  vendorProvider(input.billingProvider);
+  return input;
+}
+function snapshotSettlement(source:ProviderSettlement):ProviderSettlement {
+  const input:ProviderSettlement={
+    tenantId:source.tenantId,provider:source.provider,modelId:source.modelId,
+    requestId:source.requestId,requestHash:source.requestHash,
+    chargeMicroUsd:source.chargeMicroUsd,responseHash:source.responseHash,
+    billingProvider:source.billingProvider
+  };
+  context(input);
+  amount(input.chargeMicroUsd,"chargeMicroUsd");
+  sha(input.responseHash,"responseHash");
+  vendorProvider(input.billingProvider);
+  return input;
+}
 function big(row:any,key:string):number{
   const text=String(row?.[key]??"");
   if(!/^(0|[1-9][0-9]*)$/.test(text))throw new ProviderBudgetError("BUDGET_CORRUPT","Provider spend store is corrupt",503);
@@ -250,8 +278,8 @@ export class PostgresProviderSpendLedger implements ProviderSpendLedger {
       return report(row.rows[0]);
     });
   }
-  async reserve(input:ProviderReservation):Promise<void>{
-    context(input);amount(input.reserveMicroUsd,"reserveMicroUsd",true);
+  async reserve(rawInput:ProviderReservation):Promise<void>{
+    const input=snapshotReservation(rawInput);
     const v=vendorProvider(input.billingProvider);
     await this.tx(async client=>{
       // Lock the common vendor row before the tenant row on every writer.
@@ -280,8 +308,8 @@ export class PostgresProviderSpendLedger implements ProviderSpendLedger {
       await client.query("UPDATE axiom_provider_spend_organizations SET reserved_micro_usd=reserved_micro_usd+$2 WHERE billing_provider=$1",[v,input.reserveMicroUsd]);
     });
   }
-  async settle(input:ProviderSettlement):Promise<void>{
-    context(input);amount(input.chargeMicroUsd,"chargeMicroUsd");sha(input.responseHash,"responseHash");
+  async settle(rawInput:ProviderSettlement):Promise<void>{
+    const input=snapshotSettlement(rawInput);
     const v=vendorProvider(input.billingProvider);
     const overage=await this.tx(async client=>{
       await this.checkTenantVendor(client,input,v);
@@ -394,14 +422,14 @@ export class ProtectedPostgresProviderSpendLedger implements ProviderSpendLedger
       throw new ProviderBudgetError("BUDGET_STORE_UNAVAILABLE","Provider spend store unavailable",503);
     }finally{try{client.release();}catch{}}
   }
-  async reserve(input:ProviderReservation):Promise<void>{
-    context(input);amount(input.reserveMicroUsd,"reserveMicroUsd",true);
+  async reserve(rawInput:ProviderReservation):Promise<void>{
+    const input=snapshotReservation(rawInput);
     const vendor=vendorProvider(input.billingProvider);
     await this.execute("reserve",[input.tenantId,input.provider,input.modelId,input.requestId,
       input.requestHash,input.reserveMicroUsd,vendor]);
   }
-  async settle(input:ProviderSettlement):Promise<void>{
-    context(input);amount(input.chargeMicroUsd,"chargeMicroUsd");sha(input.responseHash,"responseHash");
+  async settle(rawInput:ProviderSettlement):Promise<void>{
+    const input=snapshotSettlement(rawInput);
     const vendor=vendorProvider(input.billingProvider);
     await this.execute("settle",[input.tenantId,input.provider,input.modelId,input.requestId,
       input.requestHash,input.chargeMicroUsd,input.responseHash,vendor]);
