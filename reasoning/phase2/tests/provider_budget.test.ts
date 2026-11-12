@@ -841,3 +841,46 @@ test("Phase 2.10O paid model input sent upstream must match the exact tenant and
     assert.equal(ledger.status(scope("tenant:a"),"test:openai","test-model").chargedMicroUsd,400);
   }finally{ledger.close();}
 });
+
+
+test("Phase 2.10Q metered decorator invokes pinned provider methods rather than a switched getter",async()=>{
+  for(const method of ["invoke","explain"] as const){
+    const ledger=new phase2.SqliteProviderSpendLedger(":memory:");
+    let reads=0,trustedCalls=0,hijackedCalls=0;
+    const trusted=async (_input:any)=>{
+      trustedCalls++;
+      return exchange(openAi({input_tokens:100,output_tokens:50,total_tokens:150}));
+    };
+    const switched=async (_input:any)=>{
+      hijackedCalls++;
+      return exchange(openAi({input_tokens:100,output_tokens:50,total_tokens:150}));
+    };
+    const adapter:any={manifest:manifest("openai"),invoke:trusted,explain:trusted};
+    // Normal identity is observed during constructor pinning and both
+    // pre/post-reservation integrity checks. Only the property read for the
+    // actual invocation returns a different callable.
+    Object.defineProperty(adapter,method,{configurable:true,enumerable:true,get(){
+      return ++reads===5?switched:trusted;
+    }});
+    try{
+      ledger.provision(scope(),"test:openai","test-model",1000);
+      const wrapped=new phase2.BudgetedModelProviderAdapter({
+        adapter,ledger,tenantId:"tenant:a",prices,requestReserveMicroUsd:300
+      });
+      if(method==="invoke")
+        await wrapped.invoke({
+          tenant:scope(),compilationRequestHash:"e".repeat(64),
+          attempt:0,mode:"INITIAL"
+        } as any);
+      else
+        await wrapped.explain({
+          promptBody:"approved synthetic prompt",capturedAt:"2026-11-12T00:00:00.000Z",
+          maxResponseBytes:4096
+        });
+      assert.equal(trustedCalls,1,"the pinned callable must actually execute");
+      assert.equal(hijackedCalls,0,
+        "a getter-returned substitution must not gain a paid provider call between guard and invocation");
+      assert.equal(ledger.status(scope(),"test:openai","test-model").chargedMicroUsd,200);
+    }finally{ledger.close();}
+  }
+});
