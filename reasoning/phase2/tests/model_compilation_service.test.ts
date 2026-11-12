@@ -235,3 +235,17 @@ test("repair state uses previous normalized proposal instead of raw provider env
   assert.equal(result.status,"VALIDATED");
   assert.equal(calls[1].previousResponseBody,badNormalized);
 });
+
+
+test("Phase 2.10P compile requalifies metering immediately before invoking a newly paid adapter",async()=>{
+  const {compiler,model}=await service([validProposal()]);
+  assert.equal(model.manifest.provider,"fixture");
+  // The constructor accepted only the original nonpaid fixture. A later
+  // provider reclassification must not bypass the durable spend ledger.
+  model.manifest.provider="openai";
+  await assert.rejects(
+    ()=>compiler.compile(context(),request(),H("6")),
+    (error:any)=>error?.code==="BUDGET_ENFORCEMENT_REQUIRED"
+  );
+  assert.equal(model.calls.length,0,"rebranded paid provider must not be called without budget admission");
+});
