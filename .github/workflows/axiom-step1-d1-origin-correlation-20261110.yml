@@ -1,0 +1,134 @@
+name: AXIOM Step1 D1 exact origin correlation GET (NO RELEASE)
+on:
+  push:
+    branches:
+      - review/axiom-step1-d1-origin-provider-audit-readonly-20261110
+    paths:
+      - .github/workflows/axiom-step1-d1-origin-correlation-20261110.yml
+permissions:
+  contents: read
+jobs:
+  discover:
+    if: github.repository == 'evansmusitu/mft-axiom-build' && github.actor == 'evansmusitu'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 7
+    steps:
+      - name: Examine narrow exact original date against Cloudflare v2 unfiltered account audit
+        shell: bash
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+        run: |
+          python3 - <<'PY'
+          import datetime as dt,hashlib,json,os,urllib.error,urllib.parse,urllib.request
+          A="93f395f5121954671f92fffa453d6b61"
+          D="ccc473f1-fbb5-4b8d-8a24-45f3696ac10f"
+          NAME_SHA="7e98510fc457a669c29dd85ab1d87cc758fe0ba74d0833c20863b53d599b5b36"
+          t=os.environ.get("CLOUDFLARE_API_TOKEN","")
+          if not t or any(ch in t for ch in "\r\n"):raise SystemExit(2)
+          class NoRedirect(urllib.request.HTTPRedirectHandler):
+              def redirect_request(self,*args,**kw):return None
+          o=urllib.request.build_opener(NoRedirect())
+          root="https://api.cloudflare.com/client/v4/accounts/"+A
+          def sha(s):return hashlib.sha256(s.encode()).hexdigest()
+          def get(path):
+              q=urllib.request.Request(root+path,method="GET",headers={"Authorization":"Bearer "+t,"Accept":"application/json"})
+              try:
+                  with o.open(q,timeout=16) as res:
+                      body=res.read(8000001)
+                      if len(body)>8000000:raise ValueError("OVER_LIMIT")
+                      return res.status,json.loads(body)
+              except urllib.error.HTTPError as e:return e.code,None
+              except (ValueError,OSError,TimeoutError):return "UNAVAILABLE",None
+          out={"schema":"AXIOM_STEP1_UNFILTERED_CREATION_CORRELATION_READONLY_V1","d1":D,
+              "status":"NO_GO_HISTORICAL_OWNER_NOT_ADMITTED","method":"GET_ONLY",
+              "d1_origin_metadata_valid":False,"audit_query_status":None,
+              "near_created_event_count":0,"pages_complete":False,
+              "exact_post_create_uri_matches":0,"candidate_count":0,
+              "candidates":[],"all_match_actor_current_member":False,
+              "raw_log_exported":False,"credential_exposure":False,
+              "database_mutations":0,"customer_sql_read":False,
+              "historical_ownership_qualified":False,"source_reuse_authorized":False,
+              "step_2_authorized":False,"release_authority":False}
+          status,m=get("/d1/database/"+D)
+          out["metadata_status"]=status
+          if status==200 and isinstance(m,dict) and m.get("success") is True:
+              item=m.get("result") or {}
+              name=item.get("name")
+              if item.get("uuid")==D and isinstance(name,str) and sha(name)==NAME_SHA:
+                  out["d1_origin_metadata_valid"]=True
+                  created=dt.datetime.fromisoformat(item["created_at"].replace("Z","+00:00")).astimezone(dt.timezone.utc)
+                  begin=(created-dt.timedelta(minutes=15)).isoformat().replace("+00:00","Z")
+                  finish=(created+dt.timedelta(minutes=15)).isoformat().replace("+00:00","Z")
+                  allowed={"/accounts/"+A+"/d1/database","/client/v4/accounts/"+A+"/d1/database"}
+                  cursor=None;seen_cursors=set();seen_events=set()
+                  for page in range(5):
+                      args={"since":begin,"before":finish,"direction":"asc","limit":"1000"}
+                      if cursor:args["cursor"]=cursor
+                      s,logs=get("/logs/audit?"+urllib.parse.urlencode(args))
+                      out["audit_query_status"]=s
+                      if s!=200 or not isinstance(logs,dict) or logs.get("success") is not True or not isinstance(logs.get("result"),list):
+                          out["reason"]="CLOUDFLARE_UNQUALIFIED";break
+                      entries=logs["result"]
+                      if len(entries)>1000:
+                          out["reason"]="PROVIDER_OVER_LIMIT";break
+                      out["near_created_event_count"]+=len(entries)
+                      for e in entries:
+                          if not isinstance(e,dict):
+                              out["reason"]="INVALID_EVENT";continue
+                          eid=e.get("id")
+                          if not isinstance(eid,str):continue
+                          h=sha(eid)
+                          if h in seen_events:
+                              out["reason"]="DUPLICATE_EVENT";continue
+                          seen_events.add(h)
+                          action=e.get("action") or {}
+                          raw=e.get("raw") or {}
+                          resource=e.get("resource") or {}
+                          actor=e.get("actor") or {}
+                          account=e.get("account") or {}
+                          if not all(isinstance(x,dict) for x in [action,raw,resource,actor,account]):continue
+                          if account.get("id")!=A:continue
+                          uri=raw.get("uri")
+                          if not isinstance(uri,str):continue
+                          if urllib.parse.urlsplit(uri).path not in allowed:continue
+                          if raw.get("method")!="POST" or action.get("type")!="create" or action.get("result")!="success":continue
+                          out["exact_post_create_uri_matches"]+=1
+                          request=resource.get("request")
+                          response=resource.get("response")
+                          request_json=json.dumps(request,sort_keys=True) if isinstance(request,(dict,list)) else ""
+                          response_json=json.dumps(response,sort_keys=True) if isinstance(response,(dict,list)) else ""
+                          c={"event_id_sha256":h,
+                             "actor_id_sha256":sha(actor.get("id")) if isinstance(actor.get("id"),str) else None,
+                             "resource_id_exact":resource.get("id")==D,
+                             "request_contains_exact_db_name":name in request_json,
+                             "response_contains_exact_db_uuid":D in response_json,
+                             "time":action.get("time"),
+                             "owner_independently_admitted":False}
+                          out["candidate_count"]+=1
+                          if len(out["candidates"])<20:out["candidates"].append(c)
+                      info=logs.get("result_info") or {}
+                      cursor=info.get("cursor") if isinstance(info,dict) else None
+                      if not cursor:
+                          out["pages_complete"]=len(entries)<1000
+                          break
+                      if not isinstance(cursor,str) or cursor in seen_cursors or len(cursor)>2048:
+                          out["reason"]="CURSOR_UNQUALIFIED";break
+                      seen_cursors.add(cursor)
+                  out["status"]="PROVIDER_NEAR_ORIGIN_CORRELATION_ONLY_NO_GO"
+          b=(json.dumps(out,sort_keys=True,indent=2)+"\n").encode()
+          n="axiom_d1_unfiltered_origin_correlation_20261110.json"
+          open(n,"wb").write(b)
+          open(n+".sha256","w").write(hashlib.sha256(b).hexdigest()+"  "+n+"\n")
+          print("AXIOM_D1_ORIGIN_CORRELATION_ONLY_NO_GO")
+          
+          PY
+      - name: Preserve hashed, sanitized evidence only
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: axiom-stage-d1-exact-origin-correlation-20261110
+          retention-days: 5
+          if-no-files-found: error
+          path: |
+            axiom_d1_unfiltered_origin_correlation_20261110.json
+            axiom_d1_unfiltered_origin_correlation_20261110.json.sha256

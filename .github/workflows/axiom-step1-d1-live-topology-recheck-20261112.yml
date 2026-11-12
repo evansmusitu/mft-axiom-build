@@ -1,0 +1,46 @@
+name: AXIOM Step1 D1 live 68-worker custody recheck (GET-only; NO RELEASE)
+on:
+  push:
+    branches:
+      - review/axiom-step1-d1-origin-provider-audit-readonly-20261110
+    paths:
+      - .github/workflows/axiom-step1-d1-live-topology-recheck-20261112.yml
+permissions:
+  contents: read
+jobs:
+  read-only-worker-topology:
+    if: >-
+      github.repository == 'evansmusitu/mft-axiom-build' &&
+      github.actor == 'evansmusitu' &&
+      github.ref == 'refs/heads/review/axiom-step1-d1-origin-provider-audit-readonly-20261110' &&
+      github.run_attempt == 1
+    runs-on: ubuntu-24.04
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          persist-credentials: false
+      - name: Pin known-good source and run six isolated negative tests before secrets
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git hash-object customer_frontier/qualification/identity_staging_topology_readonly.py)" = "dd2bbacbca721b6cca585f37886c4a4ae4fa12bd"
+          test "$(git hash-object customer_frontier/tests/test_identity_staging_topology_readonly.py)" = "cd03ed75b7c50ecdbf0d8361de71265bd5310872"
+          python3 -m unittest discover -s customer_frontier/tests -p test_identity_staging_topology_readonly.py -v
+      - name: GET-only entire Cloudflare Worker settings and exact D1 metadata
+        shell: bash
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+        run: |
+          set -euo pipefail
+          python3 customer_frontier/qualification/identity_staging_topology_readonly.py
+      - name: Preserve sanitized topology result and integrity SHA only
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: axiom-step1-live-d1-worker-topology-20261112
+          retention-days: 10
+          if-no-files-found: error
+          path: |
+            axiom-stage-idp-custody-topology-readonly.json
+            axiom-stage-idp-custody-topology-readonly.json.sha256

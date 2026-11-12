@@ -1,0 +1,86 @@
+name: AXIOM Step1 Cloudflare audit time-window fidelity aggregates (READ ONLY; NO RELEASE)
+on:
+  push:
+    branches: [review/axiom-step1-d1-origin-provider-audit-readonly-20261110]
+    paths: [.github/workflows/axiom-step1-d1-audit-window-aggregate-20261110.yml]
+permissions: {contents: read}
+concurrency:
+  group: axiom-step1-d1-audit-window-aggregate-20261110
+  cancel-in-progress: false
+jobs:
+  scope-diagnostics:
+    if: >-
+      github.repository == 'evansmusitu/mft-axiom-build' &&
+      github.actor == 'evansmusitu' &&
+      github.ref == 'refs/heads/review/axiom-step1-d1-origin-provider-audit-readonly-20261110' &&
+      github.run_attempt == 1
+    runs-on: ubuntu-24.04
+    timeout-minutes: 7
+    steps:
+      - name: Probe provider filtering; emit only coarse timestamp and UUID mismatch aggregates
+        shell: bash
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import datetime as dt
+          import hashlib,json,os,urllib.request,urllib.parse,urllib.error
+          ACCOUNT='93f395f5121954671f92fffa453d6b61'
+          DATABASE='ccc473f1-fbb5-4b8d-8a24-45f3696ac10f'
+          token=os.environ.get('CLOUDFLARE_API_TOKEN','')
+          if not token or any(c in token for c in '\r\n'): raise SystemExit(2)
+          class NeverRedirect(urllib.request.HTTPRedirectHandler):
+              def redirect_request(self,*a,**k):return None
+          opener=urllib.request.build_opener(NeverRedirect())
+          windows=[
+            ('2025-05-11','2025-06-12'),
+            ('2025-11-10','2025-12-12'),
+            ('2026-05-10','2026-06-12'),
+            ('2026-10-10','2026-11-11')]
+          rows=[]
+          for start,end in windows:
+              path='/logs/audit?'+urllib.parse.urlencode({'since':start,'before':end,'resource_id':DATABASE,'direction':'asc','limit':100})
+              req=urllib.request.Request('https://api.cloudflare.com/client/v4/accounts/'+ACCOUNT+path,method='GET',headers={'Authorization':'Bearer '+token,'Accept':'application/json'})
+              entry={'window_start':start,'window_end':end,'api_status':None,'records':0,'out_of_window':0,'wrong_resource':0,'wrong_account':0,'bad_timestamp':0,'continuation_cursor':False}
+              try:
+                  with opener.open(req,timeout=15) as response:
+                      entry['api_status']=response.status
+                      blob=response.read(500001)
+                      if len(blob)>500000: raise ValueError('OVERSIZE')
+                      j=json.loads(blob)
+                      if j.get('success') is not True or not isinstance(j.get('result'),list):raise ValueError('ENVELOPE')
+                      entry['records']=len(j['result'])
+                      info=j.get('result_info') or {}
+                      entry['continuation_cursor']=bool(info.get('cursor'))
+                      for rec in j['result']:
+                          if (rec.get('resource') or {}).get('id')!=DATABASE:entry['wrong_resource']+=1
+                          if (rec.get('account') or {}).get('id')!=ACCOUNT:entry['wrong_account']+=1
+                          stamp=(rec.get('action') or {}).get('time')
+                          try:
+                              value=dt.datetime.fromisoformat(stamp.replace('Z','+00:00')).astimezone(dt.timezone.utc).date().isoformat()
+                              if not start<=value<end:entry['out_of_window']+=1
+                          except (TypeError,ValueError,AttributeError):entry['bad_timestamp']+=1
+              except urllib.error.HTTPError as err:entry['api_status']=err.code
+              except (urllib.error.URLError,ValueError,OSError,TimeoutError):entry['api_status']='ERROR'
+              rows.append(entry)
+          receipt={'schema':'AXIOM_D1_AUDIT_PROVIDER_WINDOW_SCOPE_AGGREGATES_V1','database_uuid':DATABASE,
+                   'windows':rows,'raw_records_retained':0,'customer_rows_read':0,'http_methods':['GET'],
+                   'database_mutations':0,'origin_qualified':False,'reuse_authorized':False,
+                   'step2_authorized':False,'release_authority':False,'status':'SCOPE_DIAGNOSTIC_ONLY_NO_GO'}
+          data=(json.dumps(receipt,indent=2,sort_keys=True)+'\n').encode()
+          name='axiom-step1-provider-window-scope-aggregates.json'
+          open(name,'wb').write(data)
+          open(name+'.sha256','w').write(hashlib.sha256(data).hexdigest()+'  '+name+'\n')
+          print('CLOUDFLARE_AUDIT_SCOPE_AGGREGATES_NO_GO; GET_ONLY; NO RAW AUDIT LOGS')
+          PY
+      - name: Save only cardinalities and coarse date-window checks; never upload events
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: axiom-step1-provider-audit-scope-aggregates-20261110
+          retention-days: 5
+          if-no-files-found: warn
+          path: |
+            axiom-step1-provider-window-scope-aggregates.json
+            axiom-step1-provider-window-scope-aggregates.json.sha256

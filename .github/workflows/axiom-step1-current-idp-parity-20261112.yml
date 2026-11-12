@@ -1,0 +1,46 @@
+name: AXIOM Step1 current IdP schema exact parity 12 Nov (SELECT only)
+on:
+  push:
+    branches:
+      - review/axiom-step1-d1-origin-provider-audit-readonly-20261110
+    paths:
+      - .github/workflows/axiom-step1-current-idp-parity-20261112.yml
+permissions:
+  contents: read
+jobs:
+  current-schema-parity:
+    if: >-
+      github.repository == 'evansmusitu/mft-axiom-build' &&
+      github.actor == 'evansmusitu' &&
+      github.ref == 'refs/heads/review/axiom-step1-d1-origin-provider-audit-readonly-20261110' &&
+      github.run_attempt == 1
+    runs-on: ubuntu-24.04
+    timeout-minutes: 7
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          persist-credentials: false
+      - name: Pin exact SQL source and run four hostile schema response tests before Cloudflare secret
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git hash-object customer_frontier/qualification/existing_stage_idp_schema_parity_readonly.py)" = "b2e16d95e099bad66574999be563caa38077164a"
+          test "$(git hash-object customer_frontier/tests/test_existing_stage_idp_schema_parity_readonly.py)" = "dc818a0550698dd57717ee2b6e7cd9ae42bfea26"
+          python3 -m unittest discover -s customer_frontier/tests -p test_existing_stage_idp_schema_parity_readonly.py -v
+      - name: Re-read exact 13 source IdP schema objects and aggregate session status without row data
+        shell: bash
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+        run: |
+          set -euo pipefail
+          python3 customer_frontier/qualification/existing_stage_idp_schema_parity_readonly.py
+      - name: Retain sanitized DDL hash parity, counts and result SHA
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: axiom-step1-current-idp-schema-parity-20261112
+          retention-days: 10
+          if-no-files-found: error
+          path: |
+            axiom-existing-staging-idp-schema-parity.json
+            axiom-existing-staging-idp-schema-parity.json.sha256

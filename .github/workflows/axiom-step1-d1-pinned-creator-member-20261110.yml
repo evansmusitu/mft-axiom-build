@@ -1,0 +1,144 @@
+name: AXIOM Step1 D1 pinned creator actor/membership proof GET-only (NO RELEASE)
+on:
+  push:
+    branches:
+      - review/axiom-step1-d1-origin-provider-audit-readonly-20261110
+    paths:
+      - .github/workflows/axiom-step1-d1-pinned-creator-member-20261110.yml
+permissions:
+  contents: read
+jobs:
+  proof:
+    if: github.repository == 'evansmusitu/mft-axiom-build' && github.actor == 'evansmusitu'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 7
+    steps:
+      - name: Verify pinned origin event and member role from Cloudflare (GET only)
+        shell: bash
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+        run: |
+          python3 - <<'PY'
+          import datetime as dt,hashlib,json,os,urllib.error,urllib.parse,urllib.request
+          A="93f395f5121954671f92fffa453d6b61"
+          D="ccc473f1-fbb5-4b8d-8a24-45f3696ac10f"
+          NAME_SHA="7e98510fc457a669c29dd85ab1d87cc758fe0ba74d0833c20863b53d599b5b36"
+          EVENT_SHA="583662942d60f5bd5866f1652ca48462e162d8c152f7050f7523567840ceba4f"
+          ACTOR_SHA="40cd67e22edf1059aefcaa2e0df059b8dc95cedec8ff114b9d33ad4a7758a9e5"
+          t=os.environ.get("CLOUDFLARE_API_TOKEN","")
+          if not t or any(c in t for c in "\r\n"):raise SystemExit(2)
+          class NoRedirect(urllib.request.HTTPRedirectHandler):
+              def redirect_request(self,*args,**kw):return None
+          o=urllib.request.build_opener(NoRedirect())
+          root="https://api.cloudflare.com/client/v4/accounts/"+A
+          def sha(s):return hashlib.sha256(s.encode()).hexdigest()
+          def get(path):
+              req=urllib.request.Request(root+path,method="GET",headers={"Authorization":"Bearer "+t,"Accept":"application/json"})
+              try:
+                  with o.open(req,timeout=18) as r:
+                      body=r.read(5000001)
+                      if len(body)>5000000:raise ValueError("OVERSIZE")
+                      return r.status,json.loads(body)
+              except urllib.error.HTTPError as e:return e.code,None
+              except (OSError,ValueError,TimeoutError):return "UNAVAILABLE",None
+          out={"schema":"AXIOM_D1_PINNED_CREATION_ACTOR_MEMBER_ROLE_READONLY_V1",
+              "database_uuid":D,"status":"NO_GO_D1_REUSE_NOT_AUTHORIZED",
+              "pinned_creation_event_sha256":EVENT_SHA,"pinned_creation_actor_sha256":ACTOR_SHA,
+              "creation_found":False,"creation_matching_name_and_uuid":False,
+              "created_time_metadata_close":False,"actor_sha_matches":False,
+              "actor_type":None,"actor_context":None,
+              "member_status":None,"matched_member_count":0,"matched_member_active_count":0,
+              "matched_member_role_count":0,"matched_member_role_sha256":[],
+              "raw_actor_information_exported":False,"customer_sql_read":False,
+              "database_mutations":0,"historical_ownership_qualified":False,
+              "least_privilege_qualified":False,"current_backup_qualified":False,
+              "independent_restore_qualified":False,"source_reuse_authorized":False,
+              "step_2_authorized":False,"release_authority":False}
+          s,d=get("/d1/database/"+D)
+          if s==200 and isinstance(d,dict) and d.get("success") is True:
+              db=d.get("result") or {}
+              name=db.get("name")
+              if db.get("uuid")==D and isinstance(name,str) and sha(name)==NAME_SHA:
+                  stamp=db.get("created_at")
+                  when=dt.datetime.fromisoformat(stamp.replace("Z","+00:00")).astimezone(dt.timezone.utc)
+                  before=(when+dt.timedelta(seconds=15)).isoformat().replace("+00:00","Z")
+                  since=(when-dt.timedelta(seconds=15)).isoformat().replace("+00:00","Z")
+                  params=urllib.parse.urlencode({"since":since,"before":before,"direction":"asc","limit":1000})
+                  c,logs=get("/logs/audit?"+params)
+                  out["audit_status"]=c
+                  if c==200 and isinstance(logs,dict) and logs.get("success") is True:
+                      entries=logs.get("result") or []
+                      out["audit_event_count"]=len(entries)
+                      info=logs.get("result_info") or {}
+                      out["audit_page_exhausted"]=not bool(info.get("cursor"))
+                      for ev in entries:
+                          if not isinstance(ev,dict) or not isinstance(ev.get("id"),str):continue
+                          if sha(ev["id"])!=EVENT_SHA:continue
+                          out["creation_found"]=True
+                          actor=ev.get("actor") or {}
+                          action=ev.get("action") or {}
+                          raw=ev.get("raw") or {}
+                          resource=ev.get("resource") or {}
+                          account=ev.get("account") or {}
+                          if not all(isinstance(x,dict) for x in (actor,action,raw,resource,account)):break
+                          actor_id=actor.get("id")
+                          out["actor_sha_matches"]=isinstance(actor_id,str) and sha(actor_id)==ACTOR_SHA
+                          out["actor_type"]=actor.get("type") if actor.get("type") in ("account","user","system","cloudflare_admin") else "UNKNOWN"
+                          out["actor_context"]=actor.get("context") if actor.get("context") in ("api_key","api_token","dash","oauth") else "UNKNOWN"
+                          u=raw.get("uri")
+                          uri=urllib.parse.urlsplit(u).path if isinstance(u,str) else ""
+                          request=resource.get("request")
+                          response=resource.get("response")
+                          exact_req= isinstance(request,dict) and request.get("name")==name
+                          exact_resp=isinstance(response,dict) and response.get("uuid")==D
+                          out["request_name_field_matches"]=exact_req
+                          out["response_uuid_field_matches"]=exact_resp
+                          out["request_object_keys"]=sorted(request.keys()) if isinstance(request,dict) else []
+                          out["response_object_keys"]=sorted(response.keys()) if isinstance(response,dict) else []
+                          out["creation_matching_name_and_uuid"]=(exact_req and exact_resp and
+                              uri in ("/accounts/"+A+"/d1/database","/client/v4/accounts/"+A+"/d1/database") and
+                              raw.get("method")=="POST" and action.get("type")=="create" and
+                              action.get("result")=="success" and account.get("id")==A and out["actor_sha_matches"])
+                          try:
+                              event_time=dt.datetime.fromisoformat(action["time"].replace("Z","+00:00")).astimezone(dt.timezone.utc)
+                              out["created_time_metadata_close"]=abs((event_time-when).total_seconds())<3
+                          except (ValueError,KeyError):pass
+                          break
+          m, members=get("/members?page=1&per_page=100")
+          out["member_status"]=m
+          if m==200 and isinstance(members,dict) and members.get("success") is True and isinstance(members.get("result"),list):
+              out["member_records_seen"]=len(members["result"])
+              for item in members["result"]:
+                  if not isinstance(item,dict):continue
+                  user=item.get("user") or {}
+                  ids=[item.get("id"),user.get("id") if isinstance(user,dict) else None]
+                  if any(isinstance(i,str) and sha(i)==ACTOR_SHA for i in ids):
+                      out["matched_member_count"]+=1
+                      status=item.get("status")
+                      if status in ("accepted","member"):out["matched_member_active_count"]+=1
+                      out["matched_member_status"]=status if status in ("accepted","pending","member","invited") else "UNCLASSIFIED"
+                      twofa=user.get("two_factor_authentication_enabled") if isinstance(user,dict) else None
+                      out["matched_member_cloudflare_2fa_enabled"] = twofa if type(twofa) is bool else None
+                      roles=item.get("roles") or []
+                      if isinstance(roles,list):
+                          out["matched_member_role_count"]+=len(roles)
+                          for role in roles:
+                              if isinstance(role,dict) and isinstance(role.get("name"),str):
+                                  out["matched_member_role_sha256"].append(sha(role["name"]))
+          blob=(json.dumps(out,sort_keys=True,indent=2)+"\n").encode()
+          fn="axiom_d1_pinned_creator_member_role_20261110.json"
+          open(fn,"wb").write(blob)
+          open(fn+".sha256","w").write(hashlib.sha256(blob).hexdigest()+"  "+fn+"\n")
+          print("AXIOM_D1_PINNED_CREATOR_ROLE_EVIDENCE_NO_GO_OWNER_CUSTODY")
+          
+          PY
+      - name: Save exact actor-hashed origin evidence without raw identity or API credential
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: axiom-stage-d1-pinned-creator-member-20261110
+          retention-days: 10
+          if-no-files-found: error
+          path: |
+            axiom_d1_pinned_creator_member_role_20261110.json
+            axiom_d1_pinned_creator_member_role_20261110.json.sha256

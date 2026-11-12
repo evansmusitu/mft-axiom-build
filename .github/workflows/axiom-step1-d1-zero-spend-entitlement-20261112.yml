@@ -1,0 +1,87 @@
+name: AXIOM Step1 verify current D1 zero-spend entitlement GET-only (NO RELEASE)
+on:
+  push:
+    branches:
+      - review/axiom-step1-d1-origin-provider-audit-readonly-20261110
+    paths:
+      - .github/workflows/axiom-step1-d1-zero-spend-entitlement-20261112.yml
+permissions:
+  contents: read
+jobs:
+  inspect:
+    if: >-
+      github.repository == 'evansmusitu/mft-axiom-build' &&
+      github.actor == 'evansmusitu' &&
+      github.ref == 'refs/heads/review/axiom-step1-d1-origin-provider-audit-readonly-20261110' &&
+      github.run_attempt == 1
+    runs-on: ubuntu-24.04
+    timeout-minutes: 6
+    steps:
+      - name: Read-only Cloudflare subscriptions/DB counts; never log billing content
+        shell: bash
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+        run: |
+          python3 - <<'PY'
+          import json,os,urllib.error,urllib.request,hashlib
+          ACCOUNT="93f395f5121954671f92fffa453d6b61"
+          TOKEN=os.environ.get("CLOUDFLARE_API_TOKEN","")
+          if not TOKEN or any(ch in TOKEN for ch in "\r\n"):raise SystemExit("NO_SCOPED_TOKEN")
+          class NoRedirect(urllib.request.HTTPRedirectHandler):
+              def redirect_request(self,*a,**kw):return None
+          opener=urllib.request.build_opener(NoRedirect())
+          def get(path,read=False):
+              req=urllib.request.Request("https://api.cloudflare.com/client/v4/accounts/"+ACCOUNT+path,
+                  method="GET",headers={"Authorization":"Bearer "+TOKEN,"Accept":"application/json"})
+              try:
+                  with opener.open(req,timeout=15) as res:
+                      status=res.status
+                      body=res.read(200001) if read else b''
+                      return status,json.loads(body) if read and len(body)<=200000 else None
+              except urllib.error.HTTPError as e:return e.code,None
+              except (OSError,ValueError,TimeoutError):return "UNAVAILABLE",None
+          receipt={"schema":"AXIOM_STEP1_D1_ZERO_NEW_SPEND_ACCOUNT_READONLY_V1",
+           "cloudflare_account":ACCOUNT,"method":"GET_ONLY","new_paid_action":False,
+           "subscriptions_http":None,"workers_subscription_recognized":False,
+           "workers_subscription_state":"UNVERIFIED","database_count":None,
+           "database_list_http":None,"d1_free_limit_official":"10",
+           "d1_paid_limit_official":"1000000_first_100000_included_as_of_2026_10_30",
+           "safe_to_create_without_additional_charge":False,
+           "new_disposable_d1_authorized":False,"custodian_approved":False,
+           "release_authority":False,"status":"ZERO_SPEND_NOT_QUALIFIED"}
+          code,data=get("/subscriptions",read=True)
+          receipt["subscriptions_http"]=code
+          if code==200 and isinstance(data,dict) and data.get("success") is True and isinstance(data.get("result"),list):
+              receipt["subscription_count"]=len(data["result"])
+              for item in data["result"]:
+                  if not isinstance(item,dict):continue
+                  rate=item.get("rate_plan") or {}
+                  if not isinstance(rate,dict):continue
+                  aliases=[rate.get("name"),rate.get("id")]
+                  if any(isinstance(s,str) and "worker" in s.lower() for s in aliases):
+                      receipt["workers_subscription_recognized"]=True
+                      state=item.get("state")
+                      receipt["workers_subscription_state"]=state if state in ("Paid","Trial","Provisioned","Cancelled","Expired","Failed","AwaitingPayment") else "UNVERIFIED"
+          code,db=get("/d1/database?per_page=100&page=1",read=True)
+          receipt["database_list_http"]=code
+          if code==200 and isinstance(db,dict) and db.get("success") is True and isinstance(db.get("result"),list):
+              info=db.get("result_info") or {}
+              if isinstance(info,dict) and type(info.get("total_count")) is int:
+                  receipt["database_count"]=info["total_count"]
+          content=(json.dumps(receipt,indent=2,sort_keys=True)+"\n").encode()
+          name="axiom_step1_d1_zero_spend_entitlement_readonly_20261112.json"
+          open(name,"wb").write(content)
+          open(name+".sha256","w").write(hashlib.sha256(content).hexdigest()+"  "+name+"\n")
+          print("AXIOM_STEP1_ZERO_SPEND_NO_GO")
+          
+          PY
+      - name: Save sanitized plan classification only, not invoices or identity
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: axiom-step1-d1-zero-spend-entitlement-20261112
+          retention-days: 10
+          if-no-files-found: error
+          path: |
+            axiom_step1_d1_zero_spend_entitlement_readonly_20261112.json
+            axiom_step1_d1_zero_spend_entitlement_readonly_20261112.json.sha256

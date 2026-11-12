@@ -1,0 +1,61 @@
+name: AXIOM Step 1 historical D1 origin audit (GET ONLY; NOT RELEASE)
+on:
+  push:
+    branches: [review/axiom-step1-d1-origin-provider-audit-readonly-20261110]
+    paths: [.github/workflows/axiom-step1-d1-origin-provider-audit-readonly-20261110.yml]
+permissions: {contents: read}
+concurrency:
+  group: axiom-step1-d1-origin-provider-audit-readonly-20261110
+  cancel-in-progress: false
+jobs:
+  inspect-provenance:
+    if: >-
+      github.repository == 'evansmusitu/mft-axiom-build' &&
+      github.actor == 'evansmusitu' &&
+      github.ref == 'refs/heads/review/axiom-step1-d1-origin-provider-audit-readonly-20261110' &&
+      github.run_attempt == 1
+    runs-on: ubuntu-24.04
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with: {persist-credentials: false}
+      - name: Independently pin source and run adversarial offline tests before secret exposure
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git hash-object customer_frontier/qualification/step1_historical_d1_audit_readonly.py)" = 'b62ec40e1455b76e8738594c06477fc989af02fd'
+          test "$(git hash-object customer_frontier/tests/test_step1_historical_d1_audit_readonly.py)" = 'e322a625d13c4709af4e2e73fa5c27d56364a57c'
+          python3 -m py_compile customer_frontier/qualification/step1_historical_d1_audit_readonly.py customer_frontier/tests/test_step1_historical_d1_audit_readonly.py
+          python3 -m unittest discover -s customer_frontier/tests -p test_step1_historical_d1_audit_readonly.py -v
+      - name: GET-only provider resource audit; output sanitized and never authorize reuse
+        shell: bash
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+        run: |
+          set -uo pipefail
+          python3 customer_frontier/qualification/step1_historical_d1_audit_readonly.py
+          rc=$?
+          test -s axiom-step1-historical-provider-audit-readonly.json || exit 9
+          python3 - <<'PY'
+          import json
+          with open('axiom-step1-historical-provider-audit-readonly.json', encoding='utf-8') as f:
+              p = json.load(f)
+          assert p['status'] == 'HISTORICAL_PROVIDER_EVENT_OBSERVED_NOT_OWNER_ADMITTED', 'NOT VERIFIED: historical origin provider event absent'
+          for k in ('source_reuse_authorized', 'historical_ownership_qualified', 'step_2_authorized', 'release_authority'):
+              assert p[k] is False
+          assert p['provider_methods_used'] == ['GET']
+          assert p['database_mutations'] == 0
+          print('PROVIDER_EVENT_EVIDENCE_ONLY; NO DATABASE REUSE, NO IDENTITY ADMISSION, NOT RELEASE')
+          PY
+          check=$?
+          test "$rc" = 0 && test "$check" = 0
+      - name: Save only sanitized provenance receipt and SHA; never upload provider logs
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: axiom-step1-historical-d1-provider-audit-readonly-20261110
+          retention-days: 14
+          if-no-files-found: warn
+          path: |
+            axiom-step1-historical-provider-audit-readonly.json
+            axiom-step1-historical-provider-audit-readonly.json.sha256

@@ -1,0 +1,114 @@
+name: AXIOM D1 cursor scope fidelity diagnostic (GET only; NO RELEASE)
+on:
+  push:
+    branches:
+      - review/axiom-step1-d1-origin-provider-audit-readonly-20261110
+    paths:
+      - .github/workflows/axiom-step1-d1-cursor-scope-readonly-20261110.yml
+permissions:
+  contents: read
+jobs:
+  probe:
+    if: github.repository == 'evansmusitu/mft-axiom-build' && github.actor == 'evansmusitu'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 6
+    steps:
+      - name: Diagnostic pinned GET-only, account+resource match; raw logs never exported
+        shell: bash
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+        run: |
+          python3 - <<'PY'
+          import datetime as dt,hashlib,json,os,urllib.error,urllib.parse,urllib.request
+          account="93f395f5121954671f92fffa453d6b61"
+          database="ccc473f1-fbb5-4b8d-8a24-45f3696ac10f"
+          token=os.getenv("CLOUDFLARE_API_TOKEN","")
+          if not token or any(c in token for c in "\r\n"): raise SystemExit("MISSING_CREDENTIAL")
+          class NoRedirect(urllib.request.HTTPRedirectHandler):
+              def redirect_request(self,*args,**kw):return None
+          opener=urllib.request.build_opener(NoRedirect())
+          base="https://api.cloudflare.com/client/v4/accounts/"+account+"/logs/audit"
+          UTC=dt.timezone.utc
+          def date(s):
+              try:
+                  value=dt.datetime.fromisoformat(s.replace("Z","+00:00"))
+                  if value.tzinfo is None: return None
+                  return value.astimezone(UTC).date().isoformat()
+              except (TypeError,AttributeError,ValueError):return None
+          cases=[
+              ("window16_ascending_limit100","2026-08-10","2026-09-12","asc",100),
+              ("window16_descending_limit100","2026-08-10","2026-09-12","desc",100),
+              ("window16_ascending_limit1000","2026-08-10","2026-09-12","asc",1000),
+              ("window18_ascending_limit100","2026-10-10","2026-11-11","asc",100),
+              ("window16_before_timestamp_utc","2026-08-10","2026-09-12T00:00:00Z","asc",1000),
+              ("window16_before_previous_date","2026-08-10","2026-09-11","asc",1000),
+          ]
+          receipt={"schema":"AXIOM_D1_PROVIDER_CURSOR_SCOPE_DIAGNOSTICS_V1",
+           "database_uuid":database,"query_scope":"PINNED_D1_READONLY",
+           "cases":[],"raw_events_exported":0,"customer_rows_read":0,
+           "provider_http_methods":["GET"],"database_writes":0,
+           "source_reuse_authorized":False,"historical_ownership_qualified":False,
+           "step_2_authorized":False,"release_authority":False,"status":"DIAGNOSTICS_ONLY_NO_GO"}
+          for title,start,end,direction,limit in cases:
+              pages=[];cursor=None;seen_cursor=set();seen_id=set()
+              for page in range(4):
+                  q={"since":start,"before":end,"resource_id":database,"direction":direction,"limit":str(limit)}
+                  if cursor: q["cursor"]=cursor
+                  url=base+"?"+urllib.parse.urlencode(q)
+                  request=urllib.request.Request(url,headers={"Authorization":"Bearer "+token,"Accept":"application/json"},method="GET")
+                  row={"index":page+1,"status":None,"count":0,"out_of_window":0,"out_of_scope":0,
+                    "missing_time":0,"duplicate_id":0,"next_cursor":False,
+                    "direction_out_of_order":0,"first_day":None,"last_day":None}
+                  try:
+                      with opener.open(request,timeout=18) as response:
+                          row["status"]=response.status;body=response.read(5000001)
+                      if len(body)>5000000:raise ValueError("too_large")
+                      obj=json.loads(body)
+                      if obj.get("success") is not True or not isinstance(obj.get("result"),list):raise ValueError("invalid_envelope")
+                      logs=obj["result"];row["count"]=len(logs)
+                      info=obj.get("result_info") or {}
+                      next_cursor=info.get("cursor")
+                      row["next_cursor"]=bool(next_cursor)
+                      dates=[]
+                      for log in logs:
+                          if not isinstance(log,dict):row["missing_time"]+=1;continue
+                          day=date((log.get("action") or {}).get("time"))
+                          if day is None: row["missing_time"]+=1;continue
+                          dates.append(day)
+                          if not start[:10]<=day<end[:10]:row["out_of_window"]+=1
+                          if (log.get("resource") or {}).get("id")!=database or (log.get("account") or {}).get("id")!=account:row["out_of_scope"]+=1
+                          eid=log.get("id")
+                          if isinstance(eid,str):
+                              digest=hashlib.sha256(eid.encode()).hexdigest()
+                              if digest in seen_id:row["duplicate_id"]+=1
+                              seen_id.add(digest)
+                      if dates:
+                          row["first_day"]=dates[0];row["last_day"]=dates[-1]
+                          row["direction_out_of_order"]=sum(1 for a,b in zip(dates,dates[1:]) if (a>b if direction=="asc" else a<b))
+                      pages.append(row)
+                      if not next_cursor:break
+                      if not isinstance(next_cursor,str) or len(next_cursor)>2048 or next_cursor in seen_cursor:
+                          pages.append({"status":"BAD_CURSOR"});break
+                      cursor=next_cursor;seen_cursor.add(cursor)
+                  except urllib.error.HTTPError as exc:
+                      row["status"]=exc.code;pages.append(row);break
+                  except Exception:
+                      row["status"]="INVALID_OR_NETWORK";pages.append(row);break
+              receipt["cases"].append({"name":title,"from_day":start,"to_day_exclusive":end,"direction":direction,"limit":limit,"pages":pages})
+          name="axiom_step1_cursor_scope_diagnostic_20261110.json"
+          blob=(json.dumps(receipt,indent=2,sort_keys=True)+"\n").encode()
+          open(name,"wb").write(blob)
+          open(name+".sha256","w").write(hashlib.sha256(blob).hexdigest()+"  "+name+"\n")
+          print("AXIOM_D1_CURSOR_SCOPE_DIAGNOSTIC_ONLY_NO_GO")
+          
+          PY
+      - name: Retain only sanitized count/time aggregates and checksum
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: axiom-step1-cursor-fidelity-aggregates-20261110
+          retention-days: 5
+          if-no-files-found: error
+          path: |
+            axiom_step1_cursor_scope_diagnostic_20261110.json
+            axiom_step1_cursor_scope_diagnostic_20261110.json.sha256
