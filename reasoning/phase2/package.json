@@ -25,7 +25,9 @@
     "gate:phase28d": "node --disable-warning=ExperimentalWarning scripts/phase2-8d-gate.ts",
     "gate:phase29a": "node --disable-warning=ExperimentalWarning scripts/phase2-9a-gate.ts",
     "gate:phase29b": "node --disable-warning=ExperimentalWarning scripts/phase2-9b-gate.ts",
-    "gate:phase29c": "node --disable-warning=ExperimentalWarning scripts/phase2-9c-gate.ts"
+    "gate:phase29c": "node --disable-warning=ExperimentalWarning scripts/phase2-9c-gate.ts",
+    "smoke:live": "node --disable-warning=ExperimentalWarning scripts/live-provider-smoke.ts",
+    "load:staging": "node scripts/readonly-staging-load.mjs"
   },
   "dependencies": {
     "jose": "6.2.12",

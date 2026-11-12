@@ -235,3 +235,39 @@ test("repair state uses previous normalized proposal instead of raw provider env
   assert.equal(result.status,"VALIDATED");
   assert.equal(calls[1].previousResponseBody,badNormalized);
 });
+
+
+test("Phase 2.10P compile requalifies metering immediately before invoking a newly paid adapter",async()=>{
+  const {compiler,model}=await service([validProposal()]);
+  assert.equal(model.manifest.provider,"fixture");
+  // The constructor accepted only the original nonpaid fixture. A later
+  // provider reclassification must not bypass the durable spend ledger.
+  model.manifest.provider="openai";
+  await assert.rejects(
+    ()=>compiler.compile(context(),request(),H("6")),
+    (error:any)=>error?.code==="BUDGET_ENFORCEMENT_REQUIRED"
+  );
+  assert.equal(model.calls.length,0,"rebranded paid provider must not be called without budget admission");
+});
+
+
+test("Phase 2.10T compilation audit retains the originally authorized principal across provider awaits",async()=>{
+  const {compiler,model,repo}=await service([validProposal()]);
+  const approved=context(),initialPrincipal=approved.principal.principalId;
+  const initialDecision=approved.authorization.decisionHash;
+  const realInvoke=model.invoke.bind(model);
+  model.invoke=async(input:any)=>{
+    // Simulates a shared authorization object altered after the initial
+    // service admission while the model transport is awaited.
+    approved.principal.principalId="principal:changed-after-admission";
+    approved.authorization.decisionHash=H("f");
+    return realInvoke(input);
+  };
+  const result=await compiler.compile(approved,request(),H("6"));
+  assert.equal(result.status,"VALIDATED");
+  assert.equal(repo.commits.length,1);
+  assert.equal(repo.commits[0].record.principalId,initialPrincipal,
+    "audit principal must be the exact identity that passed authorization");
+  assert.equal(repo.commits[0].record.authorizationDecisionHash,initialDecision,
+    "post-admission context mutation must not substitute the recorded authorization decision");
+});

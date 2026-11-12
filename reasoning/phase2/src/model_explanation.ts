@@ -4,6 +4,7 @@ import type {
   AuthorizedTenantContext, ModelAdapterManifest, ModelExplainRequest, ModelExplainResult,
   ModelExplanationContent, ModelExplanationProfile, ModelExplanationRecord, TenantScope
 } from "./types.ts";
+import { requireMeteredProviderAdapter, requireProtectedPaidProviderAdapter } from "./provider_budget.ts";
 
 const HEX64=/^[0-9a-f]{64}$/;
 const MAX_EXPLANATION_ITEMS=8;
@@ -148,28 +149,41 @@ export class ModelExplanationService {
   private readonly profiles:ModelExplanationRegistry;
   private readonly repository:ModelExplanationRepository;
   private readonly executions:ExecutionRepository;
-  private readonly plane:{replayStored(id:string):Promise<{status:"MATCH"|"MISMATCH";diagnostics:string[]}>};
+  private readonly plane:{replayStored(id:string):Promise<{status:"MATCH"|"MISMATCH";diagnostics:string[]}>;replayStoredBound?(id:string):Promise<{status:"MATCH"|"MISMATCH";diagnostics:string[];recordHash?:string}>};
   private readonly adapters:Map<string,ModelExplanationAdapter>;
+  private readonly productionBillingRequired:boolean;
   private readonly now:()=>Date|string;
 
   constructor(deps:{
     tenant:TenantScope;profiles:ModelExplanationRegistry;repository:ModelExplanationRepository;
-    executions:ExecutionRepository;plane:{replayStored(id:string):Promise<{status:"MATCH"|"MISMATCH";diagnostics:string[]}>};
+    executions:ExecutionRepository;plane:{replayStored(id:string):Promise<{status:"MATCH"|"MISMATCH";diagnostics:string[]}>;replayStoredBound?(id:string):Promise<{status:"MATCH"|"MISMATCH";diagnostics:string[];recordHash?:string}>};
     adapters:ModelExplanationAdapter[];now?:()=>Date|string;
+    /** Trusted deployment gate; offline fixtures must explicitly opt out. */
+    productionBillingRequired?:boolean;
   }){
+    if(deps.productionBillingRequired!==undefined&&typeof deps.productionBillingRequired!=="boolean")
+      throw new TypeError("productionBillingRequired must be boolean");
     this.tenant={tenantId:required(deps.tenant?.tenantId,"tenantId")};
     this.profiles=deps.profiles;this.repository=deps.repository;this.executions=deps.executions;this.plane=deps.plane;this.now=deps.now??(()=>new Date());
+    this.productionBillingRequired=deps.productionBillingRequired!==false;
     this.adapters=new Map();
     if(!Array.isArray(deps.adapters)||deps.adapters.length===0)throw new TypeError("At least one model explanation adapter is required");
     for(const adapter of deps.adapters){
       const manifest=cloneManifest(adapter?.manifest);
       if(typeof adapter?.explain!=="function")throw new TypeError("Model explanation adapter must implement explain");
+      // Never silently downgrade missing production billing mode to an offline ledger.
+      if(deps.productionBillingRequired!==false)
+        requireProtectedPaidProviderAdapter(adapter,this.tenant.tenantId);
+      else requireMeteredProviderAdapter(adapter,this.tenant.tenantId);
       if(this.adapters.has(manifest.adapterId))throw new TypeError(`Duplicate model explanation adapter: ${manifest.adapterId}`);
       this.adapters.set(manifest.adapterId,adapter);
     }
   }
 
-  async explain(context:AuthorizedTenantContext,executionIdInput:string,request:ModelExplainRequest,requestHashInput:string):Promise<ModelExplainResult>{
+  async explain(rawContext:AuthorizedTenantContext,executionIdInput:string,request:ModelExplainRequest,requestHashInput:string):Promise<ModelExplainResult>{
+    // Keep proof/audit identity bound to the exact admission context, not a
+    // caller-owned object that may be modified across awaits.
+    const context:AuthorizedTenantContext=structuredClone(rawContext);
     const executionId=required(executionIdInput,"executionId");
     authorized(context,this.tenant.tenantId,executionId);
     const requestHash=digest(requestHashInput,"requestHash");
@@ -181,16 +195,45 @@ export class ModelExplanationService {
     catch{throw new ModelExplanationError("MODEL_EXPLANATION_NOT_FOUND","Execution not found",404);}
     if(execution?.tenantId!==this.tenant.tenantId||execution?.id!==executionId)throw new ModelExplanationError("MODEL_EXPLANATION_NOT_FOUND","Execution not found",404);
 
-    const replay=await this.plane.replayStored(executionId);
+    // A replay status without a record-identity receipt cannot authenticate
+    // the separately retrieved execution used to build a paid explanation.
+    if(typeof this.plane.replayStoredBound!=="function")
+      throw new ModelExplanationError("MODEL_EXPLANATION_PROOF_REJECTED",
+        "Record-hash-bound replay authority is required",422);
+    const replay=await this.plane.replayStoredBound(executionId);
     if(replay.status!=="MATCH")throw new ModelExplanationError("MODEL_EXPLANATION_PROOF_REJECTED","Stored execution did not replay exactly",422);
 
-    const promptBody=proofBody(execution);
+    // Replay status authenticates neither an alternate repository's returned
+    // object nor a shared object mutated during awaited replay. Freeze the
+    // evidence identity in a detached data snapshot and verify its own digest
+    // before composing a paid provider prompt or persisting proof metadata.
+    let verifiedExecution:any;
+    try{
+      verifiedExecution=structuredClone(execution);
+      const {recordHash,...core}=verifiedExecution;
+      if(typeof recordHash!=="string"||!HEX64.test(recordHash)||hashJson(core as any)!==recordHash)
+        throw new Error("Execution record content/hash mismatch");
+    }catch{
+      throw new ModelExplanationError("MODEL_EXPLANATION_PROOF_REJECTED",
+        "Execution proof content does not match its verified record hash",422);
+    }
+
+    if(replay.recordHash!==verifiedExecution.recordHash)
+      throw new ModelExplanationError("MODEL_EXPLANATION_PROOF_REJECTED",
+        "Replayed execution record hash does not match the verified explanation proof",422);
+
+    const promptBody=proofBody(verifiedExecution);
     if(Buffer.byteLength(promptBody,"utf8")>profile.maxPromptBytes)throw new ModelExplanationError("MODEL_EXPLANATION_PROOF_REJECTED","Explanation proof prompt exceeds profile limit",422);
     const adapter=this.adapters.get(profile.adapterId);
     if(!adapter)throw new ModelExplanationError("MODEL_EXPLANATION_PROFILE_FORBIDDEN","Explanation profile adapter is unavailable",403);
     const adapterManifest=cloneManifest(adapter.manifest);
     if(adapterManifest.adapterId!==profile.adapterId)throw new ModelExplanationError("MODEL_EXPLANATION_PROFILE_FORBIDDEN","Explanation profile adapter mismatch",403);
 
+    // Replay and repository reads are awaited; an adapter may have changed
+    // its declared provider since registration. Admit actual paid status anew.
+    if(this.productionBillingRequired)
+      requireProtectedPaidProviderAdapter(adapter,this.tenant.tenantId);
+    else requireMeteredProviderAdapter(adapter,this.tenant.tenantId);
     const capturedAt=canonicalNow(this.now());
     let captured:CapturedModelExplanationExchange;
     try{captured=await adapter.explain({capturedAt,promptBody,maxResponseBytes:profile.maxResponseBytes});}
@@ -202,7 +245,7 @@ export class ModelExplanationService {
     byteLimit(normalizedResponseBody,profile.maxResponseBytes,"normalized explanation body");
 
     const base={
-      tenantId:this.tenant.tenantId,executionId,executionRecordHash:digest(execution.recordHash,"execution recordHash"),
+      tenantId:this.tenant.tenantId,executionId,executionRecordHash:digest(verifiedExecution.recordHash,"execution recordHash"),
       principalId:context.principal.principalId,authorizationDecisionHash:digest(context.authorization.decisionHash,"authorization decisionHash"),
       explanationRequestHash:requestHash,
       profileId:profile.profileId,profileVersion:profile.version,profileHash,

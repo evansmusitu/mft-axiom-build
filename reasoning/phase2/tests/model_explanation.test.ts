@@ -72,7 +72,10 @@ function deps(phase2:any,adapter:any,replayStatus:"MATCH"|"MISMATCH"="MATCH"){
     },
     async put(){throw new Error("unused");}
   };
-  const plane={async replayStored(id:string){assert.equal(id,stored.id);return {status:replayStatus,diagnostics:replayStatus==="MATCH"?[]:["forced mismatch"]};}};
+  const plane={
+    async replayStored(id:string){assert.equal(id,stored.id);return {status:replayStatus,diagnostics:replayStatus==="MATCH"?[]:["forced mismatch"]};},
+    async replayStoredBound(id:string){assert.equal(id,stored.id);return {status:replayStatus,diagnostics:replayStatus==="MATCH"?[]:["forced mismatch"],recordHash:stored.recordHash};}
+  };
   const explanations={async put(scope:any,record:any){put.push({scope:structuredClone(scope),record:structuredClone(record)});},async get(){throw new Error("unused");}};
   const profiles=new phase2.ModelExplanationRegistry([{profile,tenantIds:[tenant.tenantId]}]);
   return {stored,put,service:new phase2.ModelExplanationService({
@@ -160,7 +163,8 @@ test("explanation profile tenant eligibility and exact content bounds fail close
     tenant,profiles:ineligibleProfiles,
     repository:{async put(){throw new Error("must not persist");},async get(){throw new Error("unused");}},
     executions:{async get(){return structuredClone(stored);},async put(){}},
-    plane:{async replayStored(){return {status:"MATCH",diagnostics:[]};}},
+    plane:{async replayStored(){return {status:"MATCH",diagnostics:[]};},
+      async replayStoredBound(){return {status:"MATCH",diagnostics:[],recordHash:stored.recordHash};}},
     adapters:[adapter],now:()=>new Date("2026-10-07T20:20:00.000Z")
   });
   await assert.rejects(()=>service.explain(context(),stored.id,{profileId:profile.profileId},H("9")),(e:any)=>e?.httpStatus===403);
@@ -189,4 +193,113 @@ test("provider receives immutable proof text only and cannot mutate trusted exec
   await service.explain(context(),stored.id,{profileId:profile.profileId},H("9"));
   assert.equal(stored.snapshotHash,H("1"));
   assert.equal(put[0].record.executionRecordHash,stored.recordHash);
+});
+
+
+test("Phase 2.10P explanation requalifies metering after async replay before calling a newly paid adapter",async()=>{
+  const phase2:any=await import("../src/index.ts");
+  const adapter=fakeAdapter(),original=adapter.manifest.provider;
+  const {service,stored}=deps(phase2,adapter);
+  try{
+    assert.equal(original,"fixture");
+    adapter.manifest.provider="anthropic";
+    await assert.rejects(
+      ()=>service.explain(context(),stored.id,{profileId:profile.profileId},H("9")),
+      (error:any)=>error?.code==="BUDGET_ENFORCEMENT_REQUIRED"
+    );
+    assert.equal(adapter.calls.length,0,"unmetered rebranded explanation provider must not be called");
+  }finally{adapter.manifest.provider=original;}
+});
+
+
+test("Phase 2.10T explanation audit retains originally authorized principal and decision across provider awaits",async()=>{
+  const phase2:any=await import("../src/index.ts");
+  const adapter=fakeAdapter(),approved=context();
+  const initialPrincipal=approved.principal.principalId;
+  const initialDecision=approved.authorization.decisionHash;
+  const {service,stored,put}=deps(phase2,adapter);
+  const realExplain=adapter.explain.bind(adapter);
+  adapter.explain=async(input:any)=>{
+    approved.principal.principalId="principal:changed-after-admission";
+    approved.authorization.decisionHash=H("f");
+    return realExplain(input);
+  };
+  const result=await service.explain(approved,stored.id,{profileId:profile.profileId},H("9"));
+  assert.equal(result.status,"CREATED");
+  assert.equal(put.length,1);
+  assert.equal(put[0].record.principalId,initialPrincipal,
+    "explanation record must name the principal actually admitted before provider work");
+  assert.equal(put[0].record.authorizationDecisionHash,initialDecision,
+    "authorization decision evidence must not be read again after provider awaits");
+});
+
+
+test("Phase 2.10V explanation denies corrupted execution content even if replay reports MATCH",async()=>{
+  const phase2:any=await import("../src/index.ts");
+  const adapter=fakeAdapter(),{service,stored,put}=deps(phase2,adapter);
+  const originalHash=stored.recordHash;
+  stored.snapshotHash=H("f"); // recordHash remains the original trusted digest
+  assert.equal(stored.recordHash,originalHash);
+  await assert.rejects(
+    ()=>service.explain(context(),stored.id,{profileId:profile.profileId},H("9")),
+    (error:any)=>error?.code==="MODEL_EXPLANATION_PROOF_REJECTED"&&error?.httpStatus===422,
+    "a replay MATCH alone cannot authorize provider prompt generation from corrupted persisted proof content"
+  );
+  assert.equal(adapter.calls.length,0,"tampered execution must not reach model provider");
+  assert.equal(put.length,0,"tampered explanation evidence must not be written");
+});
+
+test("Phase 2.10V explanation checks record hash after replay, denying shared-record mutation",async()=>{
+  const phase2:any=await import("../src/index.ts");
+  const adapter=fakeAdapter(),stored=execution(),put:any[]=[];
+  const profiles=new phase2.ModelExplanationRegistry([{profile,tenantIds:[tenant.tenantId]}]);
+  let reads=0;
+  const service=new phase2.ModelExplanationService({
+    tenant,profiles,
+    repository:{async put(_scope:any,record:any){put.push(record);},async get(){throw Error("unused");}},
+    executions:{async get(){reads++;return stored;}},
+    plane:{async replayStored(){throw Error("legacy replay must not authorize proof");},
+      async replayStoredBound(){
+        stored.certificate.core.decisionStatus="REJECTED";
+        return {status:"MATCH" as const,diagnostics:[],recordHash:stored.recordHash};
+      }},
+    adapters:[adapter],productionBillingRequired:false,
+    now:()=>new Date("2026-10-07T20:20:00.000Z")
+  });
+  await assert.rejects(
+    ()=>service.explain(context(),stored.id,{profileId:profile.profileId},H("9")),
+    (error:any)=>error?.code==="MODEL_EXPLANATION_PROOF_REJECTED"&&error?.httpStatus===422,
+    "a mutable repository record changing during awaited replay must fail integrity verification"
+  );
+  assert.equal(reads,1);
+  assert.equal(adapter.calls.length,0);
+  assert.equal(put.length,0);
+});
+
+
+test("Phase 2.10X explanation requires a replay receipt bound to the exact execution record hash",async()=>{
+  const phase2:any=await import("../src/index.ts");
+  for(const mode of ["missing-bound-method","different-replayed-record"] as const){
+    const adapter=fakeAdapter(),stored=execution(),put:any[]=[];
+    const plane:any={async replayStored(){return {status:"MATCH" as const,diagnostics:[]};}};
+    if(mode==="different-replayed-record"){
+      plane.replayStoredBound=async()=>({
+        status:"MATCH" as const,diagnostics:[],recordHash:H("f")
+      });
+    }
+    const service=new phase2.ModelExplanationService({
+      tenant,profiles:new phase2.ModelExplanationRegistry([{profile,tenantIds:[tenant.tenantId]}]),
+      repository:{async put(_scope:any,record:any){put.push(record);},async get(){throw Error("unused");}},
+      executions:{async get(){return structuredClone(stored);}},
+      plane,adapters:[adapter],productionBillingRequired:false,
+      now:()=>new Date("2026-10-07T20:20:00.000Z")
+    });
+    await assert.rejects(
+      ()=>service.explain(context(),stored.id,{profileId:profile.profileId},H("9")),
+      (error:any)=>error?.code==="MODEL_EXPLANATION_PROOF_REJECTED"&&error?.httpStatus===422,
+      "replay MATCH must attest the exact retrieved record hash, never an unrelated or unbound replay"
+    );
+    assert.equal(adapter.calls.length,0,mode+": denied before model provider");
+    assert.equal(put.length,0,mode+": no evidence record committed");
+  }
 });
