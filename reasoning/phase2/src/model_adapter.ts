@@ -269,6 +269,11 @@ export function createModelExchangeArtifact(input:{
 }):ModelExchangeArtifact {
   const manifest=validateManifest(input.manifest);
   const normalized=input.captured?.normalizedResponseBody;
+  // Capture untrusted exchange properties only once; hashes must describe
+  // the same bytes persisted in the proof artifact.
+  const capturedAt=canonicalIso(input.captured?.capturedAt,"capturedAt");
+  const requestBody=required(input.captured?.requestBody,"requestBody");
+  const responseBody=required(input.captured?.responseBody,"responseBody");
   const core:any={
     tenantId:required(input.tenantId,"tenantId"),
     adapterId:manifest.adapterId,adapterVersion:manifest.version,adapterImplementationHash:manifest.implementationHash,
@@ -276,11 +281,9 @@ export function createModelExchangeArtifact(input:{
     profileId:required(input.profileId,"profileId"),profileHash:digest(input.profileHash,"profileHash"),
     compilationRequestHash:digest(input.compilationRequestHash,"compilationRequestHash"),
     attempt:nonNegativeInteger(input.attempt,"attempt"),mode:input.mode,
-    capturedAt:canonicalIso(input.captured?.capturedAt,"capturedAt"),
-    requestBody:required(input.captured?.requestBody,"requestBody"),
-    requestBodyHash:sha256Hex(Buffer.from(required(input.captured?.requestBody,"requestBody"),"utf8")),
-    responseBody:required(input.captured?.responseBody,"responseBody"),
-    responseBodyHash:sha256Hex(Buffer.from(required(input.captured?.responseBody,"responseBody"),"utf8"))
+    capturedAt,
+    requestBody,requestBodyHash:sha256Hex(Buffer.from(requestBody,"utf8")),
+    responseBody,responseBodyHash:sha256Hex(Buffer.from(responseBody,"utf8"))
   };
   if(normalized!==undefined){
     core.normalizedResponseBody=required(normalized,"normalizedResponseBody");
