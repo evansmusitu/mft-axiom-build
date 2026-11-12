@@ -219,3 +219,36 @@ test('readiness SQL attests exact signatures, definer, role, search path and PUB
   assert.match(sql,/has_function_privilege\(current_user,p\.oid,'EXECUTE'\)/);
   assert.match(sql,/has_schema_privilege\(current_user,'axiom_spend','CREATE'\)/);
 });
+
+
+test('G1 strict origin TLS probe refuses missing, plaintext or obsolete live PostgreSQL session evidence',async()=>{
+  const strict={...env,G1_REQUIRE_ORIGIN_TLS:'true'};
+  for(const row of [
+    {...completeRow},
+    {...completeRow,origin_tls_active:false,origin_tls_version:null},
+    {...completeRow,origin_tls_active:true,origin_tls_version:'TLSv1.0'},
+    {...completeRow,origin_tls_active:true,origin_tls_version:'TLSv1.1'},
+    {...completeRow,origin_tls_active:true,origin_tls_version:null}
+  ]){
+    await assert.rejects(
+      ()=>inspectStagingHyperdrive(strict,fakeClient(row).create),
+      /STAGING_ORIGIN_TLS_UNVERIFIED/,
+      'production G1 cannot accept a DB role/catalog check without observed secure origin TLS'
+    );
+  }
+  const accepted=await inspectStagingHyperdrive(strict,
+    fakeClient({...completeRow,origin_tls_active:true,origin_tls_version:'TLSv1.3'}).create);
+  assert.equal(accepted.productionBillingEnforced,false,
+    'even TLS 1.3 plus catalog proof is NOT central spend or origin hostname certification');
+});
+
+test('G1 strict probe reads pg_stat_ssl for the exact current PostgreSQL backend',async()=>{
+  const client=fakeClient({...completeRow,origin_tls_active:true,origin_tls_version:'TLSv1.3'});
+  await inspectStagingHyperdrive({...env,G1_REQUIRE_ORIGIN_TLS:'true'},client.create);
+  const sql=client.traces.find(([kind])=>kind==='query')?.[1];
+  assert.match(sql,/pg_catalog\.pg_stat_ssl/);
+  assert.match(sql,/pg_catalog\.pg_backend_pid\(\)/);
+  assert.match(sql,/AS origin_tls_active/);
+  assert.match(sql,/AS origin_tls_version/);
+  assert.doesNotMatch(sql,/;/);
+});
