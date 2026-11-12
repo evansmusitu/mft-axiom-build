@@ -42,7 +42,7 @@ def exact_int(value, limit):
 
 def fetch(path, token, opener):
     if not (re.fullmatch(re.escape(PREFIX) + r'\?page=[1-5]&per_page=100',path)
-            or re.fullmatch(re.escape(PREFIX) + r'/[0-9a-f]{32}',path)):
+            or re.fullmatch(re.escape(PREFIX) + r'/[0-9a-f]{32}(?:/consumers)?',path)):
         raise ProbeFailure('UNAPPROVED_URL_PATH')
     if not isinstance(token,str) or not token or any(c.isspace() for c in token):
         raise ProbeFailure('TOKEN_UNAVAILABLE_OR_INVALID')
@@ -125,7 +125,42 @@ def inspect(token, opener):
         if type(body) is not dict or body.get('queue_id')!=qid:
             raise ProbeFailure('QUEUE_DETAILS_IDENTITY_MISMATCH')
         p=checked_endpoints(body.get('producers'),body.get('producers_total_count'),'PRODUCER')
-        c=checked_endpoints(body.get('consumers'),body.get('consumers_total_count'),'CONSUMER')
+        consumer_rows=body.get('consumers')
+        consumer_list_hash=None
+        if isinstance(consumer_rows,list) and any(
+            isinstance(c,dict) and c.get('type')=='worker' and
+            (not isinstance(c.get('script_name'),str) or not c.get('script_name'))
+            for c in consumer_rows
+        ):
+            # A second Cloudflare GET may return a fuller worker identifier.
+            # Require exact consumer-ID identity and type before trusting it.
+            listing,consumer_list_hash=fetch(f'{PREFIX}/{qid}/consumers',token,opener)
+            other=listing.get('result')
+            if not isinstance(other,list) or len(other)!=len(consumer_rows):
+                raise ProbeFailure('CONSUMER_LIST_COUNT_MISMATCH')
+            by_id={}
+            for item in other:
+                if type(item) is not dict or not isinstance(item.get('consumer_id'),str) or not IDENTIFIER.fullmatch(item['consumer_id']):
+                    raise ProbeFailure('CONSUMER_LIST_ID_INVALID')
+                if item['consumer_id'] in by_id:
+                    raise ProbeFailure('CONSUMER_LIST_DUPLICATE_ID')
+                by_id[item['consumer_id']]=item
+            resolved=[]
+            for old in consumer_rows:
+                if type(old) is not dict or not isinstance(old.get('consumer_id'),str) or not IDENTIFIER.fullmatch(old['consumer_id']):
+                    raise ProbeFailure('CONSUMER_DETAILS_ID_INVALID')
+                incoming=by_id.pop(old['consumer_id'],None)
+                if type(incoming) is not dict or incoming.get('type')!=old.get('type'):
+                    raise ProbeFailure('CONSUMER_LIST_IDENTITY_CONFLICT')
+                name=old.get('script_name')
+                if old['type']=='worker' and (not isinstance(name,str) or not name):
+                    name=incoming.get('script_name')
+                elif old['type']=='worker' and incoming.get('script_name') not in (None,name):
+                    raise ProbeFailure('CONSUMER_LIST_SCRIPT_CONFLICT')
+                resolved.append({**old, 'script_name':name} if old['type']=='worker' else old)
+            if by_id:raise ProbeFailure('CONSUMER_LIST_EXTRA_ID')
+            consumer_rows=resolved
+        c=checked_endpoints(consumer_rows,body.get('consumers_total_count'),'CONSUMER')
         output.append({'queue_id_sha256':hash_id(qid),'details_sha256':digest,
           'producer_total_count':body['producers_total_count'],
           'consumer_total_count':body['consumers_total_count'],
@@ -134,7 +169,8 @@ def inspect(token, opener):
           'worker_consumer_count':c['worker_count'],
           'http_pull_consumer_count':c['http_pull_count'],
           'producer_target_sha256':p['target_sha256'],
-          'consumer_target_sha256':c['target_sha256']})
+          'consumer_target_sha256':c['target_sha256'],
+          'consumer_list_sha256':consumer_list_hash})
     return {'inventory_sha256':list_hashes,'queue_count':len(output),'queues':output,
             'tenant_mapping_verified':False,'postgres_scheduler_correlated':False,
             'independent_witness_verified':False,'mcn072_qualified':False}
