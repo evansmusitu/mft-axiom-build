@@ -198,7 +198,22 @@ export class ModelExplanationService {
     const replay=await this.plane.replayStored(executionId);
     if(replay.status!=="MATCH")throw new ModelExplanationError("MODEL_EXPLANATION_PROOF_REJECTED","Stored execution did not replay exactly",422);
 
-    const promptBody=proofBody(execution);
+    // Replay status authenticates neither an alternate repository's returned
+    // object nor a shared object mutated during awaited replay. Freeze the
+    // evidence identity in a detached data snapshot and verify its own digest
+    // before composing a paid provider prompt or persisting proof metadata.
+    let verifiedExecution:any;
+    try{
+      verifiedExecution=structuredClone(execution);
+      const {recordHash,...core}=verifiedExecution;
+      if(typeof recordHash!=="string"||!HEX64.test(recordHash)||hashJson(core as any)!==recordHash)
+        throw new Error("Execution record content/hash mismatch");
+    }catch{
+      throw new ModelExplanationError("MODEL_EXPLANATION_PROOF_REJECTED",
+        "Execution proof content does not match its verified record hash",422);
+    }
+
+    const promptBody=proofBody(verifiedExecution);
     if(Buffer.byteLength(promptBody,"utf8")>profile.maxPromptBytes)throw new ModelExplanationError("MODEL_EXPLANATION_PROOF_REJECTED","Explanation proof prompt exceeds profile limit",422);
     const adapter=this.adapters.get(profile.adapterId);
     if(!adapter)throw new ModelExplanationError("MODEL_EXPLANATION_PROFILE_FORBIDDEN","Explanation profile adapter is unavailable",403);
@@ -221,7 +236,7 @@ export class ModelExplanationService {
     byteLimit(normalizedResponseBody,profile.maxResponseBytes,"normalized explanation body");
 
     const base={
-      tenantId:this.tenant.tenantId,executionId,executionRecordHash:digest(execution.recordHash,"execution recordHash"),
+      tenantId:this.tenant.tenantId,executionId,executionRecordHash:digest(verifiedExecution.recordHash,"execution recordHash"),
       principalId:context.principal.principalId,authorizationDecisionHash:digest(context.authorization.decisionHash,"authorization decisionHash"),
       explanationRequestHash:requestHash,
       profileId:profile.profileId,profileVersion:profile.version,profileHash,
