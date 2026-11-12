@@ -927,3 +927,29 @@ test("Phase 2.10R paid compile and explain use one detached provider response fo
     }finally{ledger.close();}
   }
 });
+
+
+test("Phase 2.10S unspecified billing mode denies paid SQLite adapters at both service admission boundaries",()=>{
+  const x=setup("openai");
+  const compiler=(mode?:boolean)=>new phase2.ModelCompilationService({
+    profiles:{resolve(){throw Error("must not resolve");}} as any,
+    repository:{commitCompilation(){throw Error("must not commit");}} as any,
+    registry:{manifest(){return [];}} as any,
+    adapter:x.wrapped,...(mode===undefined?{}:{productionBillingRequired:mode})
+  });
+  const explainer=(mode?:boolean)=>new phase2.ModelExplanationService({
+    tenant:scope(),profiles:{} as any,repository:{} as any,executions:{} as any,
+    plane:{async replayStored(){return {status:"MATCH" as const,diagnostics:[]};}},
+    adapters:[x.wrapped],...(mode===undefined?{}:{productionBillingRequired:mode})
+  });
+  try{
+    for(const admission of [compiler,explainer]){
+      assert.throws(()=>admission(),(e:any)=>e?.code==="BUDGET_PROTECTED_LEDGER_REQUIRED",
+        "omitted productionBillingRequired must not silently admit local spending ledgers for paid providers");
+      assert.throws(()=>admission(true),(e:any)=>e?.code==="BUDGET_PROTECTED_LEDGER_REQUIRED");
+      assert.doesNotThrow(()=>admission(false),
+        "offline fixture mode remains available only through an explicit opt-out");
+    }
+    assert.equal(x.calls,0,"admission must not invoke the upstream model provider");
+  }finally{x.ledger.close();}
+});
