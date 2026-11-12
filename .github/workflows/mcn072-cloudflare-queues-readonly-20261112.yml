@@ -1,0 +1,54 @@
+name: MUSITU MCN-072 Cloudflare Queues GET-only authority inventory (NO RELEASE)
+
+on:
+  push:
+    branches:
+      - audit/mcn072-cloudflare-queues-readonly-20261112
+    paths:
+      - .github/workflows/mcn072-cloudflare-queues-readonly-20261112.yml
+
+permissions:
+  contents: read
+
+concurrency:
+  group: mcn072-cloudflare-queues-readonly-20261112
+  cancel-in-progress: false
+
+jobs:
+  observe:
+    if: >-
+      github.repository == 'evansmusitu/mft-axiom-build' &&
+      github.ref == 'refs/heads/audit/mcn072-cloudflare-queues-readonly-20261112' &&
+      github.event_name == 'push'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 8
+    steps:
+      - name: Checkout without persisted credentials
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
+      - name: Verify pinned source and 11 negative controls BEFORE injecting Cloudflare secret
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git hash-object qualification/mcn072_cloudflare_queues_probe.py)" = "1bd9aa75657d3c359a6b30c1b6bbf00b5a2a9afe"
+          test "$(git hash-object tests/test_mcn072_cloudflare_queues_probe.py)" = "1ad30a02988a0e323d431c9999c608538b6ffe66"
+          python3 -B -m py_compile qualification/mcn072_cloudflare_queues_probe.py tests/test_mcn072_cloudflare_queues_probe.py
+          python3 -B -m unittest discover -s tests -p 'test_mcn072_cloudflare_queues_probe.py' -v
+      - name: Observe Cloudflare Queues via bounded, account-pinned GET requests only
+        shell: bash
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+        run: |
+          set -euo pipefail
+          python3 -B qualification/mcn072_cloudflare_queues_probe.py
+      - name: Retain only sanitized response hashes and queue backlog observations (MCN-072 NO-GO)
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: musitu-mcn072-cloudflare-queues-getonly-20261112
+          path: |
+            mcn072-cloudflare-queues-readonly.json
+            mcn072-cloudflare-queues-readonly.json.sha256
+          if-no-files-found: warn
+          retention-days: 7
