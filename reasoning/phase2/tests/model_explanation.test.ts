@@ -72,7 +72,10 @@ function deps(phase2:any,adapter:any,replayStatus:"MATCH"|"MISMATCH"="MATCH"){
     },
     async put(){throw new Error("unused");}
   };
-  const plane={async replayStored(id:string){assert.equal(id,stored.id);return {status:replayStatus,diagnostics:replayStatus==="MATCH"?[]:["forced mismatch"]};}};
+  const plane={
+    async replayStored(id:string){assert.equal(id,stored.id);return {status:replayStatus,diagnostics:replayStatus==="MATCH"?[]:["forced mismatch"]};},
+    async replayStoredBound(id:string){assert.equal(id,stored.id);return {status:replayStatus,diagnostics:replayStatus==="MATCH"?[]:["forced mismatch"],recordHash:stored.recordHash};}
+  };
   const explanations={async put(scope:any,record:any){put.push({scope:structuredClone(scope),record:structuredClone(record)});},async get(){throw new Error("unused");}};
   const profiles=new phase2.ModelExplanationRegistry([{profile,tenantIds:[tenant.tenantId]}]);
   return {stored,put,service:new phase2.ModelExplanationService({
@@ -160,7 +163,8 @@ test("explanation profile tenant eligibility and exact content bounds fail close
     tenant,profiles:ineligibleProfiles,
     repository:{async put(){throw new Error("must not persist");},async get(){throw new Error("unused");}},
     executions:{async get(){return structuredClone(stored);},async put(){}},
-    plane:{async replayStored(){return {status:"MATCH",diagnostics:[]};}},
+    plane:{async replayStored(){return {status:"MATCH",diagnostics:[]};},
+      async replayStoredBound(){return {status:"MATCH",diagnostics:[],recordHash:stored.recordHash};}},
     adapters:[adapter],now:()=>new Date("2026-10-07T20:20:00.000Z")
   });
   await assert.rejects(()=>service.explain(context(),stored.id,{profileId:profile.profileId},H("9")),(e:any)=>e?.httpStatus===403);
@@ -254,10 +258,11 @@ test("Phase 2.10V explanation checks record hash after replay, denying shared-re
     tenant,profiles,
     repository:{async put(_scope:any,record:any){put.push(record);},async get(){throw Error("unused");}},
     executions:{async get(){reads++;return stored;}},
-    plane:{async replayStored(){
-      stored.certificate.core.decisionStatus="REJECTED";
-      return {status:"MATCH" as const,diagnostics:[]};
-    }},
+    plane:{async replayStored(){throw Error("legacy replay must not authorize proof");},
+      async replayStoredBound(){
+        stored.certificate.core.decisionStatus="REJECTED";
+        return {status:"MATCH" as const,diagnostics:[],recordHash:stored.recordHash};
+      }},
     adapters:[adapter],productionBillingRequired:false,
     now:()=>new Date("2026-10-07T20:20:00.000Z")
   });
