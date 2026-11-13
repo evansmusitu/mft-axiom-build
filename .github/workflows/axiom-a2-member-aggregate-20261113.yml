@@ -1,0 +1,78 @@
+name: AXIOM B27 A2 account membership readiness (GET ONLY / PRIVATE AGGREGATES)
+on:
+  push:
+    branches: [audit/axiom-a2-provider-readonly-20261113]
+    paths: [.github/workflows/axiom-a2-member-aggregate-20261113.yml]
+permissions:
+  contents: read
+jobs:
+  member-inventory:
+    if: >-
+      github.repository == 'evansmusitu/mft-axiom-build' &&
+      github.actor == 'evansmusitu' &&
+      github.ref == 'refs/heads/audit/axiom-a2-provider-readonly-20261113' &&
+      github.event.before == '7b28062405d531731944f2fc81af50878cc5d9ef'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 4
+    steps:
+      - name: Count account members without logging emails, member identifiers or policies
+        shell: bash
+        env:
+          TOKEN: ${{ secrets.MUSITU_CLOUDFLARE_ADMIN_TOKEN }}
+        run: |
+          set -euo pipefail
+          set +x
+          python3 - <<'PY'
+          import os,json,urllib.request,urllib.error
+          ACCOUNT='67469478aa9349fa0a57fe3a72da200a'
+          TOKEN=os.getenv('TOKEN','')
+          if not TOKEN or '\n' in TOKEN or '\r' in TOKEN:
+            print('A2_MEMBERS_READ_TOKEN_ABSENT_HOLD')
+            raise SystemExit(2)
+          class NoRedirect(urllib.request.HTTPRedirectHandler):
+            def redirect_request(self,*args,**kwargs):return None
+          opener=urllib.request.build_opener(NoRedirect)
+          counts={'member':0,'invited':0,'other':0}
+          pages=0;total=0
+          while pages<10:
+            pages+=1
+            url='https://api.cloudflare.com/client/v4/accounts/'+ACCOUNT+'/members?page='+str(pages)+'&per_page=50'
+            req=urllib.request.Request(url,method='GET',headers={'Authorization':'Bearer '+TOKEN,'Accept':'application/json'})
+            try:
+              with opener.open(req,timeout=15) as response:
+                status=response.status;raw=response.read(131073)
+            except urllib.error.HTTPError as e:
+              print('A2_MEMBERS_PROVIDER_DENIED_HTTP_'+str(e.code));raise SystemExit(2)
+            except Exception:
+              print('A2_MEMBERS_PROVIDER_UNAVAILABLE_HOLD');raise SystemExit(2)
+            if status!=200 or len(raw)>131072:raise SystemExit('A2_MEMBERS_PROVIDER_INVALID_HOLD')
+            try:doc=json.loads(raw)
+            except Exception:raise SystemExit('A2_MEMBERS_PROVIDER_INVALID_HOLD')
+            data=doc.get('result') if isinstance(doc,dict) else None
+            if doc.get('success') is not True or not isinstance(data,list):
+              raise SystemExit('A2_MEMBERS_PROVIDER_SCHEMA_HOLD')
+            if len(data)>50:raise SystemExit('A2_MEMBERS_PAGE_OVERSIZE_HOLD')
+            for row in data:
+              if not isinstance(row,dict):raise SystemExit('A2_MEMBERS_ITEM_SCHEMA_HOLD')
+              value=row.get('status')
+              counts[value if value in ('member','invited') else 'other']+=1
+            total+=len(data)
+            info=doc.get('result_info') or {}
+            if not isinstance(info,dict):raise SystemExit('A2_MEMBERS_PAGINATION_HOLD')
+            expected_pages=info.get('total_pages')
+            if not isinstance(expected_pages,int) or expected_pages<1 or expected_pages>10:
+              raise SystemExit('A2_MEMBERS_PAGINATION_HOLD')
+            if pages>=expected_pages:break
+          else:raise SystemExit('A2_MEMBERS_PAGINATION_UNFINISHED_HOLD')
+          # Never print names, email addresses, account member IDs or policies.
+          result={'schema':'musitu.axiom.b27.a2.membership-aggregate.20261113.v1',
+            'account_id':ACCOUNT,'http':200,'complete':True,'member_count':counts['member'],
+            'invited_count':counts['invited'],'other_status_count':counts['other'],
+            'page_count':pages,'get_only':True,'write_count':0,
+            'independent_admin_identified':False,'recovery_custody_verified':False,
+            'mfa_independently_verified':False,'release_eligible':False}
+          print(json.dumps(result,sort_keys=True,separators=(',',':')))
+          if counts['member']<2:
+            raise SystemExit('A2_INDEPENDENT_OPERATOR_MEMBERSHIP_NOT_ESTABLISHED_HOLD')
+          print('A2_MULTIPLE_MEMBERS_EXIST_INDEPENDENCE_STILL_NOT_PROVEN')
+          PY
