@@ -66,6 +66,19 @@ test('negative B27: restoring DO, independent R2 checkpoints AND controls reissu
   const replay=await externalHighwaterFence(x.args);assert.equal(replay.sequence,1,'R2 lock deletion + all-state rollback is still an attack');
 });
 
+
+test('B27: different but valid signer cannot burn one-use R2/DO sequence',{timeout:10000},async()=>{
+  const x=await setup();await x.seed();
+  const wrong=await crypto.subtle.generateKey('Ed25519',true,['sign','verify']);
+  x.server.env.HW_SIGNING_JWK=JSON.stringify(await crypto.subtle.exportKey('jwk',wrong.privateKey));
+  let puts=0;const old=x.r2.put;
+  x.r2.put=async(...args)=>{puts++;return old(...args);};
+  await assert.rejects(externalHighwaterFence(x.args),
+    /HIGHWATER_REMOTE_DENIAL_HOLD|HIGHWATER_SIGNATURE_INVALID_HOLD/);
+  assert.equal(puts,0,'valid but unapproved signer MUST NOT consume external sequence');
+  assert.equal((await x.storage.get('highwater/tip')).sequence,0);
+  assert.equal(await x.storage.get('highwater/pending'),undefined);
+});
 test('B27: invalid signer cannot consume R2 checkpoint or mutate DO tip',{timeout:10000},async()=>{
   const x=await setup();await x.seed();
   let puts=0;const old=x.r2.put;
