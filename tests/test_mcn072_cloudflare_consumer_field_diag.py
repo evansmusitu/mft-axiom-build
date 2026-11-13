@@ -232,6 +232,57 @@ class CloudflareConsumerSchemaTests(unittest.TestCase):
             self.assertFalse(result['active_version_content_sha256_equality_observed'])
             self.assertNotIn('secret-invalid-opaque-etag',json.dumps(result))
 
+    def test_multipart_raw_boundary_changes_do_not_change_module_payload_digest(self):
+        source=b'export default { async queue() { return 123; } }'
+        def body(boundary):
+            b=boundary.encode()
+            return (b'--'+b+b'\r\nContent-Disposition: form-data; name="main"; filename="worker.mjs"\r\n'
+                    b'Content-Type: application/javascript\r\n\r\n'+source+b'\r\n--'+b+b'--\r\n')
+        def get(raw, boundary):
+            class Resp:
+                status=200
+                headers={'Content-Type':f'multipart/form-data; boundary={boundary}'}
+                def __enter__(self):return self
+                def __exit__(self,*a):return False
+                def read(self,n):return raw[:n]
+            class Opener:
+                def open(self,*a,**k):return Resp()
+            return D.fetch_worker_content('candidate-worker','valid-secret-token-123',Opener())
+        first=get(body('firstboundary'),'firstboundary')
+        second=get(body('secondboundary'),'secondboundary')
+        self.assertNotEqual(first['worker_script_content_sha256'],second['worker_script_content_sha256'])
+        self.assertEqual(first['canonical_module_content_sha256'],second['canonical_module_content_sha256'])
+        self.assertEqual(first['javascript_module_part_count'],1)
+        self.assertEqual(first['worker_content_mime_class'],'multipart/form-data')
+        self.assertFalse(first['content_matches_active_version_qualified'])
+        self.assertNotIn(source.decode(),json.dumps(first))
+
+    def test_multipart_without_javascript_module_has_no_canonical_fingerprint(self):
+        content=(b'--boundary123\r\nContent-Disposition: form-data; name="metadata"\r\n'
+                 b'Content-Type: application/json\r\n\r\n{}\r\n--boundary123--\r\n')
+        result=D.summarize_worker_content(content,'multipart/form-data; boundary=boundary123')
+        self.assertIsNone(result['canonical_module_content_sha256'])
+        self.assertEqual(result['javascript_module_part_count'],0)
+        self.assertFalse(result['content_matches_active_version_qualified'])
+
+    def test_two_get_replay_records_stable_canonical_content_without_qualifying_scheduler(self):
+        rows,_,_=self._deployment_sample()
+        fake_outputs=[{'content_provenance_status':'CURRENT_SCRIPT_CONTENT_ONLY',
+                      'worker_script_content_sha256':c*64,'canonical_module_content_sha256':'c'*64,
+                      'content_matches_active_version_qualified':False} for c in 'ab']
+        def fake(path,token,opener):
+            if path not in rows:raise D.ProbeFailure('TEST_ENDPOINT_UNAVAILABLE')
+            obj=rows[path]
+            return obj,hashlib.sha256(json.dumps(obj,sort_keys=True).encode()).hexdigest()
+        with patch.object(D,'fetch',side_effect=fake),patch.object(D,'fetch_worker_content',side_effect=fake_outputs) as read:
+            result=D.inspect('private-test-token',object())
+        self.assertEqual(read.call_count,2)
+        self.assertFalse(result['current_content_replay_raw_sha256_equal'])
+        self.assertTrue(result['current_content_replay_canonical_modules_equal'])
+        self.assertFalse(result['content_matches_active_version_qualified'])
+        self.assertFalse(result['tenant_fairness_qualified'])
+        self.assertFalse(result['mcn072_qualified'])
+
     def test_get_refuses_unapproved_path_before_network(self):
         class NoNetwork:
             def open(self,*args,**kwargs):raise AssertionError('called network')
