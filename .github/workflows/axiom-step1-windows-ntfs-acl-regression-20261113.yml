@@ -30,7 +30,7 @@ jobs:
             [void][Management.Automation.Language.Parser]::ParseFile((Resolve-Path $f).Path,[ref]$t,[ref]$errors)
             if($errors.Count -gt 0){throw ('Invalid PowerShell '+$f+':'+($errors|Out-String))}
             $source=Get-Content -LiteralPath $f -Raw
-            if(-not $source.Contains("('*{0}:F' -f $sid)")){throw ('Missing FILE ACE '+$f)}
+            if(-not $source.Contains("('*{0}:F' -f `$sid)")){throw ('Missing FILE ACE '+$f)}
             if($source.Contains('Invoke-WebRequest') -or $source.Contains('Invoke-RestMethod')){throw 'External network forbidden'}
           }
           $runner=Get-Content 'Run_MUSITU_AXIOM_Windows_Owner_Offline.ps1' -Raw
