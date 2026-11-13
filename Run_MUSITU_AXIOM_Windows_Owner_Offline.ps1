@@ -62,6 +62,16 @@ function Guard-Ancestors([string]$target, [string]$label) {
 function Lock-OwnerAcl([string]$path) {
     $sid = [Security.Principal.WindowsIdentity]::GetCurrent().User.Value
     Invoke-Local 'icacls.exe' @($path, '/inheritance:r', '/grant:r', ('*{0}:(OI)(CI)F' -f $sid), '/T')
+    # (OI)(CI) is a directory ACE; after stripping inheritance, a leaf file
+    # can have no usable owner Allow ACE. Grant each regular file explicitly.
+    $leafFiles = @(Get-ChildItem -LiteralPath $path -Recurse -Force -File -ErrorAction Stop)
+    foreach ($leaf in $leafFiles) {
+        Require (-not (($leaf.Attributes -band [IO.FileAttributes]::ReparsePoint) -ne 0)) 'OWNER_ACL_REPARSE_FILE_REFUSED'
+        Invoke-Local 'icacls.exe' @($leaf.FullName, '/inheritance:r', '/grant:r', ('*{0}:F' -f $sid))
+        $leafAcl = Get-Acl -LiteralPath $leaf.FullName
+        Require ($leafAcl.AreAccessRulesProtected) 'OWNER_FILE_ACL_NOT_PROTECTED'
+        Require ($leafAcl.GetOwner([Security.Principal.SecurityIdentifier]).Value -ceq $sid) 'OWNER_FILE_ACL_OWNER_MISMATCH'
+    }
     $acl = Get-Acl -LiteralPath $path
     Require ($acl.AreAccessRulesProtected) 'OWNER_ONLY_NTFS_ACL_REQUIRED'
 }
@@ -82,7 +92,7 @@ function Check-SourceManifest {
     Assert-RegularFile $manifestPath 'SOURCE_MANIFEST'
     # Expected digest is pinned to the immutable 13-Nov-2026 Windows package.
     # This prevents a replacement manifest from silently validating modified code.
-    Require ((Sha $manifestPath) -eq '3eb99c73145fae2934951916a2c66e98689be946071561e6d8d45d87fde8f7d3') 'ORIGINAL_PACKAGE_MANIFEST_CHANGED'
+    Require ((Sha $manifestPath) -eq '97d719edaed614ac39de45475755f835d3512895b9d73cf576816feba9d56074') 'ORIGINAL_PACKAGE_MANIFEST_CHANGED'
     $manifest = Get-Content -LiteralPath $manifestPath -Raw -Encoding UTF8 | ConvertFrom-Json
     $files = @($manifest.files_sha256.PSObject.Properties)
     Require ($files.Count -eq 8) 'EXPECTED_EIGHT_SOURCE_FILES'
@@ -95,7 +105,7 @@ function Check-SourceManifest {
         Assert-RegularFile $resolved 'VERIFIED_SOURCE'
         Require ((Sha $resolved) -ceq ([string]$entry.Value).ToLowerInvariant()) ('FILE_HASH_MISMATCH_' + $rel)
     }
-    Announce 'Eight original package files match the pinned SHA-256 manifest.'
+    Announce 'Eight ACL-repaired source files match the pinned SHA-256 manifest.'
 }
 function Check-Programs {
     foreach($program in @('openssl.exe','node.exe','icacls.exe')) {

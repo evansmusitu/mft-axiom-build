@@ -69,6 +69,23 @@ $helper = Join-Path $PSScriptRoot 'step1_owner_windows_public_receipt.mjs'
 RunNative 'node.exe' @($helper,$public)
 # Restrict permissions on all new files, not just on the directories.
 RunNative 'icacls.exe' @($root,'/inheritance:r','/grant:r',('*{0}:(OI)(CI)F' -f $sid),'/T')
+# Restore exact OWNER FILE ACEs before trying to read/delete the marker.
+$leafNames = @(
+  'INCOMPLETE_NOT_AUTHORITY.txt',
+  'private\owner_ed25519_pkcs8_encrypted.pem',
+  'private\owner_x25519_pkcs8_encrypted.pem',
+  'public\owner_ed25519_spki.der',
+  'public\owner_x25519_spki.der',
+  'public\owner_ed25519_spki.pem',
+  'public\owner_x25519_spki.pem',
+  'public\OWNER_PUBLIC_PINS_NOT_ATTESTATION.json'
+)
+foreach ($leafName in $leafNames) {
+  $leaf = Join-Path $root $leafName
+  if (-not (Test-Path -LiteralPath $leaf -PathType Leaf)) { Deny 'KEY_CEREMONY_FILE_MISSING' }
+  if (((Get-Item -LiteralPath $leaf -Force).Attributes -band [IO.FileAttributes]::ReparsePoint) -ne 0) { Deny 'KEY_CEREMONY_REPARSE_FILE_REFUSED' }
+  RunNative 'icacls.exe' @($leaf,'/inheritance:r','/grant:r',('*{0}:F' -f $sid))
+}
 Remove-Item -LiteralPath $marker -Force
 Write-Host 'AXIOM_OWNER_KEYS_CREATED_ON_WINDOWS_OWNER_DEVICE_REPORTED_ONLY_NO_GO_NOT_RELEASE'
 Write-Host 'Keep private keys/passphrases OFFLINE. Do not upload private/ or key material to any cloud.'

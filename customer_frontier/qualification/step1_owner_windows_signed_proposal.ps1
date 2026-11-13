@@ -26,6 +26,14 @@ $tool = Join-Path $PSScriptRoot 'step1_owner_device_signed_proposal.mjs'
 RunNative 'node.exe' @($tool,'prepare',$keys,$out)
 $sid = [Security.Principal.WindowsIdentity]::GetCurrent().User.Value
 RunNative 'icacls.exe' @($out,'/inheritance:r','/grant:r',('*{0}:(OI)(CI)F' -f $sid),'/T')
+# Prepared proposal JSON files require explicit OWNER FILE ACEs too.
+foreach ($name in @('OWNER_PROPOSAL_PAYLOAD.json','OWNER_PREPARATION_NO_GO.json')) {
+    $leaf = Join-Path $out $name
+    if (-not (Test-Path -LiteralPath $leaf -PathType Leaf)) { Deny 'PREPARED_PROPOSAL_FILE_MISSING' }
+    $attributes = (Get-Item -LiteralPath $leaf -Force).Attributes
+    if (($attributes -band [IO.FileAttributes]::ReparsePoint) -ne 0) { Deny 'PROPOSAL_REPARSE_FILE_REFUSED' }
+    RunNative 'icacls.exe' @($leaf,'/inheritance:r','/grant:r',('*{0}:F' -f $sid))
+}
 $payload = Join-Path $out 'OWNER_PROPOSAL_PAYLOAD.json'
 $info = Get-Item -LiteralPath $payload -ErrorAction Stop
 if ($info.PSIsContainer -or ($info.Attributes -band [IO.FileAttributes]::ReparsePoint)) { Deny 'UNSAFE_PAYLOAD_FILE' }
