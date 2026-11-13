@@ -14,7 +14,15 @@ class Denied extends Error{constructor(code,status=403){super(code);this.code=co
 const deny=(code,status)=>{throw new Denied(code,status);};
 function exact(x,keys){if(!x||typeof x!=='object'||Array.isArray(x)||Object.keys(x).length!==keys.length||!keys.every(k=>Object.hasOwn(x,k)))deny('HIGHWATER_INVALID_FIELDS_HOLD',400);}
 function config(env){let c;try{c=JSON.parse(env.HW_CONFIG_JSON);}catch{deny('HIGHWATER_CONFIG_MISSING_HOLD',503);}
-  exact(c,['account_id','ledger_id','namespace','key_id']);
+  exact(c,['account_id','ledger_id','namespace','key_id','public_key_jwk']);
+  // Operator config must carry the same public Ed25519 key pinned by the
+  // separately configured AXIOM consumer. This checks accidental/key-swap
+  // mismatch before an irreversible external checkpoint is written.
+  exact(c.public_key_jwk,['kty','crv','x']);
+  if(c.public_key_jwk.kty!=='OKP'||c.public_key_jwk.crv!=='Ed25519'||
+     typeof c.public_key_jwk.x!=='string'||
+     !/^[A-Za-z0-9_-]{43}$/.test(c.public_key_jwk.x))
+    deny('HIGHWATER_PUBLIC_SIGNER_PIN_INVALID_HOLD',503);
   if(c.account_id!=='67469478aa9349fa0a57fe3a72da200a'||!ID.test(c.ledger_id)||!ID.test(c.key_id)||!/^ax-[a-z0-9-]{1,60}$/.test(c.namespace))deny('HIGHWATER_ACCOUNT_PIN_MISMATCH_HOLD',503);
   return c;
 }
@@ -71,6 +79,9 @@ async function prepareSigner(env){
   catch{deny('HIGHWATER_SIGNER_UNAVAILABLE_HOLD',503);}
   if(jwk?.kty!=='OKP'||jwk?.crv!=='Ed25519'||!jwk.d||!jwk.x)
     deny('HIGHWATER_SIGNER_UNAVAILABLE_HOLD',503);
+  const approved=config(env).public_key_jwk;
+  if(jwk.x!==approved.x)
+    deny('HIGHWATER_SIGNER_PIN_MISMATCH_HOLD',503);
   try{
     const key=await crypto.subtle.importKey('jwk',
       {kty:'OKP',crv:'Ed25519',x:jwk.x,d:jwk.d},
@@ -140,7 +151,8 @@ export class Authority2Highwater {
     const tip=await this.ctx.storage.get('highwater/tip');
     if(!tip||tip.ledger_id!==c.ledger_id||tip.namespace!==c.namespace||tip.account_id!==c.account_id||tip.key_id!==c.key_id)deny('HIGHWATER_GENESIS_OR_CONTINUITY_MISSING_HOLD',503);
     await boundedWorm(()=>wormReadback(this.worm,c,tip));
-    return reply(200,await signed(this.env,{schema:SCHEMA,...c,challenge:input.challenge,kind:'readback',sequence:tip.sequence,head:tip.head}));
+    const {public_key_jwk: _operatorApprovedPublicKey,...binding}=c;
+    return reply(200,await signed(this.env,{schema:SCHEMA,...binding,challenge:input.challenge,kind:'readback',sequence:tip.sequence,head:tip.head}));
   }catch(e){return reply(e instanceof Denied?e.status:503,{error:e instanceof Denied?e.code:'HIGHWATER_UNAVAILABLE_HOLD',dispatch_allowed:false});}}
 }
 export default {async fetch(r,env){try{const c=config(env);return await env.HIGHWATER_STATE.get(env.HIGHWATER_STATE.idFromName('highwater/'+c.ledger_id+'/'+c.namespace)).fetch(r);}catch{return reply(503,{error:'HIGHWATER_UNAVAILABLE_HOLD',dispatch_allowed:false});}}};
