@@ -215,6 +215,7 @@ def summarize_worker_content(raw, content_type="application/javascript"):
     javascript_mimes={'application/javascript','text/javascript','application/x-javascript',
                       'application/ecmascript','text/ecmascript'}
     modules=[]
+    multipart_all_payloads=[]
     parts_count=0
     mime_classes=[]
     suffix_classes=[]
@@ -231,6 +232,10 @@ def summarize_worker_content(raw, content_type="application/javascript"):
         if len(parts)>64:
             raise ProbeFailure('WORKER_MULTIPART_TOO_MANY_PARTS')
         for part in parts:
+            payload_bytes=part.get_payload(decode=True)
+            if type(payload_bytes) is not bytes or len(payload_bytes)>MAX_SCRIPT_CONTENT:
+                raise ProbeFailure('WORKER_MULTIPART_PART_INVALID')
+            multipart_all_payloads.append(sha(payload_bytes))
             part_mime=part.get_content_type().lower()
             filename=part.get_filename()
             suffix=filename.rsplit('.',1)[-1].lower() if type(filename) is str and '.' in filename else 'none'
@@ -253,6 +258,11 @@ def summarize_worker_content(raw, content_type="application/javascript"):
     return {
         'worker_content_mime_class': mime,
         'multipart_part_count': parts_count,
+        # Hash the *decoded* MIME payloads, regardless of MIME classification.
+        # This establishes representation stability only, not source identity.
+        'canonical_all_multipart_payloads_sha256': (
+            sha(json.dumps(sorted(multipart_all_payloads), separators=(',',':')).encode())
+            if multipart_all_payloads else None),
         'multipart_part_mime_classes': sorted(mime_classes),
         'multipart_part_suffix_classes': sorted(suffix_classes),
         'javascript_module_part_count': len(modules),
@@ -453,6 +463,10 @@ def inspect(token, opener):
                     first_raw and first_raw==second_raw)
                 content_observation['current_content_replay_canonical_modules_equal'] = bool(
                     first_module and first_module==second_module)
+                first_parts=content_observation.get('canonical_all_multipart_payloads_sha256')
+                second_parts=second.get('canonical_all_multipart_payloads_sha256')
+                content_observation['current_content_replay_all_multipart_payloads_equal'] = bool(
+                    first_parts and first_parts==second_parts)
                 content_observation['current_content_replay_status']='TWO_GETS_OBSERVED_ONLY'
             except ProbeFailure as exc:
                 content_observation['current_content_replay_status']='BLOCKED'
