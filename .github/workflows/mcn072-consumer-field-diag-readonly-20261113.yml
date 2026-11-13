@@ -27,22 +27,22 @@ jobs:
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
         with:
           persist-credentials: false
-      - name: Verify exact source/test hashes and 31 adverse controls before injecting secret
+      - name: Verify exact source/test hashes and 34 adverse controls before injecting secret
         shell: bash
         run: |
           set -euo pipefail
-          test "$(git hash-object qualification/mcn072_cloudflare_consumer_field_diag.py)" = "856c2a787806fb8d066d7cae10e9312d11d488b7"
-          test "$(git hash-object tests/test_mcn072_cloudflare_consumer_field_diag.py)" = "735a4b88c6064e7d896d7901e3ccb88f67d2cf77"
+          test "$(git hash-object qualification/mcn072_cloudflare_consumer_field_diag.py)" = "a2f1cadb68ef9ab71fcf674fd7916accdd4191ca"
+          test "$(git hash-object tests/test_mcn072_cloudflare_consumer_field_diag.py)" = "226aef36f5d99d086e1d0ca327e92cbfa0cd4ede"
           PYTHONDONTWRITEBYTECODE=1 python3 -B -m py_compile qualification/mcn072_cloudflare_consumer_field_diag.py tests/test_mcn072_cloudflare_consumer_field_diag.py
           PYTHONDONTWRITEBYTECODE=1 python3 -B -m unittest discover -s tests -p 'test_mcn072_cloudflare_consumer_field_diag.py' -v
-      - name: Observe consumer response field presence using pre-existing Cloudflare secret GET only
+      - name: Observe active version ETag and current-content digest equality using pre-existing Cloudflare secret GET only
         shell: bash
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
         run: |
           set -euo pipefail
           PYTHONDONTWRITEBYTECODE=1 python3 -B qualification/mcn072_cloudflare_consumer_field_diag.py
-      - name: Store sanitized schema-only non-qualifying output and detached digest
+      - name: Store sanitized hash-only non-qualifying output and detached digest
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
