@@ -36,7 +36,7 @@ def run(rows):
             raise D.ProbeFailure('TEST_ENDPOINT_UNAVAILABLE')
         obj=rows[path]
         return obj, hashlib.sha256(json.dumps(obj,sort_keys=True).encode()).hexdigest()
-    with patch.object(D, 'fetch', side_effect=fake):
+    with patch.object(D, 'fetch', side_effect=fake), patch.object(D, 'fetch_worker_content', side_effect=D.ProbeFailure('TEST_SOURCE_UNAVAILABLE')):
         return D.inspect('private-test-token',object())
 
 class CloudflareConsumerSchemaTests(unittest.TestCase):
@@ -200,5 +200,62 @@ class CloudflareConsumerSchemaTests(unittest.TestCase):
         class NoNetwork:
             def open(self,*args,**kwargs):raise AssertionError('called network')
         with self.assertRaises(D.ProbeFailure):D.fetch(PREFIX+'?page=1&per_page=100', '', NoNetwork())
+
+    def test_worker_content_get_returns_only_digest_and_literal_marker_counts(self):
+        self.assertTrue(hasattr(D, 'fetch_worker_content'))
+        secret = 'MUST-NOT-LEAK-PROPRIETARY-SCRIPT-OR-SECRET'
+        body = ("export default { async queue(batch, env) { "
+                "/* axiom_tenant_fair_cursor axiom_distributed_execution_jobs */ "
+                + secret + " }}").encode()
+        class Resp:
+            status=200
+            headers={'Content-Type':'application/javascript'}
+            def __enter__(self): return self
+            def __exit__(self,*a):return False
+            def read(self,n):return body
+        class Opener:
+            def __init__(self):self.requests=[]
+            def open(self,request,timeout):self.requests.append(request);return Resp()
+        opener=Opener()
+        out=D.fetch_worker_content('candidate-worker','secret-token-example',opener)
+        self.assertEqual(out['worker_script_content_sha256'],hashlib.sha256(body).hexdigest())
+        self.assertEqual(out['pg_scheduler_table_literal_count'],2)
+        self.assertEqual(out['content_provenance_status'],'CURRENT_SCRIPT_CONTENT_ONLY')
+        self.assertFalse(out['content_matches_active_version_qualified'])
+        self.assertFalse(out['postgres_correspondence_qualified'])
+        self.assertNotIn(secret,json.dumps(out))
+        self.assertEqual(opener.requests[0].get_method(),'GET')
+        self.assertEqual(opener.requests[0].full_url,
+            'https://api.cloudflare.com/client/v4/accounts/'+ACCOUNT+'/workers/scripts/candidate-worker/content/v2')
+
+    def test_worker_content_get_rejects_unapproved_script_and_does_not_network(self):
+        self.assertTrue(hasattr(D, 'fetch_worker_content'))
+        class NoNetwork:
+            def open(self,*args,**kwargs):raise AssertionError('network called')
+        with self.assertRaises(D.ProbeFailure):
+            D.fetch_worker_content('../private','secret-token-example',NoNetwork())
+
+    def test_worker_content_get_rejects_redirect_or_oversize(self):
+        self.assertTrue(hasattr(D, 'fetch_worker_content'))
+        class Resp:
+            def __init__(self,status,body):self.status=status;self.headers={'Content-Type':'application/javascript'};self.body=body
+            def __enter__(self):return self
+            def __exit__(self,*args):return False
+            def read(self,n):return self.body[:n]
+        class Opener:
+            def __init__(self,resp):self.resp=resp
+            def open(self,*a,**k):return self.resp
+        with self.assertRaises(D.ProbeFailure):
+            D.fetch_worker_content('candidate-worker','secret-token-example',Opener(Resp(302,b'redirect')))
+        with self.assertRaises(D.ProbeFailure):
+            D.fetch_worker_content('candidate-worker','secret-token-example',Opener(Resp(200,b'a' * (2*1024*1024+1))))
+
+    def test_worker_content_no_privileged_claim_even_with_all_markers(self):
+        self.assertTrue(hasattr(D, 'summarize_worker_content'))
+        result=D.summarize_worker_content(b'axiom_tenant_fair_cursor axiom_tenant_fair_served axiom_distributed_execution_jobs')
+        self.assertEqual(result['pg_scheduler_table_literal_count'],3)
+        self.assertFalse(result['postgres_correspondence_qualified'])
+        self.assertFalse(result['content_matches_active_version_qualified'])
+        self.assertNotIn('raw_source',result)
 
 if __name__=='__main__':unittest.main()
