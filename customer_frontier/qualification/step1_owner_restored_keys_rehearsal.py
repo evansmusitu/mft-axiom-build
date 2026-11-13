@@ -45,6 +45,7 @@ def private_file(path: pathlib.Path) -> None:
         s = path.lstat()
         check(stat.S_ISREG(s.st_mode) and s.st_size <= 16384 and s.st_size >= 64,
               'MISSING_OR_INVALID_ENCRYPTED_KEY')
+        check(s.st_uid == os.geteuid(), 'RECOVERED_PRIVATE_KEY_OWNER_MISMATCH')
         check(s.st_mode & 0o077 == 0, 'RECOVERED_PRIVATE_KEY_PERMISSIONS_TOO_OPEN')
         with path.open('rb') as f:
             head = f.readline(80)
@@ -55,11 +56,16 @@ def private_file(path: pathlib.Path) -> None:
 def safe_dir(path: pathlib.Path, code: str) -> pathlib.Path:
     check(path.is_absolute(), 'ABSOLUTE_DIRECTORY_REQUIRED')
     try:
-        info = path.lstat()
-        check(stat.S_ISDIR(info.st_mode), code)
-        check(not path.is_symlink(), 'SYMLINK_DIRECTORY_REFUSED')
-        resolved = path.resolve(strict=True)
-        check(resolved == path, 'NONCANONICAL_DIRECTORY_REFUSED')
+        check(path.resolve(strict=True) == path, 'NONCANONICAL_DIRECTORY_REFUSED')
+        check(path.is_dir(), code)
+        for directory in (path, *path.parents):
+            info = directory.stat()
+            check(info.st_uid in (0, os.geteuid()), 'UNTRUSTED_DIRECTORY_OWNER')
+            # A sticky shared ancestor such as /tmp protects its owned children.
+            # The actual working directory must never be shared-writable.
+            if info.st_mode & 0o022:
+                check(directory != path and bool(info.st_mode & stat.S_ISVTX),
+                      'DIRECTORY_WRITABLE_BY_OTHERS')
         return path
     except OSError:
         raise NoGo(code) from None
@@ -82,11 +88,18 @@ def preflight(original: pathlib.Path, restored: pathlib.Path, target: pathlib.Pa
     check(original != restored, 'RESTORED_COPY_MUST_BE_SEPARATE')
     check(target.is_absolute(), 'ABSOLUTE_OUTPUT_REQUIRED')
     check(not target.exists() and not target.is_symlink(), 'OUTPUT_MUST_BE_NEW')
-    check(target.parent.is_dir(), 'OUTPUT_PARENT_NOT_PRESENT')
+    safe_dir(target.parent, 'OUTPUT_PARENT_NOT_PRESENT')
     check(not any(root == target or root in target.parents for root in (original,restored)),
           'OUTPUT_MUST_BE_OUTSIDE_KEY_DIRECTORIES')
     pub_dir = safe_dir(original / 'public', 'PUBLIC_DIRECTORY_REQUIRED')
-    private_dir = safe_dir(restored / 'private', 'RESTORED_PRIVATE_DIRECTORY_REQUIRED')
+    private_dir = restored / 'private'
+    try:
+        private_info = private_dir.lstat()
+    except OSError:
+        raise NoGo('RESTORED_PRIVATE_DIRECTORY_REQUIRED') from None
+    check(stat.S_ISDIR(private_info.st_mode), 'RESTORED_PRIVATE_DIRECTORY_REQUIRED')
+    check(private_info.st_uid == os.geteuid(), 'RESTORED_PRIVATE_DIRECTORY_OWNER_MISMATCH')
+    check(private_info.st_mode & 0o077 == 0, 'RESTORED_PRIVATE_DIRECTORY_PERMISSIONS_TOO_OPEN')
     check(pub_dir != private_dir, 'PUBLIC_PRIVATE_DIRECTORY_COLLISION')
     sign_data = public_file(pub_dir / PUBLIC_SIGN)
     enc_data = public_file(pub_dir / PUBLIC_ENC)
@@ -105,8 +118,8 @@ def preflight(original: pathlib.Path, restored: pathlib.Path, target: pathlib.Pa
             except OSError:
                 raise NoGo('ORIGINAL_COPY_COMPARISON_FAILED') from None
     # A separate path is not proof of separate physical media or recoverability.
-    return {'sign_key':sign_key, 'enc_key':enc_key,'sign_public':pub_dir / PUBLIC_SIGN,
-            'enc_public':pub_dir / PUBLIC_ENC, 'trusted_sign':trusted_sign,
+    return {'sign_key':sign_key, 'enc_key':enc_key,'sign_public':sign_data,
+            'enc_public':enc_data, 'trusted_sign':trusted_sign,
             'trusted_enc':trusted_enc}
 
 def run_openssl(args: list[str], *, binary_output: bool = False) -> bytes:
@@ -137,6 +150,10 @@ def do_rehearsal(original: pathlib.Path, restored: pathlib.Path, target: pathlib
     # All temporary files are local; neither production SQL nor owner keys are copied.
     with tempfile.TemporaryDirectory(prefix='axiom-offline-recovery-') as temp:
         td = pathlib.Path(temp)
+        sign_public = td / PUBLIC_SIGN
+        enc_public = td / PUBLIC_ENC
+        sign_public.write_bytes(v['sign_public'])
+        enc_public.write_bytes(v['enc_public'])
         challenge = td / 'challenge.bin'
         signature = td / 'signature.bin'
         ephemeral = td / 'synthetic_x25519_private.pem'
@@ -147,12 +164,12 @@ def do_rehearsal(original: pathlib.Path, restored: pathlib.Path, target: pathlib
         os.chmod(challenge, 0o600)
         run_openssl(['pkeyutl','-sign','-rawin','-inkey',str(v['sign_key']),'-in',str(challenge),'-out',str(signature)])
         check(signature.stat().st_size == 64, 'ED25519_SIGNATURE_SIZE_INVALID')
-        run_openssl(['pkeyutl','-verify','-rawin','-pubin','-inkey',str(original/'public'/'owner_ed25519_spki.pem'),
+        run_openssl(['pkeyutl','-verify','-rawin','-pubin','-keyform','DER','-inkey',str(sign_public),
                      '-in',str(challenge),'-sigfile',str(signature)])
         run_openssl(['genpkey','-algorithm','X25519','-out',str(ephemeral)])
         run_openssl(['pkey','-in',str(ephemeral),'-pubout','-out',str(ephemeral_pub)])
         run_openssl(['pkeyutl','-derive','-inkey',str(v['enc_key']),'-peerkey',str(ephemeral_pub),'-out',str(shared_owner)])
-        run_openssl(['pkeyutl','-derive','-inkey',str(ephemeral),'-peerkey',str(original/'public'/'owner_x25519_spki.pem'),'-out',str(shared_synthetic)])
+        run_openssl(['pkeyutl','-derive','-inkey',str(ephemeral),'-peerform','DER','-peerkey',str(enc_public),'-out',str(shared_synthetic)])
         check(shared_owner.stat().st_size == 32 and
               secrets.compare_digest(shared_owner.read_bytes(), shared_synthetic.read_bytes()),
               'X25519_KEY_AGREEMENT_MISMATCH')

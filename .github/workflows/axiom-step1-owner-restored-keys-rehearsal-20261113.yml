@@ -31,7 +31,7 @@ jobs:
           test ! -e 'private/owner_x25519_pkcs8_encrypted.pem'
           python3 --version
           openssl version
-      - name: Python syntax, 15 synthetic deny/cryptographic tests
+      - name: Python syntax and synthetic recovery regression tests
         shell: bash
         run: |
           set -euo pipefail

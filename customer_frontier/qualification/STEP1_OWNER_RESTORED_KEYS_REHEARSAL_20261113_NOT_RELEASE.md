@@ -20,6 +20,8 @@ python3 customer_frontier/qualification/step1_owner_restored_keys_rehearsal.py \
   "$HOME/axiom_owner_recovery_proof_new_20261113"
 ```
 
+Use canonical absolute paths for all three arguments. The script checks directory ownership and rejects directories writable by another user. A sticky shared ancestor such as /tmp is permitted when its child is protected. The restored private/ directory and encrypted files must be owned by the current user, with no group or other permissions. Choose the receipt destination under your own protected directory.
+
 The first path is the original keys directory with `public/*.der` and `public/*.pem`. The second is the distinct **restored-backup copy** containing `private/owner_ed25519_pkcs8_encrypted.pem` and `private/owner_x25519_pkcs8_encrypted.pem`. The last path must not exist yet and must be outside both key directories. The tool prompts for an explicit owner confirmation and the encrypted PEM passphrases locally in OpenSSL. On success it writes `OWNER_RESTORED_KEYS_LOCAL_REHEARSAL_NOT_AUTHORITY.json` into the new third directory. On failure it refuses to write a success receipt. Keep the private keys and the restored copy on the owner's protected device only.
 
 ## Non-claims / remaining evidence

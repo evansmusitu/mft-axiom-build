@@ -25,7 +25,7 @@ class OwnerKeyRecoveryTests(unittest.TestCase):
         (self.original/'private').mkdir()
         self.restored = td/'restored'
         self.restored.mkdir()
-        (self.restored/'private').mkdir()
+        (self.restored/'private').mkdir(mode=0o700)
         self.output = td/'out'
         self.passphrase = 'SYNTHETIC-ONLY-TEST-NEVER-OWNER'
         for kind,alg in [('ed25519','ED25519'),('x25519','X25519')]:
@@ -71,6 +71,34 @@ class OwnerKeyRecoveryTests(unittest.TestCase):
     def test_output_nested_inside_key_directory_denied(self):
         nested=self.restored/'proof'
         self.assert_denied('OUTPUT_MUST_BE_OUTSIDE_KEY_DIRECTORIES',target=nested)
+
+    def test_output_parent_alias_into_keys_denied(self):
+        alias = self.output.parent / 'output-alias'
+        alias.symlink_to(self.restored, target_is_directory=True)
+        self.assert_denied('NONCANONICAL_DIRECTORY_REFUSED', target=alias/'receipt')
+        self.assertFalse((self.restored/'receipt').exists())
+
+    def test_output_parent_dotdot_into_keys_denied(self):
+        alias = self.original / '..' / self.restored.name
+        self.assert_denied('NONCANONICAL_DIRECTORY_REFUSED', target=alias/'receipt')
+        self.assertFalse((self.restored/'receipt').exists())
+
+    def test_restored_private_directory_requires_private_permissions(self):
+        private = self.restored / 'private'
+        for mode in (0o755, 0o770, 0o777):
+            with self.subTest(mode=oct(mode)):
+                private.chmod(mode)
+                self.assert_denied('RESTORED_PRIVATE_DIRECTORY_PERMISSIONS_TOO_OPEN')
+
+    def test_other_user_writable_ancestry_denied(self):
+        for directory in (self.original, self.restored, self.output.parent):
+            with self.subTest(directory=directory.name):
+                original_mode = stat.S_IMODE(directory.stat().st_mode)
+                try:
+                    directory.chmod(0o777)
+                    self.assert_denied('DIRECTORY_WRITABLE_BY_OTHERS')
+                finally:
+                    directory.chmod(original_mode)
 
     def test_restored_private_hardlink_to_original_denied(self):
         recovered=self.restored/'private'/m.SIGN_KEY
@@ -149,6 +177,29 @@ class OwnerKeyRecoveryTests(unittest.TestCase):
                 '-peerkey',str(self.original/'public'/'owner_x25519_spki.pem'),'-out',str(b)],capture_output=True,check=True)
             self.assertEqual(a.read_bytes(),b.read_bytes())
             self.assertEqual(len(a.read_bytes()),32)
+
+    def test_rehearsal_uses_only_verified_public_der_bytes(self):
+        # Run the actual rehearsal with synthetic fixture keys and local passphrases.
+        for public_pem in (self.original/'public').glob('*.pem'):
+            public_pem.unlink()
+        original_runner = m.run_openssl
+
+        def synthetic_openssl(args, **kwargs):
+            if ('-in' in args and str(self.restored) in args[args.index('-in')+1]) or (
+                    '-inkey' in args and str(self.restored) in args[args.index('-inkey')+1]):
+                args = [*args, '-passin', 'pass:'+self.passphrase]
+            return original_runner(args, **kwargs)
+
+        with patch.object(m, 'run_openssl', side_effect=synthetic_openssl), \
+             patch.object(m.sys.stdin, 'isatty', return_value=True), \
+             patch.object(m.sys.stdout, 'isatty', return_value=True), \
+             patch.dict(os.environ, {'CI':'', 'GITHUB_ACTIONS':''}):
+            receipt = m.do_rehearsal(self.original, self.restored, self.output,
+                self.signpin, self.encpin, 'I RESTORED ENCRYPTED COPIES ON MY OWN DEVICE')
+        self.assertTrue(receipt['ed25519_challenge_signature_verified_locally'])
+        self.assertTrue(receipt['x25519_synthetic_key_agreement_verified_locally'])
+        self.assertFalse(receipt['step1_closed'])
+        self.assertFalse(receipt['owner_identity_and_mfa_verified'])
 
     def test_no_cloud_network_or_authorization_code(self):
         source=MODULE_PATH.read_text()
