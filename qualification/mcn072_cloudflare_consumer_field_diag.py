@@ -24,6 +24,7 @@ ACCOUNT = '93f395f5121954671f92fffa453d6b61'
 BASE = 'https://api.cloudflare.com'
 PREFIX = f'/client/v4/accounts/{ACCOUNT}/queues'
 LIST_PATH = PREFIX + '?page=1&per_page=100'
+WORKERS_PATH = f'/client/v4/accounts/{ACCOUNT}/workers/scripts'
 ID_RE = re.compile(r'[0-9a-f]{32}\Z')
 SCRIPT_RE = re.compile(r'[A-Za-z0-9_.-]{1,128}\Z')
 MAX_BODY = 131072
@@ -54,7 +55,7 @@ def checked_id(value):
 
 
 def allowed_path(path):
-    if path == LIST_PATH:
+    if path in (LIST_PATH, WORKERS_PATH):
         return True
     if not isinstance(path, str):
         return False
@@ -147,6 +148,47 @@ def indexed(rows, qname):
     return out
 
 
+
+def script_alias_kind(record):
+    if 'script' not in record:
+        return 'absent'
+    value = record['script']
+    if type(value) is str:
+        return 'string'
+    if type(value) is dict:
+        return 'object'
+    if type(value) is list:
+        return 'array'
+    if value is None:
+        return 'null'
+    return 'other'
+
+
+def script_alias_value(record):
+    value = record.get('script')
+    if type(value) is str and SCRIPT_RE.fullmatch(value):
+        return value
+    return None
+
+
+def worker_listing(token, opener):
+    payload, digest = fetch(WORKERS_PATH, token, opener)
+    rows = payload.get('result')
+    if type(rows) is not list or len(rows) > 100:
+        raise ProbeFailure('WORKER_INVENTORY_SHAPE_INVALID')
+    identifiers = set()
+    for row in rows:
+        if type(row) is not dict or type(row.get('id')) is not str or not SCRIPT_RE.fullmatch(row['id']):
+            raise ProbeFailure('WORKER_ENTRY_INVALID')
+        if row['id'] in identifiers:
+            raise ProbeFailure('WORKER_INVENTORY_DUPLICATE')
+        identifiers.add(row['id'])
+    info = payload.get('result_info')
+    complete = (type(info) is dict and info.get('page') == 1
+                and info.get('total_pages') == 1 and info.get('total_count') == len(rows))
+    return identifiers, digest, complete
+
+
 def inspect(token, opener):
     inventory, inventory_hash = fetch(LIST_PATH, token, opener)
     meta = inventory.get('result_info')
@@ -173,8 +215,9 @@ def inspect(token, opener):
     by_list = indexed(listed.get('result'), qname)
     if by_detail.keys() != by_list.keys():
         raise ProbeFailure('CONSUMER_LIST_IDENTITY_MISMATCH')
+    worker_ids, workers_hash, worker_inventory_complete = worker_listing(token, opener)
     consumers, exact_hashes = [], []
-    worker_count, identified_count = 0, 0
+    worker_count, identified_count, alias_matches = 0, 0, 0
     for cid in sorted(by_detail):
         exact, exact_hash = fetch(PREFIX + '/' + qid + '/consumers/' + cid, token, opener)
         record = exact.get('result')
@@ -190,9 +233,18 @@ def inspect(token, opener):
         if len(values) > 1:
             raise ProbeFailure('SCRIPT_NAME_CONFLICT')
         found = values.pop() if values else None
+        aliases = {script_alias_value(item) for item in sources.values()}
+        aliases.discard(None)
+        if len(aliases) > 1:
+            raise ProbeFailure('CONSUMER_SCRIPT_ALIAS_CONFLICT')
+        alias = aliases.pop() if aliases else None
+        alias_complete = (alias is not None and all(script_alias_value(item) == alias
+                                                for item in sources.values()))
+        alias_match = (kind == 'worker' and alias_complete and alias in worker_ids)
         if kind == 'worker':
             worker_count += 1
             identified_count += bool(found)
+            alias_matches += bool(alias_match)
         elif found is not None:
             raise ProbeFailure('NONWORKER_SCRIPT_IDENTITY')
         consumers.append({
@@ -201,6 +253,10 @@ def inspect(token, opener):
             'known_field_presence': {key: field_presence(val) for key, val in sources.items()},
             'script_name_sha256': sha(found) if found else None,
             'script_name_observed': found is not None,
+            'script_alias_field_types': {key: script_alias_kind(val) for key, val in sources.items()},
+            'script_alias_sha256': sha(alias) if alias_match else None,
+            'script_alias_matches_listed_worker': bool(alias_match),
+            'script_alias_present_across_three': alias_complete,
         })
         exact_hashes.append(exact_hash)
     resolved = worker_count > 0 and identified_count == worker_count
@@ -209,12 +265,16 @@ def inspect(token, opener):
         'queue_id_sha256': sha(qid), 'queue_count': 1,
         'consumer_count': count, 'worker_consumer_count': worker_count,
         'worker_script_identity_resolved': resolved,
+        'worker_script_alias_correspondence_observed': worker_count > 0 and alias_matches == worker_count,
+        'worker_inventory_count_scanned': len(worker_ids),
+        'worker_inventory_complete': worker_inventory_complete,
         'worker_consumer_script_state': ('OBSERVED' if resolved else
                   'UNVERIFIABLE' if worker_count else 'NO_WORKER_CONSUMER'),
         'consumers': consumers,
         'provider_response_sha256': {
             'queue_inventory': inventory_hash, 'queue_detail': detail_hash,
             'consumer_list': list_hash, 'exact_consumers': exact_hashes,
+            'worker_inventory': workers_hash,
         },
         'cloudflare_mutations': 0,
         'postgres_scheduler_correspondence_qualified': False,
