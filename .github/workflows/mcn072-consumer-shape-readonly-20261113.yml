@@ -1,0 +1,53 @@
+name: MUSITU MCN-072 consumer identity field-shape audit GET only (NO RELEASE)
+
+on:
+  push:
+    branches:
+      - audit/mcn072-consumer-shape-readonly-20261113
+    paths:
+      - .github/workflows/mcn072-consumer-shape-readonly-20261113.yml
+
+permissions:
+  contents: read
+
+concurrency:
+  group: mcn072-consumer-shape-readonly-20261113
+  cancel-in-progress: false
+
+jobs:
+  observe:
+    if: >-
+      github.repository == 'evansmusitu/mft-axiom-build' &&
+      github.ref == 'refs/heads/audit/mcn072-consumer-shape-readonly-20261113' &&
+      github.event_name == 'push'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 8
+    steps:
+      - name: Checkout without persisted credentials
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
+      - name: Pin exact GET-only source and test identity before secret injection
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git hash-object qualification/mcn072_consumer_shape_probe.py)" = "c016af227b51f41c0172f265079a765b9bd57c28"
+          test "$(git hash-object tests/test_mcn072_consumer_shape_probe.py)" = "09769c8fdb3a3b1525662399044dc6ee378699e9"
+          PYTHONDONTWRITEBYTECODE=1 python3 -B -m unittest discover -s tests -p 'test_mcn072_consumer_shape_probe.py' -v
+      - name: Observe only allowed Cloudflare GET consumer identity fields
+        shell: bash
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+        run: |
+          set -euo pipefail
+          PYTHONDONTWRITEBYTECODE=1 python3 -B qualification/mcn072_consumer_shape_probe.py
+      - name: Preserve sanitized, never qualifying evidence and SHA-256
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: musitu-mcn072-consumer-shape-readonly-20261113
+          path: |
+            mcn072-consumer-shape-readonly.json
+            mcn072-consumer-shape-readonly.json.sha256
+          if-no-files-found: warn
+          retention-days: 7
