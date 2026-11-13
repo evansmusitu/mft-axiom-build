@@ -1,0 +1,54 @@
+name: MUSITU MCN-072 Cloudflare consumer field schema GET-only (NO RELEASE)
+
+on:
+  push:
+    branches:
+      - audit/mcn072-cloudflare-consumer-field-diag-20261113
+    paths:
+      - .github/workflows/mcn072-consumer-field-diag-readonly-20261113.yml
+
+permissions:
+  contents: read
+
+concurrency:
+  group: mcn072-cloudflare-consumer-field-diag-20261113
+  cancel-in-progress: false
+
+jobs:
+  inspect:
+    if: >-
+      github.repository == 'evansmusitu/mft-axiom-build' &&
+      github.ref == 'refs/heads/audit/mcn072-cloudflare-consumer-field-diag-20261113' &&
+      github.event_name == 'push'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 8
+    steps:
+      - name: Checkout without persisted GitHub credentials
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
+      - name: Verify exact source/test hashes and 16 adverse controls before injecting secret
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git hash-object qualification/mcn072_cloudflare_consumer_field_diag.py)" = "bca9dcd95dccceed34205791c6e0de531b454c5c"
+          test "$(git hash-object tests/test_mcn072_cloudflare_consumer_field_diag.py)" = "81989672ea2bc956a0f803ab98cb3a301e69a236"
+          PYTHONDONTWRITEBYTECODE=1 python3 -B -m py_compile qualification/mcn072_cloudflare_consumer_field_diag.py tests/test_mcn072_cloudflare_consumer_field_diag.py
+          PYTHONDONTWRITEBYTECODE=1 python3 -B -m unittest discover -s tests -p 'test_mcn072_cloudflare_consumer_field_diag.py' -v
+      - name: Observe consumer response field presence using pre-existing Cloudflare secret GET only
+        shell: bash
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+        run: |
+          set -euo pipefail
+          PYTHONDONTWRITEBYTECODE=1 python3 -B qualification/mcn072_cloudflare_consumer_field_diag.py
+      - name: Store sanitized schema-only non-qualifying output and detached digest
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: musitu-mcn072-cloudflare-consumer-fields-20261113
+          path: |
+            mcn072-cloudflare-consumer-field-diag.json
+            mcn072-cloudflare-consumer-field-diag.json.sha256
+          retention-days: 7
+          if-no-files-found: warn
