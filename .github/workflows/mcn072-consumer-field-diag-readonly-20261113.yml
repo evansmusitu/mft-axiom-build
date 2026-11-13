@@ -27,12 +27,12 @@ jobs:
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
         with:
           persist-credentials: false
-      - name: Verify exact source/test hashes and 27 adverse controls before injecting secret
+      - name: Verify exact source/test hashes and 31 adverse controls before injecting secret
         shell: bash
         run: |
           set -euo pipefail
-          test "$(git hash-object qualification/mcn072_cloudflare_consumer_field_diag.py)" = "0ce3a490ffb0300b0bb480d06fd9d9d129797bf8"
-          test "$(git hash-object tests/test_mcn072_cloudflare_consumer_field_diag.py)" = "4ed7911c3ef257e4b3b79652b5dcd035380ee4d8"
+          test "$(git hash-object qualification/mcn072_cloudflare_consumer_field_diag.py)" = "856c2a787806fb8d066d7cae10e9312d11d488b7"
+          test "$(git hash-object tests/test_mcn072_cloudflare_consumer_field_diag.py)" = "735a4b88c6064e7d896d7901e3ccb88f67d2cf77"
           PYTHONDONTWRITEBYTECODE=1 python3 -B -m py_compile qualification/mcn072_cloudflare_consumer_field_diag.py tests/test_mcn072_cloudflare_consumer_field_diag.py
           PYTHONDONTWRITEBYTECODE=1 python3 -B -m unittest discover -s tests -p 'test_mcn072_cloudflare_consumer_field_diag.py' -v
       - name: Observe consumer response field presence using pre-existing Cloudflare secret GET only
