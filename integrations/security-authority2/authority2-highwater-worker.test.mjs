@@ -65,6 +65,30 @@ test('negative B27: restoring DO, independent R2 checkpoints AND controls reissu
   await externalHighwaterFence(x.args);x.restore(doSnapshot);x.r2.restore(r2Snapshot);
   const replay=await externalHighwaterFence(x.args);assert.equal(replay.sequence,1,'R2 lock deletion + all-state rollback is still an attack');
 });
+
+test('B27: invalid signer cannot consume R2 checkpoint or mutate DO tip',{timeout:10000},async()=>{
+  const x=await setup();await x.seed();
+  let puts=0;const old=x.r2.put;
+  x.r2.put=async(...args)=>{puts++;return old(...args);};
+  x.server.env.HW_SIGNING_JWK=JSON.stringify({
+    kty:'OKP',crv:'Ed25519',x:'invalid-public-key',d:'invalid-private-key'});
+  await assert.rejects(externalHighwaterFence(x.args),/HIGHWATER_REMOTE_DENIAL_HOLD/);
+  assert.equal(puts,0,'invalid signer must be denied BEFORE any external R2 writes');
+  assert.equal((await x.storage.get('highwater/tip')).sequence,0,
+    'no signer means authority must not consume the sequence');
+  assert.equal(await x.storage.get('highwater/pending'),undefined,
+    'malformed signing configuration must not strand a one-use pending transaction');
+});
+test('B27: missing signer cannot consume R2 checkpoint or mutate DO tip',{timeout:10000},async()=>{
+  const x=await setup();await x.seed();
+  let puts=0;const old=x.r2.put;
+  x.r2.put=async(...args)=>{puts++;return old(...args);};
+  delete x.server.env.HW_SIGNING_JWK;
+  await assert.rejects(externalHighwaterFence(x.args),/HIGHWATER_REMOTE_DENIAL_HOLD/);
+  assert.equal(puts,0);
+  assert.equal((await x.storage.get('highwater/tip')).sequence,0);
+  assert.equal(await x.storage.get('highwater/pending'),undefined);
+});
 test('lost R2 acknowledgement holds pending transaction permanently; no retry',async()=>{
   const x=await setup();await x.seed();x.r2.loseNextAck();
   await assert.rejects(externalHighwaterFence(x.args),/HIGHWATER_REMOTE_DENIAL_HOLD/);
