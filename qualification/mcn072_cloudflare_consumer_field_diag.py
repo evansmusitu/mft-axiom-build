@@ -25,6 +25,8 @@ BASE = 'https://api.cloudflare.com'
 PREFIX = f'/client/v4/accounts/{ACCOUNT}/queues'
 LIST_PATH = PREFIX + '?page=1&per_page=100'
 WORKERS_PATH = f'/client/v4/accounts/{ACCOUNT}/workers/scripts'
+WORKERS_PREFIX = WORKERS_PATH + '/'
+VERSION_ID_RE = re.compile(r'[0-9a-f]{8}-(?:[0-9a-f]{4}-){3}[0-9a-f]{12}\Z')
 ID_RE = re.compile(r'[0-9a-f]{32}\Z')
 SCRIPT_RE = re.compile(r'[A-Za-z0-9_.-]{1,128}\Z')
 MAX_BODY = 131072
@@ -59,6 +61,12 @@ def allowed_path(path):
         return True
     if not isinstance(path, str):
         return False
+    if re.fullmatch(re.escape(WORKERS_PREFIX) +
+                    r'[A-Za-z0-9_.-]{1,128}/deployments', path):
+        return True
+    if re.fullmatch(re.escape(WORKERS_PREFIX) +
+                    r'[A-Za-z0-9_.-]{1,128}/versions/[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}', path):
+        return True
     return bool(re.fullmatch(re.escape(PREFIX) +
               r'/[0-9a-f]{32}(?:/consumers(?:/[0-9a-f]{32})?)?', path))
 
@@ -189,6 +197,56 @@ def worker_listing(token, opener):
     return identifiers, digest, complete
 
 
+
+def observe_active_deployment(token, opener, script):
+    """Use Cloudflare metadata only, never script source or secret bindings."""
+    if type(script) is not str or not SCRIPT_RE.fullmatch(script):
+        raise ProbeFailure('WORKER_SCRIPT_CANDIDATE_INVALID')
+    deployment, deployment_hash = fetch(WORKERS_PREFIX + script + '/deployments', token, opener)
+    body = deployment.get('result')
+    rows = body.get('deployments') if type(body) is dict else None
+    if type(rows) is not list or not 1 <= len(rows) <= 10 or type(rows[0]) is not dict:
+        raise ProbeFailure('WORKER_DEPLOYMENT_INVENTORY_INCOMPLETE')
+    active = rows[0]  # Cloudflare documents first entry as latest active deployment.
+    versions = active.get('versions')
+    if type(versions) is not list or len(versions) != 1 or type(versions[0]) is not dict:
+        raise ProbeFailure('MIXED_OR_UNKNOWN_ACTIVE_DEPLOYMENT')
+    version = versions[0]
+    vid = version.get('version_id')
+    if type(vid) is not str or not VERSION_ID_RE.fullmatch(vid):
+        raise ProbeFailure('ACTIVE_VERSION_IDENTIFIER_INVALID')
+    pct = version.get('percentage')
+    if type(pct) not in (int, float) or pct != 100:
+        raise ProbeFailure('ACTIVE_VERSION_PERCENTAGE_UNKNOWN')
+    envelope, version_hash = fetch(WORKERS_PREFIX + script + '/versions/' + vid, token, opener)
+    result = envelope.get('result')
+    if type(result) is not dict or result.get('id') != vid:
+        raise ProbeFailure('ACTIVE_VERSION_IDENTITY_MISMATCH')
+    resources = result.get('resources')
+    script_info = resources.get('script') if type(resources) is dict else None
+    handlers = script_info.get('handlers') if type(script_info) is dict else None
+    if type(handlers) is not list or len(handlers) > 50 or any(type(x) is not str for x in handlers):
+        raise ProbeFailure('ACTIVE_VERSION_HANDLERS_UNVERIFIABLE')
+    bindings = resources.get('bindings')
+    if bindings is not None and (type(bindings) is not list or len(bindings) > 128):
+        raise ProbeFailure('ACTIVE_VERSION_BINDINGS_UNVERIFIABLE')
+    for item in bindings or []:
+        if type(item) is not dict or type(item.get('type')) is not str:
+            raise ProbeFailure('ACTIVE_VERSION_BINDING_INVALID')
+    handler = 'queue' in handlers
+    return {
+        'deployment_observation_status': ('QUEUE_HANDLER_OBSERVED_ONLY' if handler
+                                          else 'NO_QUEUE_HANDLER_IN_OBSERVED_VERSION'),
+        'active_deployed_queue_handler_observed': handler,
+        'active_version_sha256': sha(vid),
+        'deployment_response_sha256': deployment_hash,
+        'version_response_sha256': version_hash,
+        'active_version_hyperdrive_binding_count': sum(1 for b in bindings or [] if b.get('type') == 'hyperdrive'),
+        'active_version_service_binding_count': sum(1 for b in bindings or [] if b.get('type') == 'service'),
+        'active_version_binding_count': len(bindings or []),
+    }
+
+
 def inspect(token, opener):
     inventory, inventory_hash = fetch(LIST_PATH, token, opener)
     meta = inventory.get('result_info')
@@ -218,6 +276,7 @@ def inspect(token, opener):
     worker_ids, workers_hash, worker_inventory_complete = worker_listing(token, opener)
     consumers, exact_hashes = [], []
     worker_count, identified_count, alias_matches = 0, 0, 0
+    active_candidate_names = []
     for cid in sorted(by_detail):
         exact, exact_hash = fetch(PREFIX + '/' + qid + '/consumers/' + cid, token, opener)
         record = exact.get('result')
@@ -245,6 +304,8 @@ def inspect(token, opener):
             worker_count += 1
             identified_count += bool(found)
             alias_matches += bool(alias_match)
+            if alias_match:
+                active_candidate_names.append(alias)
         elif found is not None:
             raise ProbeFailure('NONWORKER_SCRIPT_IDENTITY')
         consumers.append({
@@ -260,7 +321,17 @@ def inspect(token, opener):
         })
         exact_hashes.append(exact_hash)
     resolved = worker_count > 0 and identified_count == worker_count
-    return {
+    if len(active_candidate_names) == 1 and worker_count == 1:
+        try:
+            deployment = observe_active_deployment(token, opener, active_candidate_names[0])
+        except ProbeFailure as exc:
+            deployment = {'deployment_observation_status': 'BLOCKED',
+                          'deployment_reason_code': str(exc),
+                          'active_deployed_queue_handler_observed': False}
+    else:
+        deployment = {'deployment_observation_status': 'NO_MATCHING_WORKER_CANDIDATE',
+                      'active_deployed_queue_handler_observed': False}
+    return {**deployment,
         'schema': 'musitu.mcn072.cloudflare_consumer_field_diag.v1',
         'queue_id_sha256': sha(qid), 'queue_count': 1,
         'consumer_count': count, 'worker_consumer_count': worker_count,
