@@ -1,0 +1,115 @@
+name: AXIOM B27 Security Authority 2 provider metadata audit (GET ONLY / NOT RELEASE)
+on:
+  push:
+    branches: [audit/axiom-a2-provider-readonly-20261113]
+    paths: [.github/workflows/axiom-a2-provider-readonly-20261113.yml]
+permissions:
+  contents: read
+concurrency:
+  group: axiom-a2-provider-readonly-20261113
+  cancel-in-progress: false
+jobs:
+  provider-readback:
+    if: >-
+      github.repository == 'evansmusitu/mft-axiom-build' &&
+      github.actor == 'evansmusitu' &&
+      github.ref == 'refs/heads/audit/axiom-a2-provider-readonly-20261113' &&
+      github.event.before == 'c3c5aaab90e94f1ca84ac9903f9d481c23c4f350'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - name: READ ONLY exact Cloudflare R2 lock and Worker configuration/deployment metadata
+        shell: bash
+        env:
+          A2_R2_READ_TOKEN: ${{ secrets.MUSITU_AXIOM_AUTHORITY2_R2_READ_TOKEN }}
+          A2_WORKERS_READ_TOKEN: ${{ secrets.MUSITU_CLOUDFLARE_ADMIN_TOKEN }}
+        run: |
+          set -euo pipefail
+          set +x
+          python3 - <<'PY'
+          import os,json,re,urllib.request,urllib.error,hashlib
+          ACCOUNT='67469478aa9349fa0a57fe3a72da200a'
+          BUCKET='musitu-axiom-b27-highwater-a2'
+          SCRIPT='axiom-security-authority2-highwater'
+          ROOT='https://api.cloudflare.com/client/v4/accounts/'+ACCOUNT
+          ALLOWED={
+           'r2_lock':('/r2/buckets/'+BUCKET+'/lock','A2_R2_READ_TOKEN'),
+           'worker_settings':('/workers/scripts/'+SCRIPT+'/settings','A2_WORKERS_READ_TOKEN'),
+           'worker_deployments':('/workers/scripts/'+SCRIPT+'/deployments?page=1&per_page=1','A2_WORKERS_READ_TOKEN')
+          }
+          class NoRedirect(urllib.request.HTTPRedirectHandler):
+            def redirect_request(self,*args,**kwargs):return None
+          opener=urllib.request.build_opener(NoRedirect)
+          def request(key):
+            path,secret=ALLOWED[key];token=os.environ.get(secret,'')
+            if not token or any(ch in token for ch in '\r\n'):
+              return {'http':'TOKEN_MISSING_OR_INVALID','json':None}
+            req=urllib.request.Request(ROOT+path,method='GET',headers={
+              'Authorization':'Bearer '+token,'Accept':'application/json'})
+            try:
+              with opener.open(req,timeout=15) as resp:
+                status=resp.status;raw=resp.read(32769)
+            except urllib.error.HTTPError as exc:
+              status=exc.code;raw=exc.read(32769)
+            except Exception:
+              return {'http':'NETWORK_OR_PROVIDER_UNAVAILABLE','json':None}
+            if len(raw)>32768:return {'http':'RESPONSE_OVERSIZE','json':None}
+            try:return {'http':status,'json':json.loads(raw)}
+            except (ValueError,UnicodeError):return {'http':status,'json':None}
+          results={key:request(key) for key in ALLOWED}
+          statuses={k:v['http'] for k,v in results.items()}
+          def good(v):
+            obj=v['json']
+            return v['http']==200 and isinstance(obj,dict) and obj.get('success') is True and obj.get('errors')==[]
+          lock=results['r2_lock'];lock_ok=False;rules_count=None
+          if good(lock):
+            rules=lock['json'].get('result',{}).get('rules',[])
+            if isinstance(rules,list):
+              rules_count=len(rules)
+              lock_ok=any(isinstance(x,dict) and x.get('enabled') is True
+                and isinstance(x.get('condition'),dict)
+                and x['condition'].get('type')=='Indefinite'
+                and x.get('prefix','') in ('','b27/')
+                and isinstance(x.get('id'),str) and bool(x.get('id')) for x in rules)
+          worker=results['worker_settings'];bindings_ok=False;binding_count=None
+          if good(worker):
+            b=worker['json'].get('result',{}).get('bindings',[])
+            if isinstance(b,list):
+              binding_count=len(b)
+              names={x.get('name') for x in b if isinstance(x,dict) and isinstance(x.get('name'),str)}
+              do=[x for x in b if isinstance(x,dict) and x.get('name')=='HIGHWATER_STATE'
+                  and x.get('type') in ('durable_object_namespace','durable_object')
+                  and x.get('class_name')=='Authority2Highwater']
+              r2=[x for x in b if isinstance(x,dict) and x.get('name')=='HIGHWATER_WORM'
+                  and x.get('type') in ('r2_bucket','r2')
+                  and x.get('bucket_name')==BUCKET]
+              secrets={'HW_CONFIG_JSON','HW_ROLE_TOKEN_SHA256_JSON','HW_SIGNING_JWK'}
+              bindings_ok=(len(b)==5 and len(names)==5 and len(do)==1 and len(r2)==1 and
+                secrets.issubset(names) and all(x.get('type')=='secret_text'
+                for x in b if isinstance(x,dict) and x.get('name') in secrets))
+          deployments=results['worker_deployments'];active_ok=False
+          if good(deployments):
+            arr=deployments['json'].get('result',{}).get('deployments',[])
+            if isinstance(arr,list) and len(arr)==1 and isinstance(arr[0],dict):
+              ver=arr[0].get('versions')
+              active_ok=(arr[0].get('strategy')=='percentage' and
+                isinstance(ver,list) and len(ver)==1 and
+                ver[0].get('percentage')==100 and
+                isinstance(ver[0].get('version_id'),str))
+          summary={
+            'schema':'musitu.axiom.b27.a2-provider-get-only.20261113.v1',
+            'account_id':ACCOUNT,'bucket_name':BUCKET,'script_name':SCRIPT,
+            'provider_origin':'api.cloudflare.com',
+            'read_only_requests':3,'write_requests':0,
+            'provider_http_status':statuses,'r2_lock_indefinite_b27_verified':lock_ok,
+            'r2_lock_rule_count':rules_count,
+            'worker_required_bindings_verified':bindings_ok,'worker_binding_count':binding_count,
+            'one_active_deployment_verified':active_ok,
+            'worker_source_qualified':False,'independent_custody_verified':False,
+            'independent_reviewer_approved':False,'release_eligible':False
+          }
+          print(json.dumps(summary,sort_keys=True,separators=(',',':')))
+          if not all((lock_ok,bindings_ok,active_ok)):
+            raise SystemExit('A2_PROVIDER_READBACK_HOLD_NOT_RELEASE')
+          print('A2_PROVIDER_METADATA_READONLY_PASS_NOT_CUSTODY_NOT_RELEASE')
+          PY
