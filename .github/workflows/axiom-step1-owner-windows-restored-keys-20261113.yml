@@ -53,6 +53,9 @@ jobs:
           Remove-Item -LiteralPath $denialLog -Force
           if (Test-Path -LiteralPath $probe) { throw 'Real owner operation wrote an output in CI' }
           Write-Output 'AXIOM_WINDOWS_OWNER_RESTORE_CI_DENIED_EXACTLY_NOT_RELEASE'
+          # pwsh GitHub runner propagates LASTEXITCODE from the deliberately-denied
+          # child after the block; explicitly succeed ONLY after all refusal checks.
+          exit 0
       - name: Node syntax and 15 synthetic encrypted-key recovery tests
         shell: pwsh
         run: |
