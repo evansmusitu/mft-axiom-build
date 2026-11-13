@@ -283,6 +283,28 @@ class CloudflareConsumerSchemaTests(unittest.TestCase):
         self.assertFalse(result['tenant_fairness_qualified'])
         self.assertFalse(result['mcn072_qualified'])
 
+    def test_multipart_plain_text_js_filename_is_canonicalized_without_exporting_name(self):
+        def package(boundary):
+            return (b'--'+boundary.encode()+b'\r\nContent-Disposition: form-data; name="secret"; filename="private-worker.mjs"\r\n'
+                    b'Content-Type: text/plain\r\n\r\nexport default { async queue() {} }\r\n--'+boundary.encode()+b'--\r\n')
+        a=D.summarize_worker_content(package('oneboundary'),'multipart/form-data; boundary=oneboundary')
+        b=D.summarize_worker_content(package('twoboundary'),'multipart/form-data; boundary=twoboundary')
+        self.assertEqual(a['javascript_module_part_count'],1)
+        self.assertEqual(a['canonical_module_content_sha256'],b['canonical_module_content_sha256'])
+        self.assertNotIn('private-worker',json.dumps(a))
+        self.assertFalse(a['content_matches_active_version_qualified'])
+
+    def test_multipart_metadata_and_untrusted_non_script_name_not_canonicalized(self):
+        raw=(b'--boundaryfoo\r\nContent-Disposition: form-data; name="meta"; filename="metadata.json"\r\n'
+             b'Content-Type: application/json\r\n\r\n{ "secret": "HIDE" }\r\n'
+             b'--boundaryfoo\r\nContent-Disposition: form-data; name="untrusted"\r\n'
+             b'Content-Type: text/plain\r\n\r\nsecret text\r\n--boundaryfoo--\r\n')
+        r=D.summarize_worker_content(raw,'multipart/form-data; boundary=boundaryfoo')
+        self.assertEqual(r['javascript_module_part_count'],0)
+        self.assertIsNone(r['canonical_module_content_sha256'])
+        self.assertEqual(r['multipart_part_count'],2)
+        self.assertNotIn('HIDE',json.dumps(r))
+
     def test_get_refuses_unapproved_path_before_network(self):
         class NoNetwork:
             def open(self,*args,**kwargs):raise AssertionError('called network')
