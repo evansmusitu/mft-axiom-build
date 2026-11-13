@@ -292,6 +292,10 @@ def observe_active_deployment(token, opener, script):
                                           else 'NO_QUEUE_HANDLER_IN_OBSERVED_VERSION'),
         'active_deployed_queue_handler_observed': handler,
         'active_version_sha256': sha(vid),
+        # Keep raw version hash in memory only; do not export it or the source.
+        '_private_version_script_etag': script_info.get('etag') if
+            type(script_info.get('etag')) is str and
+            re.fullmatch(r'[0-9a-f]{64}', script_info['etag']) else None,
         'deployment_response_sha256': deployment_hash,
         'version_response_sha256': version_hash,
         'active_version_hyperdrive_binding_count': sum(1 for b in bindings or [] if b.get('type') == 'hyperdrive'),
@@ -399,6 +403,14 @@ def inspect(token, opener):
             content_observation = {**content_observation,
                                    'content_provenance_status': 'BLOCKED',
                                    'content_reason_code': 'WORKER_CONTENT_UNEXPECTED_FAIL_CLOSED'}
+    version_etag = deployment.pop('_private_version_script_etag', None)
+    current_sha = content_observation.get('worker_script_content_sha256')
+    content_observation['active_version_etag_sha256'] = sha(version_etag) if version_etag else None
+    # Exact byte hash equality is only a provider-level content observation;
+    # it cannot establish queue->Postgres execution or tenant fairness.
+    content_observation['active_version_content_sha256_equality_observed'] = bool(
+        version_etag and type(current_sha) is str and
+        re.fullmatch(r'[0-9a-f]{64}', current_sha) and version_etag == current_sha)
     return {**deployment, **content_observation,
         'schema': 'musitu.mcn072.cloudflare_consumer_field_diag.v1',
         'queue_id_sha256': sha(qid), 'queue_count': 1,
