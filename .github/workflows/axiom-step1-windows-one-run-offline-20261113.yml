@@ -1,0 +1,47 @@
+name: AXIOM Step1 Windows owner one-run orchestrator SYNTHETIC ONLY (NOT RELEASE)
+on:
+  push:
+    branches:
+      - review/axiom-step1-owner-sole-authority-policy-20261112-not-release
+    paths:
+      - Run_MUSITU_AXIOM_Windows_Owner_Offline.ps1
+      - .github/workflows/axiom-step1-windows-one-run-offline-20261113.yml
+permissions: {contents: read}
+jobs:
+  windows-offline-orchestrator-denial-only:
+    if: >-
+      github.repository == 'evansmusitu/mft-axiom-build' &&
+      github.ref == 'refs/heads/review/axiom-step1-owner-sole-authority-policy-20261112-not-release' &&
+      github.run_attempt == 1
+    runs-on: windows-2022
+    timeout-minutes: 6
+    steps:
+      - name: Checkout isolated draft without persisted credentials
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with: {persist-credentials: false}
+      - name: Parse PowerShell, verify NO_GO fields and reject CI execution
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop'
+          $script='Run_MUSITU_AXIOM_Windows_Owner_Offline.ps1'
+          $t=$null; $parseErrors=$null
+          [void][System.Management.Automation.Language.Parser]::ParseFile((Resolve-Path $script).Path,[ref]$t,[ref]$parseErrors)
+          if ($parseErrors.Count -gt 0) { throw ('PowerShell parser rejected script: '+($parseErrors | Out-String)) }
+          $source=Get-Content -LiteralPath $script -Raw
+          foreach($must in @('Ensure-InteractiveOwner','CLOUD_RUNNER_FORBIDDEN','MANIFEST_SHA256.json','OWNER_SIGNED_PROPOSAL_NOT_VERIFIED','step1_closed=$false','release_authorized=$false','NOT_RELEASE')) {
+            if(-not $source.Contains($must)) { throw ('Missing fail-closed constraint: '+$must) }
+          }
+          foreach($forbidden in @('Invoke-WebRequest','Invoke-RestMethod','Start-BitsTransfer','wrangler d1','git push')) {
+            if($source.Contains($forbidden)) { throw ('Unexpected network or release authority: '+$forbidden) }
+          }
+          $logOut=Join-Path $env:RUNNER_TEMP 'axiom-no-owner-stdout.txt'
+          $logErr=Join-Path $env:RUNNER_TEMP 'axiom-no-owner-stderr.txt'
+          $env:CI='true'
+          $proc=Start-Process -FilePath 'powershell.exe' -ArgumentList @('-NoProfile','-NonInteractive','-ExecutionPolicy','Bypass','-File', $script) -Wait -PassThru -NoNewWindow -RedirectStandardOutput $logOut -RedirectStandardError $logErr
+          if($proc.ExitCode -ne 2) { throw 'Windows owner orchestrator did not refuse CI with exact exit 2' }
+          $stderr=Get-Content -LiteralPath $logErr -Raw
+          if($stderr -notmatch 'CLOUD_RUNNER_FORBIDDEN') { throw 'Missing exact CI owner-device refusal' }
+          if($stderr -notmatch 'without granting D1') { throw 'Missing explicit non-release refusal' }
+          if(Test-Path -LiteralPath (Join-Path $env:RUNNER_TEMP 'AXIOM_PRIVATE_KEYS')) { throw 'Unexpected private key output' }
+          Write-Output 'AXIOM_WINDOWS_OWNER_ONE_RUN_SYNTHETIC_CI_DENIAL_PASS_NOT_RELEASE'
+          exit 0
