@@ -11,6 +11,8 @@ never put that token in arguments, logs, file output, or test artifacts.
 from __future__ import annotations
 
 import hashlib
+from email import policy
+from email.parser import BytesParser
 import json
 import os
 import re
@@ -199,7 +201,7 @@ def worker_listing(token, opener):
 
 
 
-def summarize_worker_content(raw):
+def summarize_worker_content(raw, content_type="application/javascript"):
     """Summarize current Worker content without preserving a single original byte.
 
     Literal presence is not an execution trace, code-to-version attestation, or
@@ -209,7 +211,36 @@ def summarize_worker_content(raw):
         raise ProbeFailure('WORKER_CONTENT_BOUNDS_INVALID')
     markers = (b'axiom_tenant_fair_cursor', b'axiom_tenant_fair_served',
                b'axiom_distributed_execution_jobs')
+    mime=content_type.split(';',1)[0].strip().lower() if type(content_type) is str else ''
+    javascript_mimes={'application/javascript','text/javascript','application/x-javascript',
+                      'application/ecmascript','text/ecmascript'}
+    modules=[]
+    if mime=='multipart/form-data':
+        match=re.search(r'(?:^|;)\s*boundary=(?:"([A-Za-z0-9_-]{1,70})"|([A-Za-z0-9_-]{1,70}))(?:\s*;|\s*$)',content_type)
+        if not match:
+            raise ProbeFailure('WORKER_MULTIPART_BOUNDARY_INVALID')
+        message=BytesParser(policy=policy.default).parsebytes(
+            b'Content-Type: '+content_type.encode('ascii')+b'\r\nMIME-Version: 1.0\r\n\r\n'+raw)
+        if not message.is_multipart():
+            raise ProbeFailure('WORKER_MULTIPART_INVALID')
+        parts=list(message.iter_parts())
+        if len(parts)>64:
+            raise ProbeFailure('WORKER_MULTIPART_TOO_MANY_PARTS')
+        for part in parts:
+            if part.get_content_type().lower() in javascript_mimes:
+                body=part.get_payload(decode=True)
+                if type(body) is not bytes or not body or len(body)>MAX_SCRIPT_CONTENT:
+                    raise ProbeFailure('WORKER_MULTIPART_MODULE_INVALID')
+                modules.append(sha(body))
+    elif mime in javascript_mimes or mime in ('application/octet-stream','text/plain'):
+        modules=[sha(raw)]
+    # Canonical module-payload fingerprints exclude MIME boundary strings, headers,
+    # and unpublished module filenames. No source bytes are persisted.
+    canonical=sha(json.dumps(sorted(modules),separators=(',',':')).encode()) if modules else None
     return {
+        'worker_content_mime_class': mime,
+        'javascript_module_part_count': len(modules),
+        'canonical_module_content_sha256': canonical,
         'content_provenance_status': 'CURRENT_SCRIPT_CONTENT_ONLY',
         'worker_script_content_sha256': sha(raw),
         'worker_script_content_bytes': len(raw),
@@ -241,6 +272,7 @@ def fetch_worker_content(script, token, opener):
                        'text/plain', 'application/octet-stream', 'multipart/form-data')
             if kind not in allowed:
                 raise ProbeFailure('WORKER_CONTENT_MIME_INVALID')
+            response_content_type=response.headers.get('Content-Type','')
             raw = response.read(MAX_SCRIPT_CONTENT + 1)
     except urllib.error.HTTPError as exc:
         if exc.code in (401, 403, 404):
@@ -248,7 +280,7 @@ def fetch_worker_content(script, token, opener):
         raise ProbeFailure('WORKER_CONTENT_HTTP_NON_200') from None
     except (urllib.error.URLError, OSError, TimeoutError):
         raise ProbeFailure('WORKER_CONTENT_TRANSPORT_UNAVAILABLE') from None
-    return summarize_worker_content(raw)
+    return summarize_worker_content(raw, response_content_type)
 
 
 def observe_active_deployment(token, opener, script):
@@ -395,6 +427,22 @@ def inspect(token, opener):
             deployment.get('active_deployed_queue_handler_observed') is True):
         try:
             content_observation = fetch_worker_content(active_candidate_names[0], token, opener)
+            try:
+                second = fetch_worker_content(active_candidate_names[0], token, opener)
+                first_raw=content_observation.get('worker_script_content_sha256')
+                second_raw=second.get('worker_script_content_sha256')
+                first_module=content_observation.get('canonical_module_content_sha256')
+                second_module=second.get('canonical_module_content_sha256')
+                content_observation['current_content_replay_raw_sha256_equal'] = bool(
+                    first_raw and first_raw==second_raw)
+                content_observation['current_content_replay_canonical_modules_equal'] = bool(
+                    first_module and first_module==second_module)
+                content_observation['current_content_replay_status']='TWO_GETS_OBSERVED_ONLY'
+            except ProbeFailure as exc:
+                content_observation['current_content_replay_status']='BLOCKED'
+                content_observation['current_content_replay_reason_code']=str(exc)
+                content_observation['current_content_replay_raw_sha256_equal']=False
+                content_observation['current_content_replay_canonical_modules_equal']=False
         except ProbeFailure as exc:
             content_observation = {**content_observation,
                                    'content_provenance_status': 'BLOCKED',
