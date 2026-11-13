@@ -1,0 +1,62 @@
+name: AXIOM B27 Security Authority 2 pinned Worker build-only acceptance (NOT RELEASE)
+on:
+  pull_request:
+    paths:
+      - 'integrations/security-authority2/**'
+      - '.github/workflows/axiom-b27-authority2-build-only.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  wrangler-dryrun:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - name: Checkout without persistent credentials
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          persist-credentials: false
+      - name: Node 24 locked
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: '24.12.0'
+      - name: Enforce no secrets and no authenticated API route
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -z "${CLOUDFLARE_API_TOKEN:-}"
+          test -z "${CLOUDFLARE_API_KEY:-}"
+          test -z "${CLOUDFLARE_EMAIL:-}"
+          node --test integrations/security-authority2/authority2-wrangler-config.test.mjs integrations/security-authority2/b27-provider-pin-consistency.test.mjs
+      - name: Reproducibly build Worker candidate with pinned Wrangler DRY RUN only
+        shell: bash
+        env:
+          WRANGLER_SEND_METRICS: 'false'
+          CI: 'true'
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/axiom-a2-build"
+          # NO AUTH OR REMOTE DEPLOY. This command bundles the Worker only.
+          npm_config_ignore_scripts=true npx --yes wrangler@4.150.0 deploy \
+            --dry-run --config integrations/security-authority2/wrangler.example.toml \
+            --outdir "$RUNNER_TEMP/axiom-a2-build"
+          python3 - <<'PY'
+          import hashlib,os,pathlib,json
+          root=pathlib.Path(os.environ['RUNNER_TEMP'])/'axiom-a2-build'
+          outputs=[p for p in root.rglob('*.js') if p.is_file()]
+          if len(outputs)!=1:raise SystemExit('B27_WRANGLER_OUTPUT_MISSING_OR_AMBIGUOUS_HOLD')
+          bundle=outputs[0].read_bytes()
+          if not bundle or len(bundle)>3_000_000:raise SystemExit('B27_WRANGLER_BUNDLE_SIZE_HOLD')
+          sources=['integrations/security-authority2/authority2-highwater-worker.mjs',
+                   'integrations/security-authority2/authority2-r2-worm.mjs',
+                   'integrations/security-authority2/wrangler.example.toml']
+          manifest={'schema':'musitu.axiom.authority2.worker.dryrun.v1',
+             'wrangler_version':'4.150.0','deployment':'NONE',
+             'origin':'UNASSIGNED','worker_uploaded':False,
+             'customer_traffic_enabled':False,'secrets_used':False,
+             'independent_custody_qualified':False,'release_eligible':False,
+             'bundle_sha256':hashlib.sha256(bundle).hexdigest(),'bundle_size':len(bundle),
+             'sources':{p:hashlib.sha256(pathlib.Path(p).read_bytes()).hexdigest() for p in sources}}
+          print(json.dumps(manifest,sort_keys=True,separators=(',',':')))
+          print('B27_WRANGLER_DRY_RUN_PASS_NOT_RELEASE')
+          PY
