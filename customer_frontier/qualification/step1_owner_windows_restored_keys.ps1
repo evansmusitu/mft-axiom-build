@@ -117,6 +117,8 @@ try {
   ValidateAcl $out $true
   Write-Output 'AXIOM_STEP1_WINDOWS_RESTORED_KEYS_REHEARSAL_ONLY_NO_GO_NOT_RELEASE'
 } catch {
-  Write-Error ('AXIOM_STEP1_WINDOWS_RESTORE_NO_GO:' + $_.Exception.Message)
+  # Avoid Write-Error with ErrorActionPreference=Stop: it throws again
+  # and prevents the deterministic security-denial exit code from executing.
+  [Console]::Error.WriteLine('AXIOM_STEP1_WINDOWS_RESTORE_NO_GO:' + $_.Exception.Message)
   exit 2
 }
