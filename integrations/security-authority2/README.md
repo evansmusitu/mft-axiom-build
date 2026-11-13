@@ -14,7 +14,7 @@ This isolated candidate is based on the existing PR #55 external ledger and GitH
 
 ## Secrets (operator-owned; do not place in builder GitHub)
 
-`HW_CONFIG_JSON`: account_id, ledger_id, namespace, key_id (all exact and the account_id above).
+`HW_CONFIG_JSON`: account_id, ledger_id, namespace, key_id, **public_key_jwk** (Ed25519 `{kty:"OKP",crv:"Ed25519",x:"..."}` matching the independent AXIOM consumer's operator-approved public signer pin). Missing/mismatched keys HOLD before any R2/DO state transition. This public key binding is not proof of non-exportable signer custody.
 `HW_ROLE_TOKEN_SHA256_JSON`: SHA256 of RAW, separately random 32-200-character write/read tokens. Reader and writer may not share values.
 `HW_SIGNING_JWK`: privately generated Ed25519 key, held outside builder; the public half is the client pin.
 `LEDGER_HIGHWATER_PIN_JSON`: public six-field pin account_id, ledger_id, namespace, key_id, HTTPS origin, public_key_jwk.
