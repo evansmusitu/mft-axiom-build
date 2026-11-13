@@ -61,11 +61,15 @@ test('B27 rejects a substituted R2 record schema despite valid head and predeces
       /HIGHWATER_WORM_SCHEMA_MISMATCH_HOLD/);
   }finally{records.set(key,original);}
 });
-test('B27 rejects a substituted genesis record schema despite valid head',async()=>{
+test('B27 rejects a substituted genesis record schema when no next checkpoint exists',async()=>{
   const key=wormKey(pin,0),original=records.get(key);
+  const nextKey=wormKey(pin,1),next=records.get(nextKey);
+  // An existing sequence-1 barrier would reject this much earlier as rollback;
+  // isolate the genesis-schema check by exercising an actual sequence-0 tip.
+  records.delete(nextKey);
   records.set(key,{...original,schema:'attacker-controlled.genesis.v1'});
   try{
     await assert.rejects(wormReadback(bucket,pin,{sequence:0,head:h('0')}),
       /HIGHWATER_WORM_SCHEMA_MISMATCH_HOLD/);
-  }finally{records.set(key,original);}
+  }finally{records.set(key,original);records.set(nextKey,next);}
 });
