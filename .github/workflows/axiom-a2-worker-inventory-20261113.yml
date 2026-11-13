@@ -1,0 +1,79 @@
+name: AXIOM B27 A2 Worker reuse inventory (GET ONLY / NOT RELEASE)
+on:
+  push:
+    branches: [audit/axiom-a2-provider-readonly-20261113]
+    paths: [.github/workflows/axiom-a2-worker-inventory-20261113.yml]
+permissions:
+  contents: read
+jobs:
+  inventory:
+    if: >-
+      github.repository == 'evansmusitu/mft-axiom-build' &&
+      github.actor == 'evansmusitu' &&
+      github.ref == 'refs/heads/audit/axiom-a2-provider-readonly-20261113' &&
+      github.event.before == '6796767dfe3813267fbcc849c6335fa21d4f94a1'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 4
+    steps:
+      - name: Inspect only the exact Authority2 account Workers script inventory
+        shell: bash
+        env:
+          TOKEN: ${{ secrets.MUSITU_CLOUDFLARE_ADMIN_TOKEN }}
+        run: |
+          set -euo pipefail
+          set +x
+          python3 - <<'PY'
+          import os,json,re,urllib.request,urllib.error
+          ACCOUNT='67469478aa9349fa0a57fe3a72da200a'
+          PATH='/accounts/'+ACCOUNT+'/workers/scripts'
+          ENDPOINT='https://api.cloudflare.com/client/v4'+PATH
+          token=os.environ.get('TOKEN','')
+          if not token or any(c in token for c in '\r\n'):
+              print('WORKER_INVENTORY_READ_CREDENTIAL_MISSING_HOLD')
+              raise SystemExit(2)
+          class NoRedirect(urllib.request.HTTPRedirectHandler):
+              def redirect_request(self,*args,**kwargs):return None
+          opener=urllib.request.build_opener(NoRedirect)
+          req=urllib.request.Request(ENDPOINT,method='GET',
+              headers={'Authorization':'Bearer '+token,'Accept':'application/json'})
+          try:
+              with opener.open(req,timeout=20) as response:
+                  status=response.status;raw=response.read(100001)
+          except urllib.error.HTTPError as error:
+              status=error.code;raw=error.read(100001)
+          except Exception:
+              print('WORKER_INVENTORY_PROVIDER_TRANSPORT_HOLD')
+              raise SystemExit(2)
+          if status!=200 or len(raw)>100000:
+              print('WORKER_INVENTORY_PROVIDER_READ_HOLD_HTTP_'+str(status))
+              raise SystemExit(2)
+          try:
+              doc=json.loads(raw)
+          except Exception:
+              print('WORKER_INVENTORY_REPLY_INVALID_HOLD')
+              raise SystemExit(2)
+          scripts=doc.get('result') if isinstance(doc,dict) else None
+          if doc.get('success') is not True or not isinstance(scripts,list):
+              print('WORKER_INVENTORY_SCHEMA_NOT_VERIFIED_HOLD')
+              raise SystemExit(2)
+          if len(scripts)>300:
+              print('WORKER_INVENTORY_TOO_LARGE_HOLD')
+              raise SystemExit(2)
+          ids=[x.get('id') for x in scripts if isinstance(x,dict) and isinstance(x.get('id'),str)]
+          if len(ids)!=len(scripts) or len(set(ids))!=len(ids):
+              print('WORKER_INVENTORY_INVALID_ITEMS_HOLD')
+              raise SystemExit(2)
+          pinned='axiom-security-authority2-highwater'
+          # Avoid publishing unrelated Worker names to public GitHub logs.
+          candidates=sorted(x for x in ids if re.search(
+              r'(axiom.*(authority|highwater)|(authority|highwater).*axiom)',x,re.I))
+          result={'schema':'musitu.axiom.a2.worker-inventory.20261113.v1',
+              'account_id':ACCOUNT,'http':status,'total_scripts':len(ids),
+              'expected_script_present':pinned in ids,
+              'possible_reuse_candidates':candidates[:15],
+              'complete':True,'get_only':True,'write_count':0,
+              'independent_custody_verified':False,'release_eligible':False}
+          print(json.dumps(result,sort_keys=True,separators=(',',':')))
+          if pinned not in ids:print('EXPECTED_HIGHWATER_WORKER_NOT_UPLOADED_HOLD')
+          else:print('WORKER_PRESENT_METADATA_ONLY_NOT_RELEASE')
+          PY
