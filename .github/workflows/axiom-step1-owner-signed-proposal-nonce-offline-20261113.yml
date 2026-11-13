@@ -1,0 +1,54 @@
+name: AXIOM Step1 verified owner proposal nonce replay OFFLINE ONLY (NOT RELEASE)
+on:
+  push:
+    branches:
+      - review/axiom-step1-owner-sole-authority-policy-20261112-not-release
+    paths:
+      - .github/workflows/axiom-step1-owner-signed-proposal-nonce-offline-20261113.yml
+      - customer_frontier/qualification/step1_owner_signed_proposal_nonce_guard.mjs
+      - customer_frontier/qualification/step1_owner_nonce_replay_store.py
+      - customer_frontier/tests/step1_owner_signed_proposal_nonce_guard.test.mjs
+      - customer_frontier/tests/test_step1_owner_nonce_replay_store.py
+permissions: { contents: read }
+jobs:
+  synthetic-signed-replay-only:
+    if: >-
+      github.repository == 'evansmusitu/mft-axiom-build' &&
+      github.ref == 'refs/heads/review/axiom-step1-owner-sole-authority-policy-20261112-not-release' &&
+      github.run_attempt == 1
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - name: Checkout source without persisted credentials
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with: { persist-credentials: false }
+      - name: Confirm no production owner keys or cloud credentials are required
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -z "${AXIOM_TRUSTED_OWNER_ED25519_SPKI_SHA256:-}"
+          test -z "${AXIOM_TRUSTED_OWNER_X25519_SPKI_SHA256:-}"
+          test ! -e private/owner_ed25519_pkcs8_encrypted.pem
+          test ! -e private/owner_x25519_pkcs8_encrypted.pem
+          python3 --version
+          node --version
+      - name: Python syntax and durable replay negative tests (synthetic only)
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -m py_compile customer_frontier/qualification/step1_owner_nonce_replay_store.py
+          python3 -m unittest discover -s customer_frontier/tests -p test_step1_owner_nonce_replay_store.py -v
+      - name: Signed exact proposal and atomic replay negative tests (synthetic only)
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --check customer_frontier/qualification/step1_owner_signed_proposal_nonce_guard.mjs
+          node --test customer_frontier/tests/step1_owner_signed_proposal_nonce_guard.test.mjs
+      - name: Ensure this is never an admission to a D1 operation
+        shell: bash
+        run: |
+          set -euo pipefail
+          grep -Fq "'global_anti_rollback_qualified':False" customer_frontier/qualification/step1_owner_nonce_replay_store.py
+          grep -Fq "'disposable_d1_creation_authorized':False" customer_frontier/qualification/step1_owner_nonce_replay_store.py
+          grep -Fq "'release_status':'NOT_RELEASE'" customer_frontier/qualification/step1_owner_nonce_replay_store.py
+          echo 'AXIOM_STEP1_LOCAL_OWNER_NONCE_REPLAY_SYNTHETIC_PASS_NO_D1_AUTHORITY_NOT_RELEASE'
