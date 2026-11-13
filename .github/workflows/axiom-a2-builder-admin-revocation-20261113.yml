@@ -1,0 +1,69 @@
+name: AXIOM B27 Builder Cloudflare administrator credential revocation gate (READ ONLY)
+on:
+  push:
+    branches: [audit/axiom-a2-provider-readonly-20261113]
+    paths: [.github/workflows/axiom-a2-builder-admin-revocation-20261113.yml]
+permissions:
+  contents: read
+jobs:
+  credential-status:
+    if: >-
+      github.repository == 'evansmusitu/mft-axiom-build' &&
+      github.actor == 'evansmusitu' &&
+      github.ref == 'refs/heads/audit/axiom-a2-provider-readonly-20261113' &&
+      github.event.before == '92764fa5768b4a1fa6d8ac176ec6fc4dfec1d7bf'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 3
+    steps:
+      - name: Check existing builder credential status by fixed Cloudflare GET only
+        shell: bash
+        env:
+          BUILDER_ADMIN_TOKEN: ${{ secrets.MUSITU_CLOUDFLARE_ADMIN_TOKEN }}
+        run: |
+          set -euo pipefail
+          set +x
+          python3 - <<'PY'
+          import os,json,urllib.request,urllib.error
+          ACCOUNT='67469478aa9349fa0a57fe3a72da200a'
+          URLS=('https://api.cloudflare.com/client/v4/accounts/'+ACCOUNT+'/tokens/verify',
+                'https://api.cloudflare.com/client/v4/user/tokens/verify')
+          token=os.getenv('BUILDER_ADMIN_TOKEN','')
+          if not token or any(c in token for c in '\r\n'):
+            print('BUILDER_CREDENTIAL_ABSENT_OR_INVALID_UNCERTAIN_HOLD')
+            raise SystemExit(2)
+          class NoRedirect(urllib.request.HTTPRedirectHandler):
+            def redirect_request(self,*args,**kwargs):return None
+          opener=urllib.request.build_opener(NoRedirect)
+          observations=[]
+          for url in URLS:
+            req=urllib.request.Request(url,method='GET',headers={
+              'Authorization':'Bearer '+token,'Accept':'application/json'})
+            try:
+              with opener.open(req,timeout=12) as response:
+                http=response.status;raw=response.read(8193)
+            except urllib.error.HTTPError as e:
+              http=e.code;raw=e.read(8193)
+            except Exception:
+              observations.append({'http':'UNKNOWN','status':'TRANSPORT_UNAVAILABLE'});continue
+            if len(raw)>8192:
+              observations.append({'http':http,'status':'OVERSIZE'});continue
+            try: data=json.loads(raw)
+            except Exception:data=None
+            value=(data.get('result',{}).get('status') if isinstance(data,dict)
+                   and isinstance(data.get('result'),dict) and data.get('success') is True
+                   else None)
+            observations.append({'http':http,
+              'status':value if value in ('active','disabled','expired') else 'UNVERIFIED'})
+          active=any(v['http']==200 and v['status']=='active' for v in observations)
+          result={'schema':'musitu.axiom.b27.builder-credential-status.20261113.v1',
+            'account_id':ACCOUNT,'cloudflare_token_status_endpoints':observations,
+            'builder_admin_token_active':active,'api_methods':['GET','GET'],
+            'write_attempts':0,'operator_custody_verified':False,
+            'release_eligible':False}
+          print(json.dumps(result,sort_keys=True,separators=(',',':')))
+          if active:raise SystemExit('BUILDER_ADMIN_CREDENTIAL_ACTIVE_B27_HOLD')
+          if not any(v['http']==200 and v['status'] in ('disabled','expired')
+                     for v in observations):
+            raise SystemExit('BUILDER_ADMIN_REVOCATION_NOT_INDEPENDENTLY_VERIFIED_HOLD')
+          print('BUILDER_TOKEN_PROVIDER_NOT_ACTIVE_BUT_INDEPENDENT_REVIEW_STILL_REQUIRED')
+          PY
