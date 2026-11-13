@@ -34,7 +34,7 @@ jobs:
             if($source.Contains('Invoke-WebRequest') -or $source.Contains('Invoke-RestMethod')){throw 'External network forbidden'}
           }
           $runner=Get-Content 'Run_MUSITU_AXIOM_Windows_Owner_Offline.ps1' -Raw
-          if(-not $runner.Contains('OWNER_FILE_ACL_OWNER_MISMATCH') -or -not $runner.Contains('NOT_RELEASE')){throw 'Owner ACL or release veto missing'}
+          if(-not $runner.Contains('OWNER_FILE_ACL_ALLOW_MISSING') -or -not $runner.Contains('NOT_RELEASE')){throw 'Owner ACL or release veto missing'}
           Write-Output 'AXIOM_WINDOWS_ACL_PS_PARSE_AND_GATES_PASS_NOT_RELEASE'
       - name: Synthetic Windows NTFS owner-file ACL and access test only
         shell: pwsh
@@ -60,7 +60,15 @@ jobs:
               if($LASTEXITCODE -ne 0){throw 'Leaf owner FILE ACE failed'}
               $acl=Get-Acl -LiteralPath $file.FullName
               if(-not $acl.AreAccessRulesProtected){throw 'Leaf inheritance still enabled'}
-              if($acl.GetOwner([Security.Principal.SecurityIdentifier]).Value -ne $sid){throw 'Unexpected synthetic owner'}
+              $rules=$acl.GetAccessRules($true,$true,[Security.Principal.SecurityIdentifier])
+              $ownerAllow=$false
+              foreach($rule in $rules){
+                if($rule.AccessControlType -eq [Security.AccessControl.AccessControlType]::Allow){
+                  if($rule.IdentityReference.Value -ne $sid){throw 'Unexpected synthetic access principal'}
+                  $ownerAllow=$true
+                }
+              }
+              if(-not $ownerAllow){throw 'Missing exact owner file Allow ACE'}
               $bytes=[IO.File]::ReadAllText($file.FullName)
               if($bytes -ne 'SYNTHETIC ONLY: NOT A PRIVATE KEY'){throw 'Synthetic read failed'}
             }
