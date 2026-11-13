@@ -21,14 +21,14 @@ jobs:
       - name: Isolated checkout with no persisted credentials
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
         with: {persist-credentials: false}
-      - name: Verify exact source and execute 16 offline adversarial tests
+      - name: Verify exact source and execute 17 offline adversarial tests
         shell: bash
         run: |
           set -euo pipefail
-          test "$(git hash-object customer_frontier/qualification/step1_gate1_cloudflare_mfa_posture_readonly_20261113.py)" = '4b8e32027571e641515e861dab96ae703055b96e'
-          test "$(git hash-object customer_frontier/tests/test_step1_gate1_cloudflare_mfa_posture_readonly_20261113.py)" = '8c3eddbc789dcba5f48009f82be05c44e57faf9c'
+          test "$(git hash-object customer_frontier/qualification/step1_gate1_cloudflare_mfa_posture_readonly_20261113.py)" = '6206f05331b1fb93fef8623e94c87a079396810d'
+          test "$(git hash-object customer_frontier/tests/test_step1_gate1_cloudflare_mfa_posture_readonly_20261113.py)" = '058c55e61eba67318e59f4772ab80104ae0eac45'
           python3 -m unittest discover -s customer_frontier/tests -p test_step1_gate1_cloudflare_mfa_posture_readonly_20261113.py -v
-          echo 'AXIOM_GATE1_MFA_SYNTHETIC_16_DENIAL_PASS_NOT_RELEASE'
+          echo 'AXIOM_GATE1_MFA_SYNTHETIC_17_DENIAL_PASS_NOT_RELEASE'
       - name: Exact-account GET-only MFA posture; sanitize names and email fields
         shell: bash
         env:

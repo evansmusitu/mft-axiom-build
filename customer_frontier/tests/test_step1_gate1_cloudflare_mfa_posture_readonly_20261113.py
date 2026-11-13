@@ -28,10 +28,20 @@ class AuditTests(unittest.TestCase):
         r=self.run_audit()
         self.assertTrue(r['account_2fa_requirement_enabled'])
         self.assertTrue(r['accepted_member_2fa_all_enabled'])
-        self.assertEqual(r['member_super_admin_count'],1)
+        self.assertEqual(r['member_super_admin_name_match_count'],1)
         self.assertTrue(r['token_user_2fa_reported'])
         self.assertFalse(r['owner_identity_and_mfa_independently_qualified'])
         self.assertFalse(r['gate1_closed'])
+    def test_super_admin_role_name_variation_is_counted_without_claiming_owner(self):
+        def inject(_t,p):
+            doc=provider(p)
+            if 'members?' in p:doc['result'][0]['roles'][0]['name']='Super Administrator - All Privileges'
+            return doc
+        r=self.run_audit(inject)
+        self.assertEqual(r['member_super_admin_name_match_count'],1)
+        self.assertFalse(r['token_user_identity_is_verified_owner'])
+        self.assertFalse(r['owner_identity_and_mfa_independently_qualified'])
+
     def test_no_personal_data_or_token_in_receipt(self):
         import json
         data=json.dumps(self.run_audit())

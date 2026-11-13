@@ -62,7 +62,7 @@ def receipt(now=None):
         'member_list_http':'UNREAD','member_list_complete':False,
         'accepted_member_count':None,'accepted_members_with_2fa_count':None,
         'accepted_member_2fa_all_enabled':False,
-        'member_super_admin_count':None,'members_require_2fa_independently_enforced':False,
+        'member_super_admin_name_match_count':None,'members_require_2fa_independently_enforced':False,
         'token_user_http':'UNREAD','token_user_2fa_reported':None,
         'token_user_identity_is_verified_owner':False,
         'owner_physical_mfa_challenge_completed':False,
@@ -119,7 +119,7 @@ def audit(get=get_provider,token=None,now=None):
                     accepted+=1
                     mfa_on+=int(user.get('two_factor_authentication_enabled') is True)
                     roles=item.get('roles') or []
-                    if isinstance(roles,list) and any((isinstance(x,dict) and str(x.get('name','')).strip().lower()=='super administrator') for x in roles):
+                    if isinstance(roles,list) and any((isinstance(x,dict) and re.search(r'\bsuper administrator\b',str(x.get('name','')),re.I) is not None) for x in roles):
                         superadmin+=1
                 entries+=1
             if entries>=total:break
@@ -129,7 +129,7 @@ def audit(get=get_provider,token=None,now=None):
         r['accepted_member_count']=accepted
         r['accepted_members_with_2fa_count']=mfa_on
         r['accepted_member_2fa_all_enabled']=accepted>0 and accepted==mfa_on
-        r['member_super_admin_count']=superadmin
+        r['member_super_admin_name_match_count']=superadmin
         # This is a read-only posture check, not independent enforcement proof.
     except NoGo as e:
         r['member_list_http']=str(e)
@@ -155,7 +155,7 @@ def main():
     print('AXIOM_STEP1_GATE1_CLOUDFLARE_MFA_POSTURE_GET_ONLY_NOT_RELEASE')
     for k in ('account_http','account_identity_matched','account_2fa_requirement_enabled','member_list_http',
               'member_list_complete','accepted_member_count','accepted_members_with_2fa_count',
-              'accepted_member_2fa_all_enabled','member_super_admin_count','token_user_http','token_user_2fa_reported'):
+              'accepted_member_2fa_all_enabled','member_super_admin_name_match_count','token_user_http','token_user_2fa_reported'):
         print(k+'='+str(r[k]))
 
 if __name__=='__main__':main()
