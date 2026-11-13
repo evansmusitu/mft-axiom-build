@@ -305,6 +305,36 @@ class CloudflareConsumerSchemaTests(unittest.TestCase):
         self.assertEqual(r['multipart_part_count'],2)
         self.assertNotIn('HIDE',json.dumps(r))
 
+    def test_unknown_mime_single_part_payload_hash_stable_across_random_boundaries(self):
+        def body(boundary):
+            b=boundary.encode()
+            return (b'--'+b+b'\r\nContent-Disposition: form-data; name="secret"; filename="script.js"\r\n'
+                    b'Content-Type: application/x-provider-script\r\n\r\n'
+                    b'PRIVATE-CODE-PAYLOAD-DO-NOT-LEAK\r\n--'+b+b'--\r\n')
+        a=D.summarize_worker_content(body('oneboundary'),'multipart/form-data; boundary=oneboundary')
+        b=D.summarize_worker_content(body('twoboundary'),'multipart/form-data; boundary=twoboundary')
+        self.assertEqual(a['canonical_all_multipart_payloads_sha256'],b['canonical_all_multipart_payloads_sha256'])
+        self.assertEqual(a['multipart_part_count'],1)
+        self.assertIsNone(a['canonical_module_content_sha256'])
+        self.assertNotIn('PRIVATE-CODE-PAYLOAD-DO-NOT-LEAK',json.dumps(a))
+        self.assertFalse(a['content_matches_active_version_qualified'])
+
+    def test_replay_stable_multipart_payload_can_never_qualify_scheduler(self):
+        rows,_,_=self._deployment_sample()
+        obs=[{'content_provenance_status':'CURRENT_SCRIPT_CONTENT_ONLY',
+              'worker_script_content_sha256':x*64,
+              'canonical_module_content_sha256':None,
+              'canonical_all_multipart_payloads_sha256':'f'*64,
+              'content_matches_active_version_qualified':False} for x in 'ab']
+        def fake(path,token,opener):
+            obj=rows[path];return obj,hashlib.sha256(json.dumps(obj,sort_keys=True).encode()).hexdigest()
+        with patch.object(D,'fetch',side_effect=fake),patch.object(D,'fetch_worker_content',side_effect=obs):
+            result=D.inspect('private-test-token',object())
+        self.assertFalse(result['current_content_replay_raw_sha256_equal'])
+        self.assertTrue(result['current_content_replay_all_multipart_payloads_equal'])
+        self.assertFalse(result['tenant_fairness_qualified'])
+        self.assertFalse(result['mcn072_qualified'])
+
     def test_get_refuses_unapproved_path_before_network(self):
         class NoNetwork:
             def open(self,*args,**kwargs):raise AssertionError('called network')
