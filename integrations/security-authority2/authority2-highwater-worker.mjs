@@ -66,10 +66,27 @@ function common(v,c){if(v.schema!==SCHEMA||v.account_id!==c.account_id||v.ledger
 function event(v){for(const k of ['previous_head','head','event_digest','artifact_sha256','action_sha256'])if(!H64.test(v[k]))deny('HIGHWATER_INVALID_HASH_HOLD',400);
   if(!Number.isSafeInteger(v.sequence)||v.sequence<0||v.sequence>1000000||v.previous_sequence!==v.sequence-1)deny('HIGHWATER_SEQUENCE_DENIED_HOLD',409);}
 function base64(buf){return btoa(String.fromCharCode(...new Uint8Array(buf))).replaceAll('+','-').replaceAll('/','_').replaceAll('=','');}
-async function signed(env,payload){let jwk;try{jwk=JSON.parse(env.HW_SIGNING_JWK);}catch{deny('HIGHWATER_SIGNER_UNAVAILABLE_HOLD',503);}
-  if(jwk?.kty!=='OKP'||jwk?.crv!=='Ed25519'||!jwk.d||!jwk.x)deny('HIGHWATER_SIGNER_UNAVAILABLE_HOLD',503);
-  const key=await crypto.subtle.importKey('jwk',{kty:'OKP',crv:'Ed25519',x:jwk.x,d:jwk.d},{name:'Ed25519'},false,['sign']);
-  return {payload,signature:base64(await crypto.subtle.sign('Ed25519',key,enc.encode(canonical(payload))))};
+async function prepareSigner(env){
+  let jwk;try{jwk=JSON.parse(env.HW_SIGNING_JWK);}
+  catch{deny('HIGHWATER_SIGNER_UNAVAILABLE_HOLD',503);}
+  if(jwk?.kty!=='OKP'||jwk?.crv!=='Ed25519'||!jwk.d||!jwk.x)
+    deny('HIGHWATER_SIGNER_UNAVAILABLE_HOLD',503);
+  try{
+    const key=await crypto.subtle.importKey('jwk',
+      {kty:'OKP',crv:'Ed25519',x:jwk.x,d:jwk.d},
+      {name:'Ed25519'},false,['sign']);
+    // Prove actual signing capability BEFORE persisting pending or writing R2.
+    // This does not prove external custody or guarantee a future provider ACK.
+    await crypto.subtle.sign('Ed25519',key,enc.encode('A2_SIGNER_PRECOMMIT_CHECK_V1'));
+    return key;
+  }catch{deny('HIGHWATER_SIGNER_UNAVAILABLE_HOLD',503);}
+}
+async function signed(env,payload,preparedKey){
+  const key=preparedKey??await prepareSigner(env);
+  try{
+    return {payload,signature:base64(await crypto.subtle.sign('Ed25519',key,
+      enc.encode(canonical(payload))))};
+  }catch{deny('HIGHWATER_SIGNER_UNAVAILABLE_HOLD',503);}
 }
 // R2 provider calls have no guaranteed cancellation contract. A bounded
 // observation window is essential because an ambiguous PUT may finish late.
@@ -92,6 +109,9 @@ export class Authority2Highwater {
     exact(input,path.endsWith('append')?[...base,...eventKeys]:base);common(input,c);
     if(path.endsWith('append')){
       event(input);
+      // Refuse an unusable signing key before consuming a one-time sequence,
+      // writing checkpoint/pending, or attempting an external R2 PUT.
+      const readySigner=await prepareSigner(this.env);
       const transition=await this.ctx.storage.transaction(async s=>{
         if(await s.get('highwater/pending'))deny('HIGHWATER_PENDING_RECONCILIATION_HOLD',503);
         const tip=await s.get('highwater/tip');
@@ -114,7 +134,7 @@ export class Authority2Highwater {
         await s.delete('highwater/pending');
       });
       await this.ctx.storage.sync();
-      return reply(200,await signed(this.env,{...transition,kind:'commit'}));
+      return reply(200,await signed(this.env,{...transition,kind:'commit'},readySigner));
     }
     if(await this.ctx.storage.get('highwater/pending'))deny('HIGHWATER_PENDING_RECONCILIATION_HOLD',503);
     const tip=await this.ctx.storage.get('highwater/tip');
