@@ -215,6 +215,9 @@ def summarize_worker_content(raw, content_type="application/javascript"):
     javascript_mimes={'application/javascript','text/javascript','application/x-javascript',
                       'application/ecmascript','text/ecmascript'}
     modules=[]
+    parts_count=0
+    mime_classes=[]
+    suffix_classes=[]
     if mime=='multipart/form-data':
         match=re.search(r'(?:^|;)\s*boundary=(?:"([A-Za-z0-9_-]{1,70})"|([A-Za-z0-9_-]{1,70}))(?:\s*;|\s*$)',content_type)
         if not match:
@@ -224,10 +227,20 @@ def summarize_worker_content(raw, content_type="application/javascript"):
         if not message.is_multipart():
             raise ProbeFailure('WORKER_MULTIPART_INVALID')
         parts=list(message.iter_parts())
+        parts_count=len(parts)
         if len(parts)>64:
             raise ProbeFailure('WORKER_MULTIPART_TOO_MANY_PARTS')
         for part in parts:
-            if part.get_content_type().lower() in javascript_mimes:
+            part_mime=part.get_content_type().lower()
+            filename=part.get_filename()
+            suffix=filename.rsplit('.',1)[-1].lower() if type(filename) is str and '.' in filename else 'none'
+            suffix=suffix if suffix in ('js','mjs','cjs','json') else ('none' if suffix=='none' else 'other')
+            suffix_classes.append(suffix)
+            mime_classes.append(part_mime if part_mime in javascript_mimes or
+                                part_mime in ('text/plain','application/octet-stream','application/json')
+                                else 'other')
+            if part_mime in javascript_mimes or (
+                suffix in ('js','mjs','cjs') and part_mime in ('text/plain','application/octet-stream')):
                 body=part.get_payload(decode=True)
                 if type(body) is not bytes or not body or len(body)>MAX_SCRIPT_CONTENT:
                     raise ProbeFailure('WORKER_MULTIPART_MODULE_INVALID')
@@ -239,6 +252,9 @@ def summarize_worker_content(raw, content_type="application/javascript"):
     canonical=sha(json.dumps(sorted(modules),separators=(',',':')).encode()) if modules else None
     return {
         'worker_content_mime_class': mime,
+        'multipart_part_count': parts_count,
+        'multipart_part_mime_classes': sorted(mime_classes),
+        'multipart_part_suffix_classes': sorted(suffix_classes),
         'javascript_module_part_count': len(modules),
         'canonical_module_content_sha256': canonical,
         'content_provenance_status': 'CURRENT_SCRIPT_CONTENT_ONLY',
