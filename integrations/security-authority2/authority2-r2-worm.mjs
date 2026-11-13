@@ -3,6 +3,7 @@
  * out of band. R2 `onlyIf: If-None-Match:*` is enforced on EVERY append.
  * No retry on ambiguous success; caller must durably HOLD pending admissions.
  */
+const SCHEMA='musitu.axiom.external-highwater.v1';
 const H64=/^[a-f0-9]{64}$/;
 const ID=/^[A-Za-z0-9][A-Za-z0-9_.:-]{0,179}$/;
 export class WormHold extends Error{constructor(reason){super(reason);this.name='WormHold';this.reason=reason;}}
@@ -16,6 +17,7 @@ async function readRecord(bucket,pin,seq){
   const obj=await bucket.get(wormKey(pin,seq));if(!obj)hold('HIGHWATER_WORM_PREDECESSOR_MISSING_HOLD');
   if(!Number.isSafeInteger(obj.size)||obj.size>4096)hold('HIGHWATER_WORM_OBJECT_SIZE_HOLD');
   let data;try{data=JSON.parse(await obj.text());}catch{hold('HIGHWATER_WORM_OBJECT_INVALID_HOLD');}
+  if(data?.schema!==SCHEMA)hold('HIGHWATER_WORM_SCHEMA_MISMATCH_HOLD');
   if(!data||data.account_id!==pin.account_id||data.ledger_id!==pin.ledger_id||data.namespace!==pin.namespace||data.key_id!==pin.key_id||data.sequence!==seq||!H64.test(data.head))hold('HIGHWATER_WORM_OBJECT_BINDING_HOLD');
   return data;
 }
