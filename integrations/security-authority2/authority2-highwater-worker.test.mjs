@@ -20,7 +20,7 @@ async function setup(){const keys=await crypto.subtle.generateKey('Ed25519',true
     loseNextAck:()=>{failAck=true},
     seedZero:()=>{const record={schema:'musitu.axiom.external-highwater.v1',...PIN,sequence:0,head:sha('0')};r2objects.set(wormKey(PIN,0),canonical(record));},
   };
-  const env={HW_CONFIG_JSON:JSON.stringify(PIN),HW_SIGNING_JWK:JSON.stringify(jwk),HW_ROLE_TOKEN_SHA256_JSON:JSON.stringify({read:hash('r'.repeat(40)),write:hash('w'.repeat(40))}),HIGHWATER_WORM:r2};
+  const env={HW_CONFIG_JSON:JSON.stringify({...PIN,public_key_jwk:publicJwk}),HW_SIGNING_JWK:JSON.stringify(jwk),HW_ROLE_TOKEN_SHA256_JSON:JSON.stringify({read:hash('r'.repeat(40)),write:hash('w'.repeat(40))}),HIGHWATER_WORM:r2};
   const server=new Authority2Highwater({storage},env),root='https://custody.example.com';
   const fetchImpl=(url,init)=>server.fetch(new Request(url,init));
   const pin={...PIN,origin:root,public_key_jwk:publicJwk};
