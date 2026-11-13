@@ -39,7 +39,7 @@ async function witnessFixture(){
     restore:snapshot=>{r2objects=new Map(snapshot);},
   };
   const server=new Authority2Highwater({storage},{
-    HW_CONFIG_JSON:JSON.stringify(cfg),
+    HW_CONFIG_JSON:JSON.stringify({...cfg,public_key_jwk:{kty:'OKP',crv:'Ed25519',x:pub.x}}),
     HW_SIGNING_JWK:JSON.stringify(priv),
     HW_ROLE_TOKEN_SHA256_JSON:JSON.stringify({write:hash(writeToken),read:hash(readToken)}),
     HIGHWATER_WORM:r2,
