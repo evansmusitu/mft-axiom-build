@@ -32,6 +32,8 @@ def data(*, detail=None, listed=None, exact=None):
 
 def run(rows):
     def fake(path, token, opener):
+        if path not in rows:
+            raise D.ProbeFailure('TEST_ENDPOINT_UNAVAILABLE')
         obj=rows[path]
         return obj, hashlib.sha256(json.dumps(obj,sort_keys=True).encode()).hexdigest()
     with patch.object(D, 'fetch', side_effect=fake):
@@ -142,6 +144,52 @@ class CloudflareConsumerSchemaTests(unittest.TestCase):
         rows=data()
         rows['/client/v4/accounts/'+ACCOUNT+'/workers/scripts']['result']=[{'id':'duplicate'},{'id':'duplicate'}]
         with self.assertRaises(D.ProbeFailure):run(rows)
+
+    def _deployment_sample(self, handlers=('fetch','queue')):
+        worker='candidate-worker'
+        row={'consumer_id':CID,'type':'worker','queue_name':'private-queue','script':worker}
+        rows=data(detail=row, listed=row, exact=row)
+        rows['/client/v4/accounts/'+ACCOUNT+'/workers/scripts']['result']=[{'id':worker}]
+        version='1a2b3c4d-1111-2222-3333-444455556666'
+        deployments='/client/v4/accounts/'+ACCOUNT+'/workers/scripts/'+worker+'/deployments'
+        version_path='/client/v4/accounts/'+ACCOUNT+'/workers/scripts/'+worker+'/versions/'+version
+        rows[deployments]={'success':True,'result':{'deployments':[{'id':version,'versions':[{'version_id':version,'percentage':100}]}]}}
+        rows[version_path]={'success':True,'result':{'id':version,'resources':{'script':{'handlers':list(handlers)},'bindings':[{'type':'hyperdrive','name':'PRIVATE_BINDING'}]}}}
+        return rows, deployments, version_path
+
+    def test_active_deployed_version_queue_handler_observed_not_fairness(self):
+        rows,_,_=self._deployment_sample()
+        result=run(rows)
+        self.assertTrue(result['worker_script_alias_correspondence_observed'])
+        self.assertTrue(result.get('active_deployed_queue_handler_observed', False))
+        self.assertEqual(result.get('deployment_observation_status'),'QUEUE_HANDLER_OBSERVED_ONLY')
+        self.assertFalse(result['postgres_scheduler_correspondence_qualified'])
+        self.assertFalse(result['tenant_fairness_qualified'])
+        self.assertNotIn('PRIVATE_BINDING',json.dumps(result))
+
+    def test_deployed_version_without_queue_handler_not_promoted(self):
+        rows,_,_=self._deployment_sample(('fetch',))
+        self.assertFalse(run(rows).get('active_deployed_queue_handler_observed',False))
+
+    def test_invalid_deployment_version_rejected_without_secret_leak(self):
+        rows,path,_=self._deployment_sample()
+        rows[path]['result']['deployments'][0]['versions'][0]['version_id']='../secret'
+        result=run(rows)
+        self.assertFalse(result.get('active_deployed_queue_handler_observed', False))
+        self.assertEqual(result.get('deployment_observation_status'),'BLOCKED')
+        self.assertNotIn('../secret',json.dumps(result))
+
+    def test_multiple_versions_not_claimed_as_single_active_handler(self):
+        rows,path,_=self._deployment_sample()
+        rows[path]['result']['deployments'][0]['versions'].append({'version_id':'1a2b3c4d-1111-2222-3333-444455556667','percentage':30})
+        result=run(rows)
+        self.assertFalse(result.get('active_deployed_queue_handler_observed', False))
+        self.assertEqual(result.get('deployment_observation_status'),'BLOCKED')
+
+    def test_unobserved_alias_skips_deployment(self):
+        result=run(data())
+        self.assertEqual(result.get('deployment_observation_status'),'NO_MATCHING_WORKER_CANDIDATE')
+        self.assertFalse(result.get('active_deployed_queue_handler_observed', False))
 
     def test_get_refuses_unapproved_path_before_network(self):
         class NoNetwork:
