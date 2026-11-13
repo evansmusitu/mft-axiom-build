@@ -191,6 +191,47 @@ class CloudflareConsumerSchemaTests(unittest.TestCase):
         self.assertEqual(result.get('deployment_observation_status'),'NO_MATCHING_WORKER_CANDIDATE')
         self.assertFalse(result.get('active_deployed_queue_handler_observed', False))
 
+    def _run_with_content_sha(self, rows, digest):
+        def fake(path, token, opener):
+            if path not in rows:
+                raise D.ProbeFailure('TEST_ENDPOINT_UNAVAILABLE')
+            obj=rows[path]
+            return obj, hashlib.sha256(json.dumps(obj,sort_keys=True).encode()).hexdigest()
+        content={'content_provenance_status':'CURRENT_SCRIPT_CONTENT_ONLY',
+                 'worker_script_content_sha256':digest,
+                 'worker_script_content_bytes':4096,
+                 'content_matches_active_version_qualified':False,
+                 'mcn072_qualified':False}
+        with patch.object(D,'fetch',side_effect=fake), patch.object(D,'fetch_worker_content',return_value=content):
+            return D.inspect('private-test-token',object())
+
+    def test_matching_active_version_etag_and_current_script_digest_is_observation_only(self):
+        rows,_,version_path=self._deployment_sample()
+        digest='a'*64
+        rows[version_path]['result']['resources']['script']['etag']=digest
+        result=self._run_with_content_sha(rows,digest)
+        self.assertTrue(result['active_version_content_sha256_equality_observed'])
+        self.assertEqual(result['active_version_etag_sha256'],hashlib.sha256(digest.encode()).hexdigest())
+        self.assertFalse(result['content_matches_active_version_qualified'])
+        self.assertFalse(result['tenant_fairness_qualified'])
+        self.assertFalse(result['mcn072_qualified'])
+
+    def test_mismatched_current_script_digest_never_promotes_version_content(self):
+        rows,_,version_path=self._deployment_sample()
+        rows[version_path]['result']['resources']['script']['etag']='b'*64
+        result=self._run_with_content_sha(rows,'a'*64)
+        self.assertFalse(result['active_version_content_sha256_equality_observed'])
+        self.assertFalse(result['content_matches_active_version_qualified'])
+
+    def test_missing_or_opaque_etag_cannot_be_called_corresponding_content(self):
+        rows,_,version_path=self._deployment_sample()
+        for val in (None, 'secret-invalid-opaque-etag'):
+            if val is None:rows[version_path]['result']['resources']['script'].pop('etag',None)
+            else:rows[version_path]['result']['resources']['script']['etag']=val
+            result=self._run_with_content_sha(rows,'a'*64)
+            self.assertFalse(result['active_version_content_sha256_equality_observed'])
+            self.assertNotIn('secret-invalid-opaque-etag',json.dumps(result))
+
     def test_get_refuses_unapproved_path_before_network(self):
         class NoNetwork:
             def open(self,*args,**kwargs):raise AssertionError('called network')
