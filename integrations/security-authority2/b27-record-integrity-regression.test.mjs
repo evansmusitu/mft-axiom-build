@@ -52,3 +52,20 @@ test('B27 refuses R2 event proof missing action/artifact/challenge despite match
     }finally{records.set(key,original);}
   }
 });
+
+test('B27 rejects a substituted R2 record schema despite valid head and predecessor',async()=>{
+  const key=wormKey(pin,1),original=records.get(key);
+  records.set(key,{...original,schema:'attacker-controlled.other-ledger.v1'});
+  try{
+    await assert.rejects(wormReadback(bucket,pin,{sequence:1,head:h('1')}),
+      /HIGHWATER_WORM_SCHEMA_MISMATCH_HOLD/);
+  }finally{records.set(key,original);}
+});
+test('B27 rejects a substituted genesis record schema despite valid head',async()=>{
+  const key=wormKey(pin,0),original=records.get(key);
+  records.set(key,{...original,schema:'attacker-controlled.genesis.v1'});
+  try{
+    await assert.rejects(wormReadback(bucket,pin,{sequence:0,head:h('0')}),
+      /HIGHWATER_WORM_SCHEMA_MISMATCH_HOLD/);
+  }finally{records.set(key,original);}
+});
