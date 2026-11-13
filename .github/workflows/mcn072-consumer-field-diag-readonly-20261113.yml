@@ -27,12 +27,12 @@ jobs:
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
         with:
           persist-credentials: false
-      - name: Verify exact source/test hashes and 37 adverse controls before injecting secret
+      - name: Verify exact source/test hashes and 39 adverse controls before injecting secret
         shell: bash
         run: |
           set -euo pipefail
-          test "$(git hash-object qualification/mcn072_cloudflare_consumer_field_diag.py)" = "ec830c7f57e57727394b96ca22304fdd2071ca64"
-          test "$(git hash-object tests/test_mcn072_cloudflare_consumer_field_diag.py)" = "8c9d776e477b374c85a3e06c3cd53f973f1c9fb6"
+          test "$(git hash-object qualification/mcn072_cloudflare_consumer_field_diag.py)" = "58594fca9a6944fbf367b474d0a44906bab1c68a"
+          test "$(git hash-object tests/test_mcn072_cloudflare_consumer_field_diag.py)" = "c5ac520a391c7e52a7e21eeb4747851507d37e31"
           PYTHONDONTWRITEBYTECODE=1 python3 -B -m py_compile qualification/mcn072_cloudflare_consumer_field_diag.py tests/test_mcn072_cloudflare_consumer_field_diag.py
           PYTHONDONTWRITEBYTECODE=1 python3 -B -m unittest discover -s tests -p 'test_mcn072_cloudflare_consumer_field_diag.py' -v
       - name: Observe active version ETag, multipart module fingerprint and replay consistency using pre-existing Cloudflare secret GET only
