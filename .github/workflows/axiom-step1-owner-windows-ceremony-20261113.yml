@@ -23,6 +23,47 @@ jobs:
         with: {persist-credentials: false}
       - name: Verify public-only receipt compatibility (no owner keys)
         run: node --test customer_frontier/tests/step1_owner_windows_public_receipt.test.mjs
+      - name: Package exact public Windows offline-source dependencies only
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import pathlib,hashlib,json,zipfile
+          paths=[
+            'customer_frontier/qualification/step1_owner_windows_key_ceremony.ps1',
+            'customer_frontier/qualification/step1_owner_windows_signed_proposal.ps1',
+            'customer_frontier/qualification/step1_owner_windows_public_receipt.mjs',
+            'customer_frontier/qualification/step1_owner_device_signed_proposal.mjs',
+            'customer_frontier/qualification/step1_owner_control_policy_candidate.mjs',
+            'customer_frontier/qualification/step1_owner_public_pin_preflight.mjs',
+            'customer_frontier/qualification/STEP1_OWNER_WINDOWS_OFFLINE_CEREMONY_20261113_NOT_RELEASE.md',
+            'customer_frontier/tests/step1_owner_windows_public_receipt.test.mjs',
+          ]
+          checked={}
+          for p in paths:
+            file=pathlib.Path(p)
+            assert file.is_file() and not file.is_symlink(),p
+            raw=file.read_bytes()
+            assert raw and b'PRIVATE KEY-----' not in raw, p
+            checked[p]=hashlib.sha256(raw).hexdigest()
+          output=pathlib.Path('AXIOM_STEP1_WINDOWS_OFFLINE_SOURCE_20261113_NOT_RELEASE.zip')
+          manifest=json.dumps({'schema':'musitu.axiom.step1.windows-offline-source.v1',
+            'status':'NOT_RELEASE','step1_closed':False,'step2_authorized':False,
+            'files_sha256':checked},sort_keys=True,indent=2).encode()+b'\n'
+          with zipfile.ZipFile(output,'w',zipfile.ZIP_DEFLATED,compresslevel=8) as z:
+            for p in paths:z.write(p,p)
+            z.writestr('MANIFEST_SHA256.json',manifest)
+          assert zipfile.ZipFile(output).testzip() is None
+          print('AXIOM_WINDOWS_OFFLINE_SOURCE_PUBLIC_ONLY_ZIP_PASS_NOT_RELEASE',
+            'size',output.stat().st_size,'sha256',hashlib.sha256(output.read_bytes()).hexdigest())
+          PY
+      - name: Retain verified public-only source ZIP for owner device
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: axiom-step1-windows-offline-source-20261113
+          retention-days: 14
+          if-no-files-found: error
+          path: AXIOM_STEP1_WINDOWS_OFFLINE_SOURCE_20261113_NOT_RELEASE.zip
   windows-deny-and-parse:
     if: >-
       github.repository == 'evansmusitu/mft-axiom-build' &&
