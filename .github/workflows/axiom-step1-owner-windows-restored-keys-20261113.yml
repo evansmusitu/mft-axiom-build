@@ -35,8 +35,24 @@ jobs:
           $probe=Join-Path $env:RUNNER_TEMP 'AXIOM_PRIVATE_OUTPUT_NOT_ALLOWED'
           if (Test-Path -LiteralPath $probe) { throw 'Unexpected prior recovery proof' }
           $env:CI='true'
-          & pwsh -NoProfile -NonInteractive -File $file -KeysRoot 'C:\SYNTHETIC_ORIGINAL_DOES_NOT_EXIST' -RestoredRoot 'C:\SYNTHETIC_BACKUP_DOES_NOT_EXIST' -NewProofRoot $probe 2>$null
-          if ($LASTEXITCODE -eq 0 -or (Test-Path -LiteralPath $probe)) { throw 'Real owner operation not denied in CI' }
+          # Child is expected to report a refusal on stderr. Capture it instead
+          # of promoting expected stderr to a terminating parent error under Stop.
+          $denialLog=Join-Path $env:RUNNER_TEMP 'axiom-owner-restore-expected-denial.txt'
+          $priorPreference=$ErrorActionPreference
+          try {
+            $ErrorActionPreference='Continue'
+            & pwsh -NoProfile -NonInteractive -File $file -KeysRoot 'C:\SYNTHETIC_ORIGINAL_DOES_NOT_EXIST' -RestoredRoot 'C:\SYNTHETIC_BACKUP_DOES_NOT_EXIST' -NewProofRoot $probe 2> $denialLog | Out-Null
+            $childExit=$LASTEXITCODE
+          } finally {
+            $ErrorActionPreference=$priorPreference
+          }
+          if ($childExit -ne 2) { throw 'Expected exact fail-closed exit code 2 from owner-only guard' }
+          if (-not (Test-Path -LiteralPath $denialLog)) { throw 'Missing owner-only denial evidence' }
+          $denial=Get-Content -LiteralPath $denialLog -Raw
+          if ($denial -notmatch 'INTERACTIVE_OWNER_WINDOWS_DEVICE_ONLY') { throw 'Wrong refusal reason in CI' }
+          Remove-Item -LiteralPath $denialLog -Force
+          if (Test-Path -LiteralPath $probe) { throw 'Real owner operation wrote an output in CI' }
+          Write-Output 'AXIOM_WINDOWS_OWNER_RESTORE_CI_DENIED_EXACTLY_NOT_RELEASE'
       - name: Node syntax and 15 synthetic encrypted-key recovery tests
         shell: pwsh
         run: |
