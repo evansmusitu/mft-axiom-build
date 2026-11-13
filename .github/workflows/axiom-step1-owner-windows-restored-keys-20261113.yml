@@ -1,0 +1,57 @@
+name: AXIOM Step1 Windows restored-owner-keys SYNTHETIC ONLY (NOT RELEASE)
+on:
+  push:
+    branches:
+      - review/axiom-step1-owner-sole-authority-policy-20261112-not-release
+    paths:
+      - .github/workflows/axiom-step1-owner-windows-restored-keys-20261113.yml
+      - customer_frontier/qualification/step1_owner_windows_restored_keys.mjs
+      - customer_frontier/qualification/step1_owner_windows_restored_keys.ps1
+      - customer_frontier/tests/step1_owner_windows_restored_keys.test.mjs
+permissions: {contents: read}
+jobs:
+  windows-synthetic-only:
+    if: >-
+      github.repository == 'evansmusitu/mft-axiom-build' &&
+      github.ref == 'refs/heads/review/axiom-step1-owner-sole-authority-policy-20261112-not-release' &&
+      github.run_attempt == 1
+    runs-on: windows-2022
+    timeout-minutes: 7
+    steps:
+      - name: Checkout isolated candidate without persisted credentials
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with: {persist-credentials: false}
+      - name: Node 22 for synthetic recovery cryptography
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with: {node-version: '22'}
+      - name: Parse Windows ACL wrapper and deny CI invocation
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop'
+          $file='customer_frontier/qualification/step1_owner_windows_restored_keys.ps1'
+          $tok=$null; $errors=$null
+          [void][System.Management.Automation.Language.Parser]::ParseFile((Resolve-Path $file).Path,[ref]$tok,[ref]$errors)
+          if ($errors.Count -gt 0) { throw ('PowerShell parser error: ' + ($errors | Out-String)) }
+          $probe=Join-Path $env:RUNNER_TEMP 'AXIOM_PRIVATE_OUTPUT_NOT_ALLOWED'
+          if (Test-Path -LiteralPath $probe) { throw 'Unexpected prior recovery proof' }
+          $env:CI='true'
+          & pwsh -NoProfile -NonInteractive -File $file -KeysRoot 'C:\SYNTHETIC_ORIGINAL_DOES_NOT_EXIST' -RestoredRoot 'C:\SYNTHETIC_BACKUP_DOES_NOT_EXIST' -NewProofRoot $probe 2>$null
+          if ($LASTEXITCODE -eq 0 -or (Test-Path -LiteralPath $probe)) { throw 'Real owner operation not denied in CI' }
+      - name: Node syntax and 15 synthetic encrypted-key recovery tests
+        shell: pwsh
+        run: |
+          node --check customer_frontier/qualification/step1_owner_windows_restored_keys.mjs
+          if ($LASTEXITCODE -ne 0) { throw 'Invalid JS' }
+          node --test customer_frontier/tests/step1_owner_windows_restored_keys.test.mjs
+          if ($LASTEXITCODE -ne 0) { throw 'Synthetic Windows restored keys failed' }
+      - name: Fail closed on any provider or release authority
+        shell: pwsh
+        run: |
+          $raw=Get-Content -Raw customer_frontier/qualification/step1_owner_windows_restored_keys.mjs
+          foreach($word in @('CLOUDFLARE_API_TOKEN','GITHUB_TOKEN','https://api.cloudflare.com','wrangler d1')) {
+            if ($raw.Contains($word)) { throw 'Unexpected provider authority' }
+          }
+          if(-not $raw.Contains('release_authorized:false') -or -not $raw.Contains("release_status:'NOT_RELEASE'")) {
+            throw 'Release veto missing'
+          }
+          Write-Output 'AXIOM_WINDOWS_OWNER_RESTORED_KEY_SYNTHETIC_ONLY_NO_GO_NOT_RELEASE'
