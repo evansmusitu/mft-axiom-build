@@ -70,7 +70,18 @@ function Lock-OwnerAcl([string]$path) {
         Invoke-Local 'icacls.exe' @($leaf.FullName, '/inheritance:r', '/grant:r', ('*{0}:F' -f $sid))
         $leafAcl = Get-Acl -LiteralPath $leaf.FullName
         Require ($leafAcl.AreAccessRulesProtected) 'OWNER_FILE_ACL_NOT_PROTECTED'
-        Require ($leafAcl.GetOwner([Security.Principal.SecurityIdentifier]).Value -ceq $sid) 'OWNER_FILE_ACL_OWNER_MISMATCH'
+        $rules = $leafAcl.GetAccessRules($true, $true, [Security.Principal.SecurityIdentifier])
+        $ownerAllow = $false
+        foreach ($rule in $rules) {
+            if ($rule.AccessControlType -eq [Security.AccessControl.AccessControlType]::Allow) {
+                Require ($rule.IdentityReference.Value -ceq $sid) 'UNEXPECTED_OWNER_FILE_ACL_PRINCIPAL'
+                $ownerAllow = $true
+            }
+        }
+        Require $ownerAllow 'OWNER_FILE_ACL_ALLOW_MISSING'
+        # Test ability to open without revealing encrypted contents.
+        $probe = [IO.File]::Open($leaf.FullName, [IO.FileMode]::Open, [IO.FileAccess]::Read, [IO.FileShare]::Read)
+        $probe.Dispose()
     }
     $acl = Get-Acl -LiteralPath $path
     Require ($acl.AreAccessRulesProtected) 'OWNER_ONLY_NTFS_ACL_REQUIRED'
