@@ -26,6 +26,7 @@ def data(*, detail=None, listed=None, exact=None):
       PREFIX+'/'+QID:{'success':True,'result':{'queue_id':QID,'queue_name':'private-queue','consumers':[det],'consumers_total_count':1}},
       PREFIX+'/'+QID+'/consumers':{'success':True,'result':[lst]},
       PREFIX+'/'+QID+'/consumers/'+CID:{'success':True,'result':exc},
+      '/client/v4/accounts/'+ACCOUNT+'/workers/scripts':{'success':True,'result':[{'id':'other-worker'}]},
     }
 
 
@@ -103,6 +104,44 @@ class CloudflareConsumerSchemaTests(unittest.TestCase):
         o=run(rows)
         self.assertFalse(o['worker_script_identity_resolved'])
         self.assertTrue(o['consumers'][0]['known_field_presence']['consumer_exact']['script'])
+
+    def test_consistent_script_alias_matches_worker_inventory_only_as_candidate(self):
+        alias='INTERNAL-WORKER-CANDIDATE'
+        source={'consumer_id':CID,'type':'worker','queue_name':'private-queue','script':alias}
+        rows=data(detail=source, listed=source, exact=source)
+        rows['/client/v4/accounts/'+ACCOUNT+'/workers/scripts']['result']=[{'id':alias}]
+        result=run(rows)
+        self.assertTrue(result.get('worker_script_alias_correspondence_observed'))
+        self.assertEqual(result['consumers'][0]['script_alias_sha256'],hashlib.sha256(alias.encode()).hexdigest())
+        self.assertFalse(result['mcn072_qualified'])
+        self.assertNotIn(alias,json.dumps(result))
+
+    def test_script_alias_only_on_exact_response_is_not_correspondence(self):
+        rows=data(exact={'consumer_id':CID,'type':'worker','script':'alias-worker'})
+        rows['/client/v4/accounts/'+ACCOUNT+'/workers/scripts']['result']=[{'id':'alias-worker'}]
+        self.assertFalse(run(rows).get('worker_script_alias_correspondence_observed',False))
+
+    def test_alias_not_in_worker_inventory_is_unqualified(self):
+        source={'consumer_id':CID,'type':'worker','script':'not-listed'}
+        self.assertFalse(run(data(detail=source,listed=source,exact=source)).get('worker_script_alias_correspondence_observed',False))
+
+    def test_conflicting_script_aliases_rejected(self):
+        source={'consumer_id':CID,'type':'worker','script':'one'}
+        rows=data(detail=source,listed=source,exact={'consumer_id':CID,'type':'worker','script':'two'})
+        with self.assertRaises(D.ProbeFailure):run(rows)
+
+    def test_script_alias_object_not_promoted_to_worker_identity(self):
+        source={'consumer_id':CID,'type':'worker','script':{'name':'hidden-worker'}}
+        r=run(data(detail=source,listed=source,exact=source))
+        self.assertFalse(r.get('worker_script_alias_correspondence_observed',False))
+        self.assertTrue(r.get('consumers') and 'script_alias_field_types' in r['consumers'][0])
+        self.assertEqual(r['consumers'][0]['script_alias_field_types']['consumer_exact'],'object')
+        self.assertNotIn('hidden-worker',json.dumps(r))
+
+    def test_duplicate_worker_inventory_rejected(self):
+        rows=data()
+        rows['/client/v4/accounts/'+ACCOUNT+'/workers/scripts']['result']=[{'id':'duplicate'},{'id':'duplicate'}]
+        with self.assertRaises(D.ProbeFailure):run(rows)
 
     def test_get_refuses_unapproved_path_before_network(self):
         class NoNetwork:
