@@ -30,6 +30,7 @@ VERSION_ID_RE = re.compile(r'[0-9a-f]{8}-(?:[0-9a-f]{4}-){3}[0-9a-f]{12}\Z')
 ID_RE = re.compile(r'[0-9a-f]{32}\Z')
 SCRIPT_RE = re.compile(r'[A-Za-z0-9_.-]{1,128}\Z')
 MAX_BODY = 131072
+MAX_SCRIPT_CONTENT = 2 * 1024 * 1024
 MAX_CONSUMERS = 8
 OUT = Path('mcn072-cloudflare-consumer-field-diag.json')
 SAFE_FIELDS = frozenset({'consumer_id', 'type', 'queue_name', 'script_name',
@@ -198,6 +199,58 @@ def worker_listing(token, opener):
 
 
 
+def summarize_worker_content(raw):
+    """Summarize current Worker content without preserving a single original byte.
+
+    Literal presence is not an execution trace, code-to-version attestation, or
+    proof of a PostgreSQL connection, eligibility history, or tenant fairness.
+    """
+    if type(raw) is not bytes or not 0 < len(raw) <= MAX_SCRIPT_CONTENT:
+        raise ProbeFailure('WORKER_CONTENT_BOUNDS_INVALID')
+    markers = (b'axiom_tenant_fair_cursor', b'axiom_tenant_fair_served',
+               b'axiom_distributed_execution_jobs')
+    return {
+        'content_provenance_status': 'CURRENT_SCRIPT_CONTENT_ONLY',
+        'worker_script_content_sha256': sha(raw),
+        'worker_script_content_bytes': len(raw),
+        'pg_scheduler_table_literal_count': sum(marker in raw for marker in markers),
+        'content_matches_active_version_qualified': False,
+        'postgres_correspondence_qualified': False,
+        'tenant_fairness_qualified': False,
+        'mcn072_qualified': False,
+    }
+
+
+def fetch_worker_content(script, token, opener):
+    """One account-pinned GET, no redirects, bounded raw content, no raw export."""
+    if type(script) is not str or not SCRIPT_RE.fullmatch(script):
+        raise ProbeFailure('WORKER_CONTENT_SCRIPT_INVALID')
+    if (type(token) is not str or not 12 <= len(token) <= 4096 or
+            any(ch.isspace() for ch in token)):
+        raise ProbeFailure('WORKER_CONTENT_TOKEN_UNAVAILABLE')
+    path = WORKERS_PREFIX + script + '/content/v2'
+    req = urllib.request.Request(BASE + path, method='GET', headers={
+        'Authorization': 'Bearer ' + token, 'Accept': '*/*',
+        'User-Agent': 'MUSITU-MCN072-ContentFingerprint-ReadOnly/1.0'})
+    try:
+        with opener.open(req, timeout=15) as response:
+            if response.status != 200:
+                raise ProbeFailure('WORKER_CONTENT_HTTP_NON_200')
+            kind = response.headers.get('Content-Type', '').split(';', 1)[0].lower().strip()
+            allowed = ('application/javascript', 'text/javascript', 'application/x-javascript',
+                       'text/plain', 'application/octet-stream', 'multipart/form-data')
+            if kind not in allowed:
+                raise ProbeFailure('WORKER_CONTENT_MIME_INVALID')
+            raw = response.read(MAX_SCRIPT_CONTENT + 1)
+    except urllib.error.HTTPError as exc:
+        if exc.code in (401, 403, 404):
+            raise ProbeFailure('WORKER_CONTENT_ACCESS_UNAVAILABLE') from None
+        raise ProbeFailure('WORKER_CONTENT_HTTP_NON_200') from None
+    except (urllib.error.URLError, OSError, TimeoutError):
+        raise ProbeFailure('WORKER_CONTENT_TRANSPORT_UNAVAILABLE') from None
+    return summarize_worker_content(raw)
+
+
 def observe_active_deployment(token, opener, script):
     """Use Cloudflare metadata only, never script source or secret bindings."""
     if type(script) is not str or not SCRIPT_RE.fullmatch(script):
@@ -331,7 +384,22 @@ def inspect(token, opener):
     else:
         deployment = {'deployment_observation_status': 'NO_MATCHING_WORKER_CANDIDATE',
                       'active_deployed_queue_handler_observed': False}
-    return {**deployment,
+    content_observation = {'content_provenance_status': 'NOT_READ',
+                           'content_matches_active_version_qualified': False,
+                           'postgres_correspondence_qualified': False}
+    if (len(active_candidate_names) == 1 and worker_count == 1 and
+            deployment.get('active_deployed_queue_handler_observed') is True):
+        try:
+            content_observation = fetch_worker_content(active_candidate_names[0], token, opener)
+        except ProbeFailure as exc:
+            content_observation = {**content_observation,
+                                   'content_provenance_status': 'BLOCKED',
+                                   'content_reason_code': str(exc)}
+        except Exception:
+            content_observation = {**content_observation,
+                                   'content_provenance_status': 'BLOCKED',
+                                   'content_reason_code': 'WORKER_CONTENT_UNEXPECTED_FAIL_CLOSED'}
+    return {**deployment, **content_observation,
         'schema': 'musitu.mcn072.cloudflare_consumer_field_diag.v1',
         'queue_id_sha256': sha(qid), 'queue_count': 1,
         'consumer_count': count, 'worker_consumer_count': worker_count,
