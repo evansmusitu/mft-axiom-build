@@ -1,0 +1,81 @@
+name: AXIOM B27 Two-Host Destructive Replay Witness (SYNTHETIC NOT RELEASE)
+
+on:
+  pull_request:
+    paths:
+      - 'integrations/security-authority2/**'
+      - '.github/workflows/axiom-b27-two-host-replay.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: axiom-b27-twohost-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  host-a-checkpoint:
+    name: Host A creates signed cross-host checkpoint (no secrets)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 8
+    outputs:
+      signed_checkpoint_b64: ${{ steps.produce.outputs.signed_checkpoint_b64 }}
+      producer_public_key_sha256: ${{ steps.produce.outputs.producer_public_key_sha256 }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: '24.12.0'
+      - name: Produce ephemeral signed checkpoint on isolated runner A
+        id: produce
+        shell: bash
+        run: |
+          set -euo pipefail
+          node integrations/security-authority2/b27-crosshost-checkpoint.mjs produce "$RUNNER_TEMP/b27-witness"
+          test -s "$RUNNER_TEMP/b27-witness/checkpoint.json"
+          ! grep -Eq '"d":|"private_key"' "$RUNNER_TEMP/b27-witness/checkpoint.json"
+          # The repository is at its Actions artifact storage quota.
+          # Job outputs are server-mediated and contain PUBLIC synthetic
+          # checkpoint proof only. Never export private signing key material.
+          test "$(wc -c < "$RUNNER_TEMP/b27-witness/checkpoint.json")" -lt 4096
+          printf 'signed_checkpoint_b64=%s\n' "$(base64 -w0 "$RUNNER_TEMP/b27-witness/checkpoint.json")" >> "$GITHUB_OUTPUT"
+          # Separate output pins the producer's public key independently of
+          # the transferred checkpoint payload (both remain synthetic).
+          test "$(wc -c < "$RUNNER_TEMP/b27-witness/public-key-pin.txt")" -eq 65
+          printf 'producer_public_key_sha256=%s\n' "$(tr -d '\n' < "$RUNNER_TEMP/b27-witness/public-key-pin.txt")" >> "$GITHUB_OUTPUT"
+
+  host-b-destructive-replay:
+    name: Host B verifies witness and destroys stale-state fixture
+    needs: host-a-checkpoint
+    runs-on: ubuntu-24.04
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: '24.12.0'
+      - name: Receive signed PUBLIC synthetic checkpoint through GitHub job outputs
+        shell: bash
+        env:
+          B27_PUBLIC_SIGNED_CHECKPOINT_BASE64: ${{ needs.host-a-checkpoint.outputs.signed_checkpoint_b64 }}
+        run: |
+          set -euo pipefail
+          test -n "$B27_PUBLIC_SIGNED_CHECKPOINT_BASE64"
+          mkdir -p "$RUNNER_TEMP/b27-witness"
+          printf '%s' "$B27_PUBLIC_SIGNED_CHECKPOINT_BASE64" | base64 --decode > "$RUNNER_TEMP/b27-witness/checkpoint.json"
+          test -s "$RUNNER_TEMP/b27-witness/checkpoint.json"
+          test "$(wc -c < "$RUNNER_TEMP/b27-witness/checkpoint.json")" -lt 4096
+      - name: Require signature, deny stale-state replay and missing external checkpoint
+        shell: bash
+        env:
+          B27_PRODUCER_PUBLIC_KEY_SHA256: ${{ needs.host-a-checkpoint.outputs.producer_public_key_sha256 }}
+        run: |
+          set -euo pipefail
+          node integrations/security-authority2/b27-crosshost-checkpoint.mjs verify "$RUNNER_TEMP/b27-witness"
+          echo 'B27_TWO_DISTINCT_RUNNERS_SYNTHETIC_ONLY_NOT_CLOUDFLARE_ATTESTATION'
+          echo 'B27_GLOBAL_NONROLLBACK_AND_INDEPENDENT_CUSTODY_NOT_PROVEN'
