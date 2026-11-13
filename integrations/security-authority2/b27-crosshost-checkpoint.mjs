@@ -21,7 +21,7 @@ const exact=(o,keys)=>{assert.ok(o&&typeof o==='object'&&!Array.isArray(o));asse
 const pin={account_id:ACCOUNT,ledger_id:'synthetic-crosshost-ledger',
   namespace:'ax-crosshost-synthetic',key_id:'synthetic-operator-ephemeral'};
 const prevHead='a'.repeat(64);
-const record0={...pin,sequence:0,head:prevHead};
+const record0={schema:'musitu.axiom.external-highwater.v1',...pin,sequence:0,head:prevHead};
 const event={schema:'synthetic-admission',action:'consume-once',source:'host-a'};
 const record1={schema:'musitu.axiom.external-highwater.v1',...pin,
   sequence:1,previous_sequence:0,previous_head:prevHead,
@@ -63,7 +63,8 @@ function verifyEnvelope(obj,expectedPublicKeySha256){
   assert.equal(verify(null,Buffer.from(canon(obj.payload)),
     createPublicKey({key:jwk,format:'jwk'}),Buffer.from(obj.signature,'base64url')),true);
   const {record0:r0,record1:r1,staleTip:stale,event:evt}=obj.payload;
-  exact(r0,['account_id','ledger_id','namespace','key_id','sequence','head']);
+  exact(r0,['schema','account_id','ledger_id','namespace','key_id','sequence','head']);
+  assert.equal(r0.schema,'musitu.axiom.external-highwater.v1');
   exact(r1,['schema','account_id','ledger_id','namespace','key_id',
     'sequence','previous_sequence','previous_head','head','event_digest',
     'artifact_sha256','action_sha256','challenge','decision']);
