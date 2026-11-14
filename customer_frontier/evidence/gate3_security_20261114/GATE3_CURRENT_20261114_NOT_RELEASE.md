@@ -27,6 +27,31 @@ produced setup errors. Those failures are retained as setup results in the recor
 The missing original files were fetched at their pinned heads and blob-verified;
 the complete subsequent checks passed without source edits.
 
+## Controller identified by owner declaration
+
+Evans Musitu has stated directly in this conversation: "i am controller of
+**Security Authority 2**". Use Evans as the owner-operator for the next controlled
+authority steps; the controller-name question is resolved. The declaration is
+retained in `authority2_owner_controller_declaration_20261114.json` with its exact
+attribution. It does not constitute provider-origin control, signer custody,
+independent administration, reviewer approval or global nonrollback evidence.
+
+The next qualification concerns the separation of owner-held Authority 2
+administrator, signing and recovery credentials from the AXIOM build pipeline.
+No separate-controller identity should be inferred or requested again solely
+because the operator is the owner. Existing independent security acceptance and
+unproven administrator-separation requirements remain recorded as OPEN; this
+statement does not activate a runtime governance amendment or waive a veto.
+
+Existing 14 November rehearsal [43630591859](https://github.com/evansmusitu/mft-axiom-build/actions/runs/43630591859)
+used the builder GitHub Actions secret `AXIOM_D1_RECOVERY_CF_API_TOKEN` to upload
+Worker previews in account `67469478aa9349fa0a57fe3a72da200a`, which is also the
+pinned Authority 2 account. This is a historical observed write capability;
+subsequent revocation has not been verified. It must be included in the custody
+review alongside previously observed builder administration. Preserve working
+owner-held recovery access before revoking or restricting build credentials.
+No credential value was read and no token was probed or revoked for this update.
+
 ## What genuinely remains
 
 1. **Authority and recovery control:** qualify independent administration,
@@ -65,12 +90,14 @@ that distinction without repeating Gate 1 or requesting another owner key.
 - [Existing independent operator ceremony](https://github.com/evansmusitu/mft-axiom-build/blob/14b5c520bd7cd53ccd4978f575dfcbe9b250ed0c/integrations/security-authority2/B27_INDEPENDENT_OPERATOR_CEREMONY_20261113.md).
 - Live PR discussion/review timelines for PR192, PR83 and PR190 were read. No independent review submission was returned; all discussion entries with authors were from the repository owner.
 
-**Next required external input:** identify the independently controlled custodian
-or service and provide its public control/recovery and signer approval evidence.
-Credentials, private keys and MFA secrets stay with that operator. The source,
-existing ceremony and current failure evidence are ready for that review.
-Without qualified external authority control, remain in HOLD at Gate 3 and do not
-advance to real-customer identity acceptance or production cutover.
+**Next required qualification:** with Evans identified as the owner-operator,
+establish which Authority 2 administrator, signer and recovery credentials remain
+accessible to the AXIOM build pipeline. Verify the owner-operated custody boundary
+using public control/recovery and signer evidence. Credentials, private keys and
+MFA secrets stay with the operator. Then follow the existing reviewed-order
+ceremony for safe initialization and real disposable destructive acceptance.
+Independent review and administrator separation remain unqualified; Gate 3 stays
+in HOLD before real-customer identity acceptance or production cutover.
 
 Main `c3c5aaab90e94f1ca84ac9903f9d481c23c4f350` and separate draft/unmerged PR1
 `8fc1fbb7c5ebbcc1604ecf24c5f4594f2d5667e3` remain preserved. PR192, PR83 and PR190
