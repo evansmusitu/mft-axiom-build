@@ -1,8 +1,11 @@
 # Authority 2 build credential restrictions — prepared scope, NOT_RELEASE
 
 **Owner/operator:** Evans Musitu. The owner has confirmed direct administration
-and recovery outside GitHub Actions. **State:** PREPARED SCOPE; token IDs and
-provider policies await authenticated inspection; no restrictions applied.
+and recovery outside GitHub Actions. **State as of 15 November:** PARTIAL OWNER
+READBACK — the recovery token now shows Read for Pages, D1 and Workers Scripts
+according to the owner's saved dashboard readback. Remaining credentials and
+independent provider policy/denial acceptance are still OPEN. Continue in the
+owner's own browser; agent-browser authentication is no longer the working path.
 
 ## Boundary to establish
 
@@ -14,7 +17,7 @@ demonstrated before claiming administrator separation or destructive recovery.
 
 | Build credential reference | Existing observation | Required review |
 | --- | --- | --- |
-| `AXIOM_D1_RECOVERY_CF_API_TOKEN` | Used for recovery Worker preview uploads in this account in run 43630591859 | Identify its provider token ID and exact scopes; remove or retire Authority 2 write capability after accounting for remaining consumers |
+| `AXIOM_D1_RECOVERY_CF_API_TOKEN` | Prior Worker preview writes; owner now reports saved Read-only Pages/D1/Workers Scripts permissions in this account | Owner readback retained; independent provider policy and effective denial remain separate checks |
 | `MUSITU_CLOUDFLARE_ADMIN_TOKEN` | Used for Authority 2 account/retention readback in the 13 November evidence | Inspect the actual current policy and cross-account consumers; its name or a successful GET does not prove its full permissions |
 | Other tokens held by the build pipeline | Not exhaustively enumerated | Inspect all relevant provider policies and build references; absence from this table cannot establish revocation |
 
@@ -59,10 +62,22 @@ effect. PR1 stays separate and draft/unmerged; B27 and PR83 vetoes remain intact
 The account UI showed a sign-in screen. The secure sign-in request timed out,
 then automatic approval review denied observation of an unconfirmed Google
 authentication origin. Its outcome remains UNKNOWN. This is the current browser
-access blocker; it is not evidence that a token was changed, that Cloudflare is
-unavailable, or that the owner cannot administer the account. Continue that
-authentication only after the user explicitly authorizes the method.
+access blocker for that agent-browser attempt; it is not evidence that a token
+was changed, that Cloudflare is unavailable, or that the owner cannot administer
+the account. The owner subsequently chose manual guidance in his own browser;
+continue along that path and retain the original browser outcome as historical.
 
 Gate 2 stays CLOSED. Gate 3 stays OPEN. Confirming the owner/operator and direct
 recovery access does not itself pass global rollback, safe initialization,
 real provider destructive acceptance or independent security review.
+
+
+## 15 November manual continuation
+
+The owner readback resolves the first token's manual inspection/edit stage.
+Review the saved permissions of `MUSITU_CLOUDFLARE_ADMIN_TOKEN` next. Its actual
+Cloudflare display name may differ from its GitHub secret name. Read the policy
+before giving further edit instructions; do not blindly apply the recovery
+token's three-product policy to other credentials. Preserve all original failed
+and unknown browser evidence as historical observations. No agent-browser retry
+or new sign-in-method approval is needed for the owner-operated manual path.

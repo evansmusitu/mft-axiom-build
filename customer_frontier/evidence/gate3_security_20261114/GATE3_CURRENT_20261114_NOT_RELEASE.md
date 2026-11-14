@@ -65,14 +65,38 @@ The Cloudflare account UI was opened for read-only token-policy inspection. It
 showed a sign-in screen. A secure authentication request timed out with its
 outcome unknown. Automatic approval review then denied page observation because
 the unresolved sign-in had reached Google without confirmed authorization for
-that provider. No credential or token-policy change was performed. Continue only
-after the user explicitly authorizes the sign-in method; do not retry through an
-alternate browser, provider route or credential surface to evade that rejection.
+that provider. No credential or token-policy change was performed in that
+browser attempt. The owner subsequently selected manual work in his own browser;
+that is now the working path. Preserve the rejection and do not retry agent
+browser authentication or use an alternate surface to evade it.
 
 The scoped restriction plan is retained in
 `AUTHORITY2_BUILD_CREDENTIAL_RESTRICTIONS_20261114_NOT_RELEASE.md`. Applying it
 requires actual token IDs and provider policy inspection. Nothing in this
 confirmation earns global nonrollback or waives the existing security vetoes.
+
+## 15 November — owner saved recovery-token readback
+
+The owner is completing the Cloudflare steps in his own browser. He identified
+the recovery token aloud as "Axiom D1 Recovery CF API token", reported its account
+scope limited to `67469478aa9349fa0a57fe3a72da200a`, removed the Edit rows for
+Pages, D1 and Workers Scripts, saved, reopened the token, and reported:
+"It's only read permissions for pages , D1,and workers scripts".
+
+`authority2_recovery_token_owner_saved_readback_20261115.json` retains that
+attributed manual edit/readback. Accept it as owner dashboard evidence for this
+recovery token. No bearer value was supplied. No raw provider policy or actual
+write-denial result was independently obtained; do not label the whole account,
+all build credentials or global anti-rollback qualified from this readback.
+
+The next credential to review is the token saved in GitHub as
+`MUSITU_CLOUDFLARE_ADMIN_TOKEN`. Historical inventory run 43374326568 used it for
+GET-only Worker inventory in the same Authority 2 account. Its source was read at
+`92764fa5768b4a1fa6d8ac176ec6fc4dfec1d7bf`, workflow blob
+`475f03865e4bd3821e031f2d58ef2d4e7e9f78b8`. This identifies a separate build
+credential to review; the secret name is not proof of its current privileges.
+Continue manual browser guidance. Do not retry agent browser authentication or
+repeat the completed recovery-token readback.
 
 ## What genuinely remains
 
@@ -112,15 +136,14 @@ that distinction without repeating Gate 1 or requesting another owner key.
 - [Existing independent operator ceremony](https://github.com/evansmusitu/mft-axiom-build/blob/14b5c520bd7cd53ccd4978f575dfcbe9b250ed0c/integrations/security-authority2/B27_INDEPENDENT_OPERATOR_CEREMONY_20261113.md).
 - Live PR discussion/review timelines for PR192, PR83 and PR190 were read. No independent review submission was returned; all discussion entries with authors were from the repository owner.
 
-**Next required action:** obtain explicit authorization of the Cloudflare
-sign-in method so the owner account's actual token IDs, policies and consumers can
-be reviewed. Owner control and direct recovery outside GitHub Actions are already
-confirmed. Prepare and apply exact Authority 2 build-credential restrictions
-without affecting other accounts or owner recovery, verify the resulting custody
-boundary, then follow the existing ceremony for safe initialization and real
-disposable destructive acceptance. Independent review and administrator
-separation remain unqualified; Gate 3 stays in HOLD before real-customer identity
-acceptance or production cutover.
+**Next required action:** in the owner's browser, read the actual Cloudflare
+display name, complete saved permission list and account scope for the token
+saved as `MUSITU_CLOUDFLARE_ADMIN_TOKEN`. The owner/controller, direct recovery
+access and recovery-token saved Read-only dashboard report are already recorded.
+Review this next credential before changing it, then account for all remaining
+build access. Independently qualified administrator separation, safe
+initialization, real destructive recovery and security approval remain OPEN;
+Gate 3 stays in HOLD before real-customer identity acceptance or cutover.
 
 Main `c3c5aaab90e94f1ca84ac9903f9d481c23c4f350` and separate draft/unmerged PR1
 `8fc1fbb7c5ebbcc1604ecf24c5f4594f2d5667e3` remain preserved. PR192, PR83 and PR190
