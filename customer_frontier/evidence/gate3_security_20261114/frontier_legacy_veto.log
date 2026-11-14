@@ -1,0 +1,10 @@
+test_privileged_environment_cannot_enter_legacy_network_or_db_mutation (frontier_v5.tests.test_legacy_live_adapter_veto.LegacyLiveVeto.test_privileged_environment_cannot_enter_legacy_network_or_db_mutation) ... ok
+test_global_key_does_not_bypass_staging_veto (frontier_v5.tests.test_legacy_d1_adapter_veto.LegacyD1AdapterVeto.test_global_key_does_not_bypass_staging_veto) ... ok
+test_nonsealed_target_with_synthetic_credentials_fails_before_any_network (frontier_v5.tests.test_legacy_d1_adapter_veto.LegacyD1AdapterVeto.test_nonsealed_target_with_synthetic_credentials_fails_before_any_network) ... ok
+test_query_and_migration_cannot_bypass_constructor_veto (frontier_v5.tests.test_legacy_d1_adapter_veto.LegacyD1AdapterVeto.test_query_and_migration_cannot_bypass_constructor_veto) ... ok
+test_sealed_d1_still_forbidden (frontier_v5.tests.test_legacy_d1_adapter_veto.LegacyD1AdapterVeto.test_sealed_d1_still_forbidden) ... ok
+
+----------------------------------------------------------------------
+Ran 5 tests in 0.011s
+
+OK

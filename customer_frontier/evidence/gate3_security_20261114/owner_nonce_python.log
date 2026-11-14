@@ -1,0 +1,23 @@
+test_atomic_duplicate_under_concurrent_processes (test_step1_owner_nonce_replay_store.TestAdditionalReplaySafety.test_atomic_duplicate_under_concurrent_processes) ... ok
+test_forged_schema_with_wrong_unique_indices_denies (test_step1_owner_nonce_replay_store.TestAdditionalReplaySafety.test_forged_schema_with_wrong_unique_indices_denies) ... ok
+test_a_local_db_snapshot_rollback_is_not_globally_prevented (test_step1_owner_nonce_replay_store.TestReplayStore.test_a_local_db_snapshot_rollback_is_not_globally_prevented) ... ok
+test_bypass_attestation_status_denied (test_step1_owner_nonce_replay_store.TestReplayStore.test_bypass_attestation_status_denied) ... ok
+test_db_symlink_and_hardlink_denied (test_step1_owner_nonce_replay_store.TestReplayStore.test_db_symlink_and_hardlink_denied) ... ok
+test_direct_python_cli_malformed_input_exits_two (test_step1_owner_nonce_replay_store.TestReplayStore.test_direct_python_cli_malformed_input_exits_two) ... ok
+test_duplicate_exact_rejected_after_closed_connection (test_step1_owner_nonce_replay_store.TestReplayStore.test_duplicate_exact_rejected_after_closed_connection) ... ok
+test_extra_or_missing_fields_rejected_without_disk_mutation (test_step1_owner_nonce_replay_store.TestReplayStore.test_extra_or_missing_fields_rejected_without_disk_mutation) ... ok
+test_insecure_db_mode_denied (test_step1_owner_nonce_replay_store.TestReplayStore.test_insecure_db_mode_denied) ... ok
+test_insecure_directory_mode_denied (test_step1_owner_nonce_replay_store.TestReplayStore.test_insecure_directory_mode_denied) ... ok
+test_new_nonce_and_new_hash_accepted (test_step1_owner_nonce_replay_store.TestReplayStore.test_new_nonce_and_new_hash_accepted) ... ok
+test_same_nonce_different_plan_rejected (test_step1_owner_nonce_replay_store.TestReplayStore.test_same_nonce_different_plan_rejected) ... ok
+test_same_plan_hash_new_nonce_rejected (test_step1_owner_nonce_replay_store.TestReplayStore.test_same_plan_hash_new_nonce_rejected) ... ok
+test_schema_tampering_denied_and_no_second_nonce (test_step1_owner_nonce_replay_store.TestReplayStore.test_schema_tampering_denied_and_no_second_nonce) ... ok
+test_source_and_amendment_drift_denied (test_step1_owner_nonce_replay_store.TestReplayStore.test_source_and_amendment_drift_denied) ... ok
+test_success_receipt_never_grants_provider_authority (test_step1_owner_nonce_replay_store.TestReplayStore.test_success_receipt_never_grants_provider_authority) ... ok
+test_symlink_directory_denied (test_step1_owner_nonce_replay_store.TestReplayStore.test_symlink_directory_denied) ... ok
+test_time_window_and_noncanonical_date_denied (test_step1_owner_nonce_replay_store.TestReplayStore.test_time_window_and_noncanonical_date_denied) ... ok
+
+----------------------------------------------------------------------
+Ran 18 tests in 0.101s
+
+OK
