@@ -32,7 +32,7 @@ jobs:
         run: |
           set -euo pipefail
           test "$(git hash-object qualification/mcn072_account_scope_readonly.py)" = '5cb0b1ef2e08002555197ffd4aeb581eb1232d2f'
-          test "$(git hash-object tests/test_mcn072_account_scope_readonly.py)" = '8a3bde97bf0e514af48d82ed899632748d2acdf0'
+          test "$(git hash-object tests/test_mcn072_account_scope_readonly.py)" = 'd18dd9239eff44f5282974fed508bb6020a43ffc'
           PYTHONDONTWRITEBYTECODE=1 python3 -B -m unittest discover -s tests -p 'test_mcn072_account_scope_readonly.py' -v
       - name: Inspect every referenced Cloudflare credential family using GET only
         shell: bash
