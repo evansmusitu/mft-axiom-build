@@ -1,0 +1,54 @@
+name: MUSITU MCN-072 alternate Worker deployment/version GET-only (NO RELEASE)
+on:
+  push:
+    branches:
+      - audit/mcn072-alternate-worker-deployment-getonly-20261114
+    paths:
+      - .github/workflows/mcn072-one-alt-worker-version-getonly-20261114.yml
+permissions:
+  contents: read
+concurrency:
+  group: mcn072-alternate-worker-version-getonly-20261114
+  cancel-in-progress: false
+jobs:
+  inspect:
+    if: github.repository == 'evansmusitu/mft-axiom-build' && github.ref == 'refs/heads/audit/mcn072-alternate-worker-deployment-getonly-20261114'
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - name: Checkout isolated audit without persisted credentials
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Verify exact Git pins and tests before secret injection
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git hash-object qualification/mcn072_all_worker_settings_readonly.py)" = 'a906c2a7a1d4c71bbb77cc0e485fa9e3fe4a64db'
+          test "$(git hash-object qualification/mcn072_pg_candidate_deployment_readonly.py)" = 'c5262db92029c96d478047eebe1ffeaff52165ae'
+          test "$(git hash-object tests/test_mcn072_pg_candidate_deployment.py)" = '1d891b8548461a255e0b53ee740499ab4c97aa6e'
+          PYTHONDONTWRITEBYTECODE=1 python3 -B -m unittest discover -s tests -p 'test_mcn072_pg_candidate_deployment.py' -v
+      - name: Authenticated GET-only alternate Worker deployment/version metadata
+        shell: bash
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+        run: |
+          set -euo pipefail
+          PYTHONDONTWRITEBYTECODE=1 python3 -B qualification/mcn072_pg_candidate_deployment_readonly.py > mcn072-alt-worker-sanitized.json
+          python3 - <<'PY'
+          import json,hashlib
+          p='mcn072-alt-worker-sanitized.json';b=open(p,'rb').read();d=json.loads(b)
+          assert d['mcn072_qualified'] is False and d['postgres_authenticated'] is False
+          open(p+'.sha256','w').write(hashlib.sha256(b).hexdigest()+'  '+p+'\n')
+          print('sanitized read complete; candidate active',d['active_deployment_verified'],'strict pg cues',d['active_version_strict_pg_cues'])
+          PY
+      - name: Upload sanitized metadata and detached SHA receipt
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: musitu-mcn072-one-alt-worker-deployment-getonly-20261114
+          if-no-files-found: ignore
+          retention-days: 7
+          path: |
+            mcn072-alt-worker-sanitized.json
+            mcn072-alt-worker-sanitized.json.sha256
