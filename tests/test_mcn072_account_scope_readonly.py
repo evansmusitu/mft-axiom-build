@@ -5,7 +5,10 @@ import unittest
 from unittest.mock import patch
 
 ROOT = pathlib.Path(__file__).resolve().parent
-spec = importlib.util.spec_from_file_location('scope', ROOT/'account_scope_readonly.py')
+SOURCE = ROOT/'account_scope_readonly.py'
+if not SOURCE.exists():
+    SOURCE = ROOT.parent/'qualification'/'mcn072_account_scope_readonly.py'
+spec = importlib.util.spec_from_file_location('scope', SOURCE)
 scope = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(scope)
 
