@@ -1,0 +1,59 @@
+name: MUSITU MCN072 All Referenced Cloudflare Account Scopes GET-only (NO RELEASE)
+
+on:
+  push:
+    branches:
+      - audit/mcn072-cloudflare-multi-account-readonly-20261114
+    paths:
+      - .github/workflows/mcn072-cloudflare-multi-account-readonly-20261114.yml
+
+permissions:
+  contents: read
+
+concurrency:
+  group: mcn072-cloudflare-multi-account-readonly-20261114
+  cancel-in-progress: false
+
+jobs:
+  inspect:
+    if: >-
+      github.repository == 'evansmusitu/mft-axiom-build' &&
+      github.ref == 'refs/heads/audit/mcn072-cloudflare-multi-account-readonly-20261114' &&
+      github.event_name == 'push'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 12
+    steps:
+      - name: Checkout without persisted credentials
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
+      - name: Verify exact source/test Git blobs and adversarial controls before secrets
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git hash-object qualification/mcn072_account_scope_readonly.py)" = '5cb0b1ef2e08002555197ffd4aeb581eb1232d2f'
+          test "$(git hash-object tests/test_mcn072_account_scope_readonly.py)" = '8a3bde97bf0e514af48d82ed899632748d2acdf0'
+          PYTHONDONTWRITEBYTECODE=1 python3 -B -m unittest discover -s tests -p 'test_mcn072_account_scope_readonly.py' -v
+      - name: Inspect every referenced Cloudflare credential family using GET only
+        shell: bash
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_EMAIL: ${{ secrets.CLOUDFLARE_EMAIL }}
+          CLOUDFLARE_GLOBAL_API_KEY: ${{ secrets.CLOUDFLARE_GLOBAL_API_KEY }}
+          CLOUDFLARE_API_KEY: ${{ secrets.CLOUDFLARE_API_KEY }}
+          MUSITU_CF_STAGING_READ_TOKEN: ${{ secrets.MUSITU_CF_STAGING_READ_TOKEN }}
+          MUSITU_CF_PRODUCTION_ACCOUNT_ID: ${{ secrets.MUSITU_CF_PRODUCTION_ACCOUNT_ID }}
+          MUSITU_CF_STAGING_ACCOUNT_ID: ${{ secrets.MUSITU_CF_STAGING_ACCOUNT_ID }}
+        run: |
+          set -euo pipefail
+          PYTHONDONTWRITEBYTECODE=1 python3 -B qualification/mcn072_account_scope_readonly.py
+      - name: Publish strictly sanitized NO-GO metadata and detached digest
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: musitu-mcn072-all-cloudflare-account-scopes-getonly-20261114
+          path: |
+            mcn072-cloudflare-all-account-scopes.json
+            mcn072-cloudflare-all-account-scopes.json.sha256
+          retention-days: 7
+          if-no-files-found: warn
