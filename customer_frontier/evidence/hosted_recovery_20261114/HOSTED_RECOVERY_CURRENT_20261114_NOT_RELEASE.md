@@ -161,3 +161,46 @@ and customer tables are absent from the restored staging/IdP source, so that
 source cannot be substituted for production real-data migration acceptance.
 The reviewed upgrade requires one native `D1Database.batch`; REST or local
 SQLite atomicity must not be claimed as that native hosted witness.
+
+## Current remaining blocker — transient Worker preview authorization
+
+[Run 43612616873](https://github.com/evansmusitu/mft-axiom-build/actions/runs/43612616873)
+at exact head `f6f227df486e0e1d0a77da1bb2b40ecae86fa5ba` passed all nine synthetic
+native-batch/controller tests, then received recovery-account API HTTP 403 while
+starting the transient preview. The preview upload/native invocation never
+completed. No native batch or fixture mutation was attempted, no permanent
+Worker was deployed, and the post-attempt Worker catalog was verified empty.
+This is a retained failed live qualification; it is not relabelled PASS.
+
+Before the refusal, authenticated production OAuth detail and fixed schema-only
+queries verified UUID `504029cc-f9a5-495e-818f-63c6144b4ea4`, 3,092,480 bytes and
+all seven required base customer/OAuth tables. Current production catalog SHA-256
+is `df1ae1ca73513313bb351c50e859f5767a72306eff076ba0283e89b3c019c364`.
+No production customer row values, SQL export or write were collected/performed.
+The separate recovery snapshot still matched its entire captured baseline before
+the preview attempt. Source and recovery roles have distinct route allowlists.
+
+Original reviewed OAuth upgrade source and all historical fixture files were
+materialized exactly from Git. Its 21 existing regression cases passed after the
+initial local missing-fixture setup error was corrected. No assertion was removed
+and no migration source was changed. The exact 89-statement plan SHA-256 remains
+`6946e796539e6787033e20f1d0afdcb5259a130ca77be6e3c5afb60b5dc9888a`.
+Local regression success does not qualify native D1 application.
+
+Next owner action: edit the token already stored as GitHub secret
+`AXIOM_D1_RECOVERY_CF_API_TOKEN`, granting **Account / Workers Scripts / Edit**
+on **only** recovery account `67469478aa9349fa0a57fe3a72da200a`. Retain its existing
+D1 Edit and metadata permissions. Do not broaden production-account privileges,
+change billing or repeat the successful Windows/key tests. If a replacement token
+value is generated, update that same GitHub secret; never paste it into the chat.
+The reviewed native preview probe is ready for a fresh controlled run once that
+capability is available. It uses no permanent deployment, public application
+route or production SQL mutation and restores any recovery-copy fixtures.
+
+Provider refusal receipt SHA-256:
+`d27c9e29dffae9acf2a5826d820a695f6c0fdec0b62d6d54c0787f965b41bac9`.
+Original refusal artifact ZIP SHA-256:
+`fdd742d283044bad258f3897a53ed25502e1ffd8fb19cfccd717d11e945fa9f7`.
+See `native_batch_oauth_preflight_refused_20261114.json` and
+`reviewed_oauth_upgrade_plan_readback_20261114.json`. Gate 2 remains OPEN for native
+batch qualification and the production-source recovery/migration rehearsal.
