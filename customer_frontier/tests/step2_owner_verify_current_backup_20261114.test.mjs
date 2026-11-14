@@ -3,8 +3,9 @@ import assert from 'node:assert/strict';
 import { createHash, generateKeyPairSync } from 'node:crypto';
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
+import { Readable } from 'node:stream';
 import { sealSqlExport } from '../recovery/step1_encrypted_sql_export_transport.mjs';
-import { verifyCurrentBackup } from '../recovery/step2_owner_verify_current_backup_20261114.mjs';
+import { verifyCurrentBackup, safeFailure, readOwnerInput } from '../recovery/step2_owner_verify_current_backup_20261114.mjs';
 const sha = bytes => createHash('sha256').update(bytes).digest('hex');
 
 function fixture() {
@@ -49,4 +50,23 @@ test('cloud invocation refuses without reading a real owner key', () => {
   assert.equal(JSON.parse(run.stdout).status, 'OWNER_CURRENT_BACKUP_DECRYPTION_FAILED');
   assert.ok(!run.stdout.includes('SENTINEL_PASSWORD'));
   assert.equal(run.stderr, '');
+});
+test('UTF-8 input preserves a passphrase split inside every multi-byte character', async () => {
+  const value = { key_file: 'C:\\Synthetic Only\\owner.pem', passphrase: '\u00e9\u4e2d\u6587\ud83d\udd10' };
+  const bytes = Buffer.from(JSON.stringify(value));
+  const parts = [...bytes].map(byte => Buffer.from([byte]));
+  assert.deepEqual(await readOwnerInput(Readable.from(parts)), value);
+});
+test('malformed input and oversized input produce fixed non-secret errors', async () => {
+  await assert.rejects(readOwnerInput(Readable.from([Buffer.from('SENTINEL_PASSPHRASE_INVALID_JSON')])), { message: 'INPUT_JSON_INVALID' });
+  await assert.rejects(readOwnerInput(Readable.from([Buffer.alloc(16001)])), { message: 'INPUT_OVER_BUDGET' });
+});
+test('safe diagnostics discard paths, passwords, stderr and unexpected error text', () => {
+  for (const error of [new Error('SENTINEL_PASSWORD at C:\\PRIVATE_PATH'),
+    Object.assign(new Error('SENTINEL_PASSWORD'), { code: 'ERR_OSSL_BAD_DECRYPT' }),
+    Object.assign(new Error('SENTINEL_PRIVATE_PATH'), { code: 'EACCES' })]) {
+    const r = safeFailure(error, 'KEY_FILE_CHECK');
+    assert.ok(!JSON.stringify(r).includes('SENTINEL'));
+    assert.ok(['LOCAL_VERIFIER_FAILED', 'KEY_PASSPHRASE_OR_FORMAT_REJECTED', 'KEY_FILE_NOT_READABLE'].includes(r.error_code));
+  }
 });

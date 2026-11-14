@@ -8,6 +8,8 @@ on:
       - customer_frontier/recovery/Run_MUSITU_AXIOM_Verify_Current_Backup.ps1
       - customer_frontier/recovery/step2_owner_verify_current_backup_20261114.mjs
       - customer_frontier/tests/step2_owner_verify_current_backup_20261114.test.mjs
+      - customer_frontier/tests/step2_owner_backup_windows_fixture_20261114.mjs
+      - customer_frontier/tests/test_step2_owner_backup_windows_transport_20261114.ps1
 permissions: {contents: read}
 jobs:
   windows-verifier-synthetic-safety:
@@ -15,35 +17,45 @@ jobs:
       github.repository == 'evansmusitu/mft-axiom-build' &&
       github.actor == 'evansmusitu' &&
       github.ref == 'refs/heads/review/axiom-step1-owner-sole-authority-policy-20261112-not-release'
+    strategy:
+      fail-fast: false
+      matrix:
+        shell: [powershell, pwsh]
     runs-on: windows-2022
     timeout-minutes: 5
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
         with: {persist-credentials: false}
       - name: Pin code and verify synthetic authenticated decryption
-        shell: pwsh
+        shell: ${{ matrix.shell }}
         run: |
           $ErrorActionPreference = 'Stop'
-          if ((git hash-object customer_frontier/recovery/Run_MUSITU_AXIOM_Verify_Current_Backup.ps1) -cne 'd8551a76ae46176295105a175f8a41ae08b8c732') { throw 'SOURCE_PIN_MISMATCH' }
-          if ((git hash-object customer_frontier/recovery/step2_owner_verify_current_backup_20261114.mjs) -cne 'b6efb91688b28b0072eafcfa3d66504cad75ace8') { throw 'SOURCE_PIN_MISMATCH' }
+          if ((git hash-object customer_frontier/recovery/Run_MUSITU_AXIOM_Verify_Current_Backup.ps1) -cne '3f44e6b6d3baf940cf3d39b104a4b1d02033c2b6') { throw 'SOURCE_PIN_MISMATCH' }
+          if ((git hash-object customer_frontier/recovery/step2_owner_verify_current_backup_20261114.mjs) -cne 'bea9a21083d506c8b51762bf6ec6cf245081ce0f') { throw 'SOURCE_PIN_MISMATCH' }
           if ((git hash-object customer_frontier/recovery/step1_encrypted_sql_export_transport.mjs) -cne 'b4d0f65cdcf22083d252107f7d324ee4a3bbd3dd') { throw 'SOURCE_PIN_MISMATCH' }
-          if ((git hash-object customer_frontier/tests/step2_owner_verify_current_backup_20261114.test.mjs) -cne '26701c1fd5e39cc63b746e206bf24ed2bef6d30c') { throw 'SOURCE_PIN_MISMATCH' }
+          if ((git hash-object customer_frontier/tests/step2_owner_verify_current_backup_20261114.test.mjs) -cne '8c2c101ca19c728dcf593f034afe60d076135bd8') { throw 'SOURCE_PIN_MISMATCH' }
           if ((git hash-object customer_frontier/tests/step1_encrypted_sql_export_transport.test.mjs) -cne 'ff3d74e3030ad04f5ad1b02016fcc8fb80128817') { throw 'SOURCE_PIN_MISMATCH' }
+          if ((git hash-object customer_frontier/tests/step2_owner_backup_windows_fixture_20261114.mjs) -cne '38d583f336efadc23cf31b50bebe659464c93e20') { throw 'SOURCE_PIN_MISMATCH' }
+          if ((git hash-object customer_frontier/tests/test_step2_owner_backup_windows_transport_20261114.ps1) -cne 'e52a29c731376d7aa498b94f2095ccb2f8ff22ff') { throw 'SOURCE_PIN_MISMATCH' }
           node --test customer_frontier/tests/step2_owner_verify_current_backup_20261114.test.mjs customer_frontier/tests/step1_encrypted_sql_export_transport.test.mjs
           if ($LASTEXITCODE -ne 0) { throw 'SYNTHETIC_CRYPTO_CHECK_FAILED' }
-      - name: Parse Windows PowerShell and require refusal in cloud CI
-        shell: pwsh
+      - name: Actual shared Windows process transport and encrypted PEM roundtrip
+        shell: ${{ matrix.shell }}
         run: |
           $ErrorActionPreference = 'Stop'
-          $script = Join-Path $PWD 'customer_frontier/recovery/Run_MUSITU_AXIOM_Verify_Current_Backup.ps1'
-          $tokens = $null; $parseErrors = $null
-          [void][Management.Automation.Language.Parser]::ParseFile($script, [ref]$tokens, [ref]$parseErrors)
-          if (@($parseErrors).Count -ne 0) { throw 'POWERSHELL_PARSE_FAILED' }
+          & .\customer_frontier\tests\test_step2_owner_backup_windows_transport_20261114.ps1
+          if ($LASTEXITCODE -ne 0) { throw 'WINDOWS_PIPE_ROUNDTRIP_FAILED' }
+      - name: Require owner script refusal in cloud CI
+        shell: ${{ matrix.shell }}
+        run: |
           $ErrorActionPreference = 'Continue'
-          & pwsh -NoProfile -NonInteractive -File $script 2>&1 | Out-String | Write-Host
+          $engine = (Get-Command '${{ matrix.shell }}.exe' -CommandType Application).Source
+          $script = Join-Path $PWD 'customer_frontier/recovery/Run_MUSITU_AXIOM_Verify_Current_Backup.ps1'
+          & $engine -NoProfile -NonInteractive -File $script 2>&1 | Out-String | Write-Host
           $denialExit = $LASTEXITCODE
           $ErrorActionPreference = 'Stop'
           if ($denialExit -ne 2) { throw 'CLOUD_REFUSAL_REQUIRED' }
           if (Test-Path (Join-Path (Split-Path $script) 'OWNER_BACKUP_DECRYPTION_PROOF.json')) { throw 'CLOUD_PROOF_FORBIDDEN' }
-          Write-Host 'WINDOWS_PARSE_AND_CLOUD_REFUSAL_PASS_NOT_OWNER_EXECUTION'
+          if (Test-Path (Join-Path (Split-Path $script) 'OWNER_BACKUP_DIAGNOSTIC.json')) { throw 'CLOUD_OWNER_DIAGNOSTIC_FORBIDDEN' }
+          Write-Host 'CLOUD_REFUSAL_PASS_NOT_OWNER_EXECUTION'
           exit 0
