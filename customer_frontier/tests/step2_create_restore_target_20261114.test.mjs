@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { bootstrap, permitted, ACCOUNT, SOURCE_ACCOUNT, SOURCE_DATABASE, RETIRED_DATABASE,
-  NAME, PREFIX, CATALOG_SQL, RecoveryStop } from '../recovery/step2_create_restore_target_20261114.mjs';
+  NAME, PREFIX, CATALOG_SQL, RecoveryStop, targetD1Plan } from '../recovery/step2_create_restore_target_20261114.mjs';
 
 const ID = '12345678-1234-4234-8234-123456789abc';
 const token = 'synthetic-target-token';
@@ -130,4 +130,25 @@ test('request allowlist rejects source, deletion, import and alternate SQL', () 
     ['POST', PREFIX + '/d1/database', { name: 'wrong' }],
   ]) assert.equal(permitted(method,path,body), false);
   assert.equal(permitted('POST', PREFIX + '/d1/database/' + ID + '/query', { sql: CATALOG_SQL }), true);
+});
+
+test('a preexisting zero-base R2 plan does not change Workers/D1 classification', async () => {
+  const s = scenario({ [PREFIX + '/subscriptions']: reply([
+    { state: 'Paid', price: 0, rate_plan: { id: 'r2_paid', currency: 'USD' } },
+  ]) });
+  const r = await s.run();
+  assert.equal(r.status, 'TARGET_CREATED_EMPTY_CONFIRMED');
+  assert.equal(r.active_paid_subscriptions_absent, false);
+  assert.equal(r.workers_paid_subscription_absent, true);
+  assert.equal(r.preexisting_r2_subscription_count, 1);
+  assert.ok(s.calls.every(c => !c.path.includes('/r2')));
+});
+test('zero-base Workers paid plans remain ineligible for D1 Free limits', () => {
+  assert.throws(() => targetD1Plan(reply([
+    { state: 'Paid', price: 0, rate_plan: { id: 'workers_paid', currency: 'USD' } },
+  ])), /WORKERS_OR_UNRECOGNIZED/);
+});
+test('unknown active product and incomplete subscription response are refused', () => {
+  assert.throws(() => targetD1Plan(reply([{ state: 'Trial', price: 0, rate_plan: { id: 'r2_paid', currency: 'USD' } }])));
+  assert.throws(() => targetD1Plan({ ...reply([]), result_info: { total_count: 1 } }), /TRUNCATED/);
 });

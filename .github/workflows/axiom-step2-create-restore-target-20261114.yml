@@ -27,8 +27,8 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          test "$(git hash-object customer_frontier/recovery/step2_create_restore_target_20261114.mjs)" = '2a0126e8cd1afad3875129412f3749004a01c3f1'
-          test "$(git hash-object customer_frontier/tests/step2_create_restore_target_20261114.test.mjs)" = '435f38686cad582ea9e792e7feb0affd310be92e'
+          test "$(git hash-object customer_frontier/recovery/step2_create_restore_target_20261114.mjs)" = 'c312e02b358f28bb7a880c5ac17a40c8581c76bb'
+          test "$(git hash-object customer_frontier/tests/step2_create_restore_target_20261114.test.mjs)" = '15d13bfed67c395d618576861a94d5173b8f3498'
           test "$(git hash-object customer_frontier/qualification/step1_gate1_free_isolated_account_readonly_20261114.mjs)" = '32b9bd3ec61657cd0bd9a0e784f3e23d8430e490'
           test "$(git hash-object customer_frontier/tests/step1_gate1_free_isolated_account_readonly_20261114.test.mjs)" = '8e4509df2dfbb9388c9e8e7a5916d892967c0e83'
           test "$(git hash-object customer_frontier/recovery/step1_encrypted_sql_export_transport.mjs)" = 'b4d0f65cdcf22083d252107f7d324ee4a3bbd3dd'

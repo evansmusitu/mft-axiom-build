@@ -83,6 +83,25 @@ export async function providerRequest(token, method, path, body) {
   }
 }
 
+/** D1 inherits the Workers plan. A preexisting R2 subscription is a separate product. */
+export function targetD1Plan(document) {
+  const rows = envelope(document);
+  requireCheck(Array.isArray(rows) && rows.length <= 1000, 'SUBSCRIPTIONS_INCOMPLETE');
+  if (document.result_info?.total_count !== undefined) {
+    requireCheck(document.result_info.total_count === rows.length, 'SUBSCRIPTIONS_TRUNCATED');
+  }
+  let unrelatedR2 = 0;
+  for (const row of rows) {
+    requireCheck(row && typeof row.state === 'string', 'SUBSCRIPTION_STATE_UNKNOWN');
+    if (['Cancelled', 'Expired', 'Failed', 'Inactive', 'Free'].includes(row.state)) continue;
+    const plan = row.rate_plan;
+    requireCheck(row.state === 'Paid' && row.price === 0 && plan?.id === 'r2_paid' &&
+      plan.currency === 'USD', 'WORKERS_OR_UNRECOGNIZED_ACTIVE_SUBSCRIPTION');
+    unrelatedR2++;
+  }
+  return { workers_paid_subscription_absent: true, preexisting_r2_subscription_count: unrelatedR2 };
+}
+
 export async function bootstrap({ token, request = providerRequest, save = () => {} } = {}) {
   const receipt = {
     schema: 'musitu.axiom.hosted-restore-target.v1',
@@ -91,7 +110,8 @@ export async function bootstrap({ token, request = providerRequest, save = () =>
     target_account: ACCOUNT, target_name: NAME, owner_recipient_spki_sha256: RECIPIENT_SHA256,
     owner_gate1_confirmation_recorded: true,
     target_identity_verified: false, target_catalog_initially_empty: false,
-    active_paid_subscriptions_absent: false, worker_and_pages_catalogs_empty: false,
+    active_paid_subscriptions_absent: false, workers_paid_subscription_absent: false,
+    preexisting_r2_subscription_count: 0, worker_and_pages_catalogs_empty: false,
     creation_attempted: false, target_uuid: null, target_creation_readback_verified: false,
     target_empty_schema_verified: false, creation_outcome: 'UNATTEMPTED',
     backup_export_completed: false, hosted_restore_completed: false,
@@ -105,17 +125,23 @@ export async function bootstrap({ token, request = providerRequest, save = () =>
     requireCheck(sha(key) === RECIPIENT_SHA256 &&
       createPublicKey({ key, type: 'spki', format: 'der' }).asymmetricKeyType === 'x25519',
     'OWNER_PUBLIC_KEY_MISMATCH');
+    let subscriptionReply;
     const observed = await audit({
       account: ACCOUNT, token,
-      get: path => call('GET', path),
+      get: async path => {
+        const response = await call('GET', path);
+        if (path === PREFIX + '/subscriptions') subscriptionReply = response;
+        return response;
+      },
     });
     receipt.target_identity_verified = observed.account_identity_verified === true;
     receipt.target_catalog_initially_empty =
       observed.d1_catalog_complete === true && observed.d1_database_count === 0;
     receipt.active_paid_subscriptions_absent = observed.active_paid_subscriptions_absent === true;
+    if (subscriptionReply) Object.assign(receipt, targetD1Plan(subscriptionReply));
     save(receipt);
     requireCheck(receipt.target_identity_verified && receipt.target_catalog_initially_empty &&
-      receipt.active_paid_subscriptions_absent, 'TARGET_ACCOUNT_PREFLIGHT_INCOMPLETE');
+      receipt.workers_paid_subscription_absent, 'TARGET_ACCOUNT_PREFLIGHT_INCOMPLETE');
 
     const workers = envelope(await call('GET', PREFIX + '/workers/scripts'));
     requireCheck(Array.isArray(workers) && workers.length === 0, 'TARGET_HAS_WORKER_CONSUMERS');
