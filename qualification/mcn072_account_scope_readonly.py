@@ -43,7 +43,7 @@ def account_id(value):
  return value.lower() if isinstance(value,str) and ACCOUNT_RE.fullmatch(value.lower()) else None
 
 def allowed_path(path):
- return isinstance(path,str) and bool(PAGE_ACCOUNTS.fullmatch(path) or QUEUES.fullmatch(path) or WORKERS.fullmatch(path))
+ return isinstance(path,str) and bool(PAGE_ACCOUNTS.fullmatch(path) or QUEUES.fullmatch(path) or WORKERS.fullmatch(path) or path in ('/client/v4/user','/client/v4/user/tokens/verify'))
 
 def initial_report():
  return {'schema':'musitu.mcn072.cloudflare_account_scope_getonly.v1','mcn072':'NO_GO',
@@ -90,8 +90,10 @@ def read(path, family, opener):
  if len(body)>MAX_BYTES:raise ProbeError('OVERSIZE')
  try: payload=json.loads(body,object_pairs_hook=_unique_json)
  except (ValueError,UnicodeError):raise ProbeError('BAD_JSON') from None
- if type(payload) is not dict or payload.get('success') is not True or type(payload.get('result')) is not list:
-  raise ProbeError('RESPONSE_NOT_SUCCESS_LIST')
+ if type(payload) is not dict or payload.get('success') is not True:
+  raise ProbeError('RESPONSE_NOT_SUCCESS')
+ expected=dict if path in ('/client/v4/user','/client/v4/user/tokens/verify') else list
+ if type(payload.get('result')) is not expected:raise ProbeError('RESPONSE_RESULT_WRONG_TYPE')
  return payload,sha(body)
 
 def summarize_queue(raw):
@@ -143,6 +145,12 @@ def probe_auth_family(label,opener):
       'account_list_status':'NOT_ATTEMPTED','candidate_accounts':[],
       'candidate_count':0,'scoped_accounts_probed':0}
  if not out['credential_configured']:return out
+ identity_path='/client/v4/user/tokens/verify' if AUTH_FAMILIES[label]=='bearer' else '/client/v4/user'
+ try:
+  p,_=read(identity_path,label,opener)
+  out['identity_check_status']='SUCCESS'
+  if AUTH_FAMILIES[label]=='bearer':out['token_state_active']=p.get('result',{}).get('status')=='active'
+ except ProbeError as e:out['identity_check_status']=str(e)
  accounts=_configured_accounts()
  status,number=_merge_accounts_by_provider(label,opener,accounts)
  out['account_list_status']=status
