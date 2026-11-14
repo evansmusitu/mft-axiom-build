@@ -1,0 +1,68 @@
+name: AXIOM recovered production OAuth plan preflight (NOT RELEASE)
+on:
+  push:
+    branches:
+      - review/axiom-step1-owner-sole-authority-policy-20261112-not-release
+    paths:
+      - .github/workflows/axiom-step2-prod-oauth-migration-preflight-20261114.yml
+      - customer_frontier/recovery/step2_prod_oauth_memory_upgrade_20261114.py
+      - customer_frontier/recovery/step2_prod_oauth_migration_preflight_20261114.mjs
+      - customer_frontier/tests/step2_prod_oauth_migration_preflight_20261114.test.mjs
+permissions: {contents: read}
+concurrency:
+  group: axiom-hosted-recovery-67469478aa9349fa0a57fe3a72da200a
+  cancel-in-progress: false
+jobs:
+  recovered-copy-local-plan-preflight:
+    if: >-
+      github.repository == 'evansmusitu/mft-axiom-build' &&
+      github.actor == 'evansmusitu' &&
+      github.ref == 'refs/heads/review/axiom-step1-owner-sole-authority-policy-20261112-not-release' &&
+      github.run_attempt == 1
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with: {persist-credentials: false}
+      - name: Pin exact reviewed migration and memory-only preflight
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git hash-object customer_frontier/recovery/step2_prod_oauth_memory_upgrade_20261114.py)" = '6b02c5481de3c749724eff7d05b79d71e4d65204'
+          test "$(git hash-object customer_frontier/recovery/step2_prod_oauth_migration_preflight_20261114.mjs)" = 'f61622f7ea409be7fa64b1bc403e931cd91983fe'
+          test "$(git hash-object customer_frontier/tests/step2_prod_oauth_migration_preflight_20261114.test.mjs)" = 'ad28e046570c46619fd23c40763aa9654c3437b8'
+          test "$(git hash-object customer_frontier/evidence/hosted_recovery_20261114/prod_oauth_hosted_restore_parity_rollback_passed_20261114.json)" = '5bcb7d23cc7def036444cdb8d44e47bc34b03760'
+          test "$(git hash-object auth/oauth_identity_upgrade_v2.py)" = '67887fd5b6d5f97bc07326a04e2038db97f7206c'
+          test "$(git hash-object auth/oauth_identity_v1_trigger_manifest.json)" = '2ac6c77d0a35f04ebf278d88b6eeaaa104727d55'
+          test "$(git hash-object auth/keyless_customer_link_candidate.sql)" = 'cb240ee7d7f1069b2a465eadf6ed2c56099d2663'
+          test "$(git hash-object auth/keyless_token_revocation_candidate.sql)" = '800087038986382060f4d37c8d79d17db165b839'
+          test "$(git hash-object customer_frontier/tests/test_oauth_identity_upgrade.py)" = '6d8566766f0beda6ed2afc3bd955df6395f1908a'
+          test "$(git hash-object customer_frontier/tests/fixtures/oauth-upgrade/pr66_revocation.sql)" = '250fc550768e697e6d458aa259201925305cb866'
+          test "$(git hash-object customer_frontier/recovery/step2_sql_memory_fingerprint_20261114.py)" = '4b9cc07c868a232c017fa0d025e836b38bb0398e'
+          test "$(git hash-object customer_frontier/recovery/step2_prod_oauth_hosted_restore_20261114.mjs)" = 'fdbc0384510f83b439571a935542745cbf5cfd94'
+          test "$(git hash-object customer_frontier/recovery/step2_prod_oauth_encrypted_sql_transport_20261114.mjs)" = '63e26bfe918c14f91d32c040711dad923417421e'
+          test "$(git hash-object customer_frontier/recovery/step2_create_oauth_restore_target_20261114.mjs)" = 'ef711cf6c71803466d49f212257fe6bc02b274fd'
+          test "$(git hash-object customer_frontier/recovery/step2_create_restore_target_20261114.mjs)" = 'c312e02b358f28bb7a880c5ac17a40c8581c76bb'
+          test "$(git hash-object customer_frontier/recovery/step2_hosted_restore_20261114.mjs)" = '371efc17a4c881ac06bc874f7640206c0f6064b9'
+          test "$(git hash-object customer_frontier/recovery/step1_encrypted_sql_export_transport.mjs)" = 'b4d0f65cdcf22083d252107f7d324ee4a3bbd3dd'
+          test "$(git hash-object customer_frontier/qualification/step1_gate1_free_isolated_account_readonly_20261114.mjs)" = '32b9bd3ec61657cd0bd9a0e784f3e23d8430e490'
+          node --test customer_frontier/tests/step2_prod_oauth_migration_preflight_20261114.test.mjs
+          python3 -m unittest discover -s customer_frontier/tests -p test_oauth_identity_upgrade.py
+      - name: Export the qualified recovery copy and rehearse the unchanged plan only in memory
+        shell: bash
+        env:
+          AXIOM_D1_RECOVERY_CF_API_TOKEN: ${{ secrets.AXIOM_D1_RECOVERY_CF_API_TOKEN }}
+        run: |
+          set -euo pipefail
+          ulimit -c 0
+          node customer_frontier/recovery/step2_prod_oauth_migration_preflight_20261114.mjs
+      - name: Preserve sanitized real-data preflight receipt
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: axiom-prod-oauth-real-data-plan-preflight-20261114
+          retention-days: 10
+          if-no-files-found: error
+          path: |
+            prod_oauth_migration_preflight_20261114.json
+            prod_oauth_migration_preflight_20261114.json.sha256
