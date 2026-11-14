@@ -1,0 +1,17 @@
+{
+  "schema": "musitu.axiom.production-oauth-windows-verifier-ci.v1",
+  "status": "WINDOWS_PRODUCTION_OAUTH_VERIFIER_SYNTHETIC_TRANSPORT_PASS",
+  "observed_at_utc": "2026-11-14T19:19:53.6572668Z",
+  "github_head_sha": "a191d209bb3b44a5a6f9acc3f61f2319c8fe950f",
+  "powershell_51_version": "5.1.20348.5773",
+  "powershell_7_version": "7.6.10",
+  "synthetic_node_tests_passed": 27,
+  "large_synthetic_sql_bytes_minimum": 2666698,
+  "unicode_passphrase_and_spaced_path_passed": true,
+  "wrong_password_refused": true,
+  "timeout_and_cleanup_passed": true,
+  "owner_cli_refused_in_cloud": true,
+  "actual_owner_production_backup_decryption_qualified": false,
+  "provider_operations": 0,
+  "release_status": "NOT_RELEASE"
+}
