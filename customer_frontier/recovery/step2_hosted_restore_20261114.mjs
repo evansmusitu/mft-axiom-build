@@ -121,9 +121,13 @@ export function fingerprint(sql) {
   check(Buffer.isBuffer(sql) && sql.length > 0 && sql.length <= MAX_SQL, 'SQL_SIZE_UNQUALIFIED');
   const run = spawnSync('python3', [fileURLToPath(new URL('./step2_sql_memory_fingerprint_20261114.py', import.meta.url))],
     { input: sql, encoding: 'utf8', maxBuffer: 200_000, timeout: 16_000, env: {} });
-  check(run.status === 0, 'SQL_MEMORY_REPLAY_FAILED');
   let doc;
-  try { doc = JSON.parse(run.stdout); } catch { throw new RestoreStop('FINGERPRINT_JSON_INVALID'); }
+  try { doc = JSON.parse(run.stdout); } catch { throw new RestoreStop('SQL_MEMORY_REPLAY_FAILED'); }
+  if (run.status !== 0) {
+    const errors = ['AUTHORIZER_DENIAL', 'MISSING_FUNCTION', 'MISSING_TABLE', 'FOREIGN_KEY', 'SYNTAX',
+      'DUPLICATE_OBJECT', 'TRANSACTION', 'CONSTRAINT', 'INTEGRITY', 'DEADLINE', 'OTHER'];
+    throw new RestoreStop(errors.some(value => doc.error === 'SQL_MEMORY_REPLAY_FAILED_' + value) ? doc.error : 'SQL_MEMORY_REPLAY_FAILED');
+  }
   check(HEX.test(doc.catalog_sha256) && HEX.test(doc.user_data_sha256) && Array.isArray(doc.tables) &&
     doc.integrity_check === true && doc.foreign_key_check === true, 'SQL_FINGERPRINT_INVALID');
   return doc;

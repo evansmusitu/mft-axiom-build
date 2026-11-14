@@ -100,7 +100,13 @@ if __name__ == '__main__':
     try:
         output = fingerprint(sys.stdin.buffer.read(MAX_SQL + 1))
         print(json.dumps(output, separators=(',', ':')))
-    except Exception:
+    except Exception as exc:
         # SQLite exceptions can contain SQL or values. Never propagate them.
-        print('{"error":"SQL_MEMORY_REPLAY_FAILED"}')
+        patterns = [('not authorized', 'AUTHORIZER_DENIAL'), ('no such function', 'MISSING_FUNCTION'),
+                    ('no such table', 'MISSING_TABLE'), ('foreign key', 'FOREIGN_KEY'),
+                    ('syntax error', 'SYNTAX'), ('already exists', 'DUPLICATE_OBJECT'),
+                    ('cannot commit', 'TRANSACTION'), ('constraint failed', 'CONSTRAINT'),
+                    ('SQL_INTEGRITY_FAILED', 'INTEGRITY'), ('interrupted', 'DEADLINE')]
+        reason = next((code for pattern, code in patterns if pattern.lower() in str(exc).lower()), 'OTHER')
+        print(json.dumps({'error': 'SQL_MEMORY_REPLAY_FAILED_' + reason}))
         raise SystemExit(2)

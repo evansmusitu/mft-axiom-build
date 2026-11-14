@@ -148,5 +148,5 @@ test('signed storage URLs exclude cleartext, attacker suffixes, credentials and 
     assert.throws(() => signedStorageUrl(value));
 });
 test('malformed SQL is sanitized and never echoed', () => {
-  assert.throws(() => fingerprint(Buffer.from('SECRET_CUSTOMER_SENTINEL invalid sql')), error => error.message === 'SQL_MEMORY_REPLAY_FAILED');
+  assert.throws(() => fingerprint(Buffer.from('SECRET_CUSTOMER_SENTINEL invalid sql')), error => error.message === 'SQL_MEMORY_REPLAY_FAILED_SYNTAX');
 });
