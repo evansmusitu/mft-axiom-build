@@ -20,6 +20,12 @@ class ScopeReadOnlyTests(unittest.TestCase):
         self.assertFalse(scope.allowed_path('https://bad.example/'))
         self.assertFalse(scope.allowed_path('/client/v4/accounts/'+'a'*32+'/queues?update=true'))
 
+    def test_identity_diagnostic_is_read_only_and_sanitized(self):
+        self.assertTrue(scope.allowed_path('/client/v4/user'))
+        self.assertTrue(scope.allowed_path('/client/v4/user/tokens/verify'))
+        self.assertFalse(scope.allowed_path('/client/v4/user/tokens'))
+        self.assertFalse(scope.allowed_path('/client/v4/accounts/' + 'a'*32 + '/tokens'))
+
     def test_all_known_cloudflare_auth_families_are_in_scope(self):
         self.assertEqual(set(scope.AUTH_FAMILIES), {'CLOUDFLARE_API_TOKEN','CLOUDFLARE_GLOBAL_API_KEY','CLOUDFLARE_API_KEY','MUSITU_CF_STAGING_READ_TOKEN'})
 
