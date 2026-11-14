@@ -34,7 +34,7 @@ jobs:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
         run: |
           set -euo pipefail
-          PYTHONDONTWRITEBYTECODE=1 python3 -B qualification/mcn072_pg_candidate_deployment_readonly.py > mcn072-alt-worker-sanitized.json
+          PYTHONDONTWRITEBYTECODE=1 python3 -B -m qualification.mcn072_pg_candidate_deployment_readonly > mcn072-alt-worker-sanitized.json
           python3 - <<'PY'
           import json,hashlib
           p='mcn072-alt-worker-sanitized.json';b=open(p,'rb').read();d=json.loads(b)
