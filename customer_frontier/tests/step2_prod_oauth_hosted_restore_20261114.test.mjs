@@ -34,7 +34,7 @@ function simulation(change = {}) {
     if (path.includes('/time_travel/restore?')) { rolled = true; probe = false; return ok({ bookmark: BOOKMARK }); }
     if (path.endsWith('/query')) {
       if (body.sql === FOREIGN_KEYS_SQL || body.sql === FOREIGN_KEY_CHECK_SQL) {
-        const r = body.sql === FOREIGN_KEYS_SQL ? query([{ foreign_keys: change.fkDisabled ? 0 : 1 }]) : query(change.invalidFk ? [{ table: 'sentinel', rowid: 1 }] : []);
+        const r = body.sql === FOREIGN_KEYS_SQL ? query([{ foreign_keys: change.fkDisabled || change.fkInitiallyDisabled && !rolled ? 0 : 1 }]) : query(change.invalidFk ? [{ table: 'sentinel', rowid: 1 }] : []);
         if (change.pragmaChangedFlag) r.result[0].meta.changed_db = true;
         return r;
       }
@@ -192,4 +192,32 @@ test('the bounded production row budget refuses import while retaining its seale
 test('no production or original IdP recovery mutation is available to the new target credential', () => {
  for(const id of ['be760b23-2ed1-47aa-92aa-9042ce917bb9','ccc473f1-fbb5-4b8d-8a24-45f3696ac10f'])
   assert.equal(permitted('target','POST',ACCOUNT_BASE+'/d1/database/'+id+'/query',{sql:MARKER_SQL}),false);
+});
+const priorImport = () => ({ schema:'musitu.axiom.production-oauth-hosted-restore-parity.v1',
+ source_account:'93f395f5121954671f92fffa453d6b61',source_database:SOURCE_DATABASE,
+ target_database:TARGET,target_account:ACCOUNT,target_name:NAME,recipient_spki_sha256:RECIPIENT_SHA256,
+ target_import_outcome:'COMPLETE',baseline:fingerprint(Buffer.from(SQL)),source_sql_sha256:sha(SQL),
+ source_sql_bytes:Buffer.byteLength(SQL),hosted_fk_observation:{enforcement:0} });
+test('a completed production import is verified and restarted at its own snapshot without ingestion', async () => {
+ const s=simulation({imported:true,fkInitiallyDisabled:true}),r=await s.run({priorImportReceipt:priorImport()});
+ assert.equal(r.status,'HOSTED_LOGICAL_RESTORE_PARITY_AND_ROLLBACK_VERIFIED');
+ assert.equal(r.pre_restart_target_parity_verified,true); assert.equal(r.post_restart_target_parity_verified,true);
+ assert.equal(r.target_restart_acknowledged,true); assert.equal(r.hosted_fk_observation.enforcement,1);
+ assert.equal(s.calls.some(c=>c.path.endsWith('/import')),false);
+ assert.equal(s.calls.filter(c=>c.path.includes('/time_travel/restore?')).length,2);
+});
+test('source drift from the completed production import blocks target restart', async () => {
+ const s=simulation({imported:true}),r=await s.run({priorImportReceipt:{...priorImport(),source_sql_sha256:'f'.repeat(64)}});
+ assert.equal(r.error,'SOURCE_DRIFT_FROM_COMPLETED_PRODUCTION_IMPORT');
+ assert.equal(s.calls.some(c=>c.path.includes('/time_travel/restore?')||c.path.endsWith('/import')),false);
+});
+test('foreign-key enforcement remains mandatory after same-snapshot restart', async () => {
+ const r=await simulation({imported:true,fkDisabled:true}).run({priorImportReceipt:priorImport()});
+ assert.equal(r.error,'HOSTED_FOREIGN_KEY_ENFORCEMENT_OR_INTEGRITY_FAILED');
+ assert.equal(r.hosted_schema_and_data_parity,false);
+});
+test('same-snapshot restart must preserve every table and schema object', async () => {
+ const r=await simulation({imported:true,corruptRollback:true}).run({priorImportReceipt:priorImport()});
+ assert.equal(r.error,'TARGET_RESTART_SCHEMA_OR_DATA_MISMATCH');
+ assert.equal(r.post_restart_target_parity_verified,false);
 });

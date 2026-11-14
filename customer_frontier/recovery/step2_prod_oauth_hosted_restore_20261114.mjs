@@ -21,6 +21,7 @@ export const FOREIGN_KEYS_SQL = 'PRAGMA foreign_keys';
 export const FOREIGN_KEY_CHECK_SQL = 'PRAGMA foreign_key_check';
 export const RECEIPT_FILE = 'prod_oauth_hosted_restore_parity_20261114.json';
 export const ENVELOPE_FILE = 'owner_encrypted_current_prod_oauth_20261114.json';
+export const PRIOR_IMPORT_RECEIPT_SHA256 = 'f32923ad327964e0b20476db210bbf06ea7e9222b023f75faf23246a5e580a6e';
 const MAX_SQL = 8_000_000;
 const BOOKMARK = /^[A-Za-z0-9-]{16,256}$/;
 const HEX = /^[0-9a-f]{64}$/;
@@ -204,13 +205,14 @@ function saveFile(file, object) {
 }
 
 export async function recover({ sourceToken, targetToken, call, transfer = storage, inspect = fingerprint,
-  pause = ms => new Promise(resolve => setTimeout(resolve, ms)), persist = saveFile, targetCreationReceipt } = {}) {
+  pause = ms => new Promise(resolve => setTimeout(resolve, ms)), persist = saveFile, targetCreationReceipt, priorImportReceipt } = {}) {
   const r = { schema: 'musitu.axiom.production-oauth-hosted-restore-parity.v1', observed_at_utc: new Date().toISOString(),
     source_account: SOURCE_ACCOUNT, source_database: SOURCE_DATABASE, target_account: ACCOUNT,
     target_database: TARGET, target_name: NAME, recipient_spki_sha256: RECIPIENT_SHA256,
     source_mutation_routes_available: false, production_oauth_migrated: false,
     encrypted_backup_persisted: false, encrypted_backup_owner_decryption_verified: false,
     target_import_attempted: false, target_import_outcome: 'UNATTEMPTED',
+    pre_restart_target_parity_verified: false, post_restart_target_parity_verified: false,
     hosted_schema_and_data_parity: false, rollback_attempted: false, rollback_outcome: 'UNATTEMPTED',
     source_data_unchanged: false, release_status: 'NOT_RELEASE', status: 'PREFLIGHT_PENDING' };
   const save = () => persist(RECEIPT_FILE, r);
@@ -246,7 +248,16 @@ export async function recover({ sourceToken, targetToken, call, transfer = stora
     const detail = result(await request('target', 'GET', TARGET_BASE));
     check(detail?.uuid === TARGET && detail.name === NAME, 'TARGET_IDENTITY_DRIFT');
     const currentTargetCatalog = catalogRows(await query('target', TARGET_BASE, CATALOG_SQL));
-    check(currentTargetCatalog.length === 0, 'TARGET_IS_NOT_EMPTY');
+    if (priorImportReceipt) {
+      check(priorImportReceipt.schema === r.schema && priorImportReceipt.source_account === SOURCE_ACCOUNT &&
+        priorImportReceipt.source_database === SOURCE_DATABASE && priorImportReceipt.target_database === TARGET &&
+        priorImportReceipt.target_account === ACCOUNT && priorImportReceipt.target_name === NAME &&
+        priorImportReceipt.recipient_spki_sha256 === RECIPIENT_SHA256 && priorImportReceipt.target_import_outcome === 'COMPLETE' &&
+        HEX.test(priorImportReceipt.baseline?.catalog_sha256) && HEX.test(priorImportReceipt.baseline?.user_data_sha256) &&
+        catalogHash(currentTargetCatalog) === priorImportReceipt.baseline.catalog_sha256, 'PRIOR_PRODUCTION_IMPORT_IDENTITY_DRIFT');
+      r.resumed_from_import_receipt_sha256 = PRIOR_IMPORT_RECEIPT_SHA256;
+      r.target_import_outcome = 'PREVIOUSLY_COMPLETE_VERIFY_EXISTING'; save();
+    } else check(currentTargetCatalog.length === 0, 'TARGET_IS_NOT_EMPTY');
     const sourceDetail = result(await request('source', 'GET', SOURCE_BASE));
     check(sourceDetail?.uuid === SOURCE_DATABASE && Number.isSafeInteger(sourceDetail.file_size) &&
       sourceDetail.file_size > 0 && sourceDetail.file_size <= MAX_SQL, 'SOURCE_IDENTITY_OR_SIZE_UNQUALIFIED');
@@ -270,6 +281,25 @@ export async function recover({ sourceToken, targetToken, call, transfer = stora
     check(baseline.catalog_sha256 === r.source_catalog_sha256, 'CURRENT_SQL_CATALOG_PARITY_FAILED');
     check(baseline.total_rows <= 25000, 'PRODUCTION_SNAPSHOT_ROW_BUDGET_EXCEEDED');
     r.baseline = baseline;
+    if (priorImportReceipt) {
+      check(same(baseline, priorImportReceipt.baseline) && r.source_sql_sha256 === priorImportReceipt.source_sql_sha256,
+        'SOURCE_DRIFT_FROM_COMPLETED_PRODUCTION_IMPORT');
+      const beforeRestart = await exportCurrent(request, 'target', TARGET_BASE, transfer, pause);
+      exportedBuffers.push(beforeRestart.sql);
+      check(same(baseline, inspect(beforeRestart.sql)), 'IMPORTED_TARGET_SCHEMA_OR_DATA_MISMATCH');
+      r.pre_restart_target_parity_verified = true;
+      r.target_restart_bookmark_sha256 = sha(beforeRestart.bookmark);
+      r.target_restart_attempted = true; r.target_restart_acknowledged = false;
+      r.status = 'TARGET_SAME_SNAPSHOT_RESTART_REQUESTED'; save();
+      // Restore this copy to its own fully compared snapshot. No source restore,
+      // repeated import or foreign-key disable request is available here.
+      await request('target', 'POST', TARGET_BASE + '/time_travel/restore?bookmark=' + beforeRestart.bookmark);
+      r.target_restart_acknowledged = true; save();
+      const afterRestart = await exportCurrent(request, 'target', TARGET_BASE, transfer, pause);
+      exportedBuffers.push(afterRestart.sql);
+      check(same(baseline, inspect(afterRestart.sql)), 'TARGET_RESTART_SCHEMA_OR_DATA_MISMATCH');
+      r.post_restart_target_parity_verified = true; save();
+    } else {
     // Recheck immediately before admission. The driver never appends to an existing target.
     check(catalogRows(await query('target', TARGET_BASE, CATALOG_SQL)).length === 0, 'TARGET_CHANGED_BEFORE_IMPORT');
     const importSql = restoreTransportSql(original.sql);
@@ -289,6 +319,7 @@ export async function recover({ sourceToken, targetToken, call, transfer = stora
     }
     check(job?.status === 'complete' && job.success !== false && !job.error, 'TARGET_IMPORT_UNCONFIRMED');
     r.target_import_outcome = 'COMPLETE'; save();
+    }
     await verifyHostedForeignKeys(sql => query('target', TARGET_BASE, sql), value => { r.hosted_fk_observation = value; save(); });
     r.hosted_foreign_key_enforcement_and_check = true; save();
     const restored = await exportCurrent(request, 'target', TARGET_BASE, transfer, pause);
@@ -324,7 +355,7 @@ export async function recover({ sourceToken, targetToken, call, transfer = stora
     r.source_data_unchanged = true;
     r.status = 'HOSTED_LOGICAL_RESTORE_PARITY_AND_ROLLBACK_VERIFIED';
   } catch (error) {
-    r.status = r.target_import_attempted || r.target_probe_attempted ? 'HOSTED_RECOVERY_REQUIRES_RECONCILIATION' : 'HOSTED_RECOVERY_STOPPED';
+    r.status = r.target_import_attempted || r.target_probe_attempted || priorImportReceipt ? 'HOSTED_RECOVERY_REQUIRES_RECONCILIATION' : 'HOSTED_RECOVERY_STOPPED';
     r.error = error instanceof RestoreStop || error instanceof RecoveryStop ? error.code : 'UNEXPECTED_LOCAL_FAILURE';
   } finally {
     for (const bytes of exportedBuffers) bytes.fill(0);
@@ -336,8 +367,14 @@ export async function recover({ sourceToken, targetToken, call, transfer = stora
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
   const raw = readFileSync(new URL('../evidence/hosted_recovery_20261114/oauth_restore_target_created_20261114.json', import.meta.url));
   check(sha(raw) === '7a639c7eefb3e72eaa5784c34414828d14cc7729c5583372a9832b71ab0e914d', 'OAUTH_TARGET_CREATION_PIN_MISMATCH');
+  let priorImportReceipt;
+  if (process.argv.includes('--verify-imported')) {
+    const prior = readFileSync(new URL('../evidence/hosted_recovery_20261114/prod_oauth_import_completed_fk_zero_20261114.json', import.meta.url));
+    check(sha(prior) === PRIOR_IMPORT_RECEIPT_SHA256, 'PRIOR_PRODUCTION_IMPORT_PIN_MISMATCH');
+    priorImportReceipt = JSON.parse(prior);
+  }
   const r = await recover({ sourceToken: process.env.CLOUDFLARE_API_TOKEN,
-    targetToken: process.env.AXIOM_D1_RECOVERY_CF_API_TOKEN, targetCreationReceipt: JSON.parse(raw) });
+    targetToken: process.env.AXIOM_D1_RECOVERY_CF_API_TOKEN, targetCreationReceipt: JSON.parse(raw), priorImportReceipt });
   console.log(r.status);
   if (r.error) console.log('error=' + r.error);
   process.exitCode = r.status === 'HOSTED_LOGICAL_RESTORE_PARITY_AND_ROLLBACK_VERIFIED' ? 0 : 2;

@@ -1,0 +1,145 @@
+{
+  "schema": "musitu.axiom.production-oauth-hosted-restore-parity.v1",
+  "observed_at_utc": "2026-11-14T18:32:36.818Z",
+  "source_account": "93f395f5121954671f92fffa453d6b61",
+  "source_database": "504029cc-f9a5-495e-818f-63c6144b4ea4",
+  "target_account": "67469478aa9349fa0a57fe3a72da200a",
+  "target_database": "5c092b73-d093-483d-adf9-9883a8c2f063",
+  "target_name": "axiom-oauth-step2-disposable-restore-20261114-704a7351",
+  "recipient_spki_sha256": "704a7351da66a21e0b35df4880df194f1cf0e17b161246671288141beae7262c",
+  "source_mutation_routes_available": false,
+  "production_oauth_migrated": false,
+  "encrypted_backup_persisted": true,
+  "encrypted_backup_owner_decryption_verified": false,
+  "target_import_attempted": true,
+  "target_import_outcome": "COMPLETE",
+  "hosted_schema_and_data_parity": false,
+  "rollback_attempted": false,
+  "rollback_outcome": "UNATTEMPTED",
+  "source_data_unchanged": false,
+  "release_status": "NOT_RELEASE",
+  "status": "HOSTED_RECOVERY_REQUIRES_RECONCILIATION",
+  "workers_paid_subscription_absent": true,
+  "preexisting_r2_subscription_count": 1,
+  "source_database_bytes": 3092480,
+  "source_catalog_sha256": "df1ae1ca73513313bb351c50e859f5767a72306eff076ba0283e89b3c019c364",
+  "preflight_verified": true,
+  "source_export_bookmark_sha256": "77bda310ae20c7ec2db266114f66f48bf7bc344d1160212798918716764aa63e",
+  "source_sql_sha256": "081a0b922b337059ad1efe935924b7da01bcb1dd2a43cb666910b6dff14d5ee4",
+  "source_sql_bytes": 2666698,
+  "encrypted_backup_sha256": "0be6523472bf10d8d7cc1b7c366d626625ac699d27a8646728b3a96b7517917c",
+  "baseline": {
+    "schema": "musitu.axiom.sql-typed-memory-fingerprint.v1",
+    "catalog_sha256": "df1ae1ca73513313bb351c50e859f5767a72306eff076ba0283e89b3c019c364",
+    "user_objects": 32,
+    "tables": [
+      {
+        "table_name_sha256": "04afd867b027da6e1982662324362b0f2ec05a66c9c595d8e21f8a161ae9ba25",
+        "rows": 2,
+        "data_sha256": "c39de14e11c190e335f4f031d8309c0b53df17bb7e7953c02a9c79e6d56ca5a3"
+      },
+      {
+        "table_name_sha256": "0def8d0147f7fd332257e4f3620e38a7779bbc7ee2f7cba08fa2c9deadfe5aff",
+        "rows": 682,
+        "data_sha256": "6cd018943c85e075497f2ab730eb5d7fefbf9d71fe81aa6583accc16813b381e"
+      },
+      {
+        "table_name_sha256": "117f20826fe4a5b511ac37735dd92c2da7d5f97b8e92909e38b9a0e9293b87f7",
+        "rows": 79,
+        "data_sha256": "3975b2cd67720d514f9c8672c3c3bf2565066f63b85dbdbad684fbfb33ba63e7"
+      },
+      {
+        "table_name_sha256": "15c0cb0acadd825ec1934374abc7b76d34f9219bdf2e29638eb262c259c46732",
+        "rows": 670,
+        "data_sha256": "f88197a54cba2e7bc7075e99cdd7e337a7535971d99bae02a095e539f3881307"
+      },
+      {
+        "table_name_sha256": "1de6ae02bc1cde28c40c9ed080b88d90a1a8f5ee34bb0baeaa5aceae5b7c6979",
+        "rows": 25,
+        "data_sha256": "1892cce94c5655e7070452dbd7864d21c2efb58326fa0b7079a447d2648e310f"
+      },
+      {
+        "table_name_sha256": "21eb2153dd1483cd67a621fb2c7b2f65b2ca46c64a49e49be4b939a1f0c844f8",
+        "rows": 12,
+        "data_sha256": "a219c8135695cb4fbcccde9150289d9e7f2a3d642a231f9e480893c9ffa43a8a"
+      },
+      {
+        "table_name_sha256": "2b8bc768c24298e2d1315fbf37e28ef3d1e1cc15b0f32c903f5f8aa92b4429a1",
+        "rows": 1,
+        "data_sha256": "bdd36105494212731c7182a5579f932f34da00b39342fef2743edc9a9752464c"
+      },
+      {
+        "table_name_sha256": "7c2949493b83503548d4b95f4934f3c2eb15ff7f6ad4131356ba17abe6471ef3",
+        "rows": 2691,
+        "data_sha256": "8037e3235521141cfc1f5996e08b28503f3a0661068b82ef4b56ca277c42802a"
+      },
+      {
+        "table_name_sha256": "819916d77d23758762a8a4299c1be73a5125f870ffcf4abb3663a5f940121852",
+        "rows": 2,
+        "data_sha256": "11ebec4124403264f98542911d6388b27921878bfa24d95dc40aa07794f305af"
+      },
+      {
+        "table_name_sha256": "9a8fa953f59166e4f4d38035c8aead2fbdd5afe58696b5bec505eab99ad380db",
+        "rows": 670,
+        "data_sha256": "93b5999ace2ebd1de76ecdbce662b79a871d7906f4665a1999f8f1c4fd12a099"
+      },
+      {
+        "table_name_sha256": "9b9cac0d04b605355cf2ac201e3f04f4f1187aec79a4ff1199d10c3ff549ccc5",
+        "rows": 2,
+        "data_sha256": "ce07596c85146b5b2fca24576df59c4be5ce53982df9a9a2da2a0d1e25baf568"
+      },
+      {
+        "table_name_sha256": "a9eb228c28a525b7cffd9518e3ff5cb9b26985a21ac8ffd0691d03133165521e",
+        "rows": 3,
+        "data_sha256": "b497e6e22da7254f343683e3d0b0fdca875b956a616e92220d6b19a5fe7bf053"
+      },
+      {
+        "table_name_sha256": "baf72ec190768651918da6e042ab73135400d9912a28063609300619f5d444ec",
+        "rows": 155,
+        "data_sha256": "0ec91ffc78a62dd562105ad97da055fb582440daefbaf78a30be885ab1ff4027"
+      },
+      {
+        "table_name_sha256": "c5e69b18914a14941ba300a88a3d026e62092f73da91de889e16b9c11b84c548",
+        "rows": 48,
+        "data_sha256": "bedbc685dd269c690878e10876e9da736f9c91b2d576ef9f69a535813fef3a7d"
+      },
+      {
+        "table_name_sha256": "cfd28cdcba0bcd36e5b4fa04d444abbb41946ac0f57bafa579286240f910d92c",
+        "rows": 12,
+        "data_sha256": "d5b7648ab1e58ddf01a628875088c1a4c2dbb9a9315a33f99bd9906759af4e28"
+      },
+      {
+        "table_name_sha256": "d7480e8e57bb244a925d26162806a4fd23e05faeab0dea1d09682a1bef2a906f",
+        "rows": 0,
+        "data_sha256": "6936df7febc20ac65dcdf06cb8cd10303af2fd72c0325f968e736201be83a278"
+      },
+      {
+        "table_name_sha256": "e499fb5cbf970c75c4b3b2e5a3c17b112095c0a656f770b1b001f8c24d4671ed",
+        "rows": 1,
+        "data_sha256": "7fdaed24444a3e4da0f074f55cb4b7da97f52f105f539842ab1a87b5fa21756c"
+      }
+    ],
+    "total_rows": 5055,
+    "user_data_sha256": "7f4444dcc33740ff1c81ae1d9389ef07294b9ad85acc5b2b1712490af1739469",
+    "integrity_check": true,
+    "foreign_key_check": true,
+    "foreign_key_parent_definitions": true
+  },
+  "import_sql_sha256": "f86f945ff079ecd650d5f1987dfebe7a6a53dc65deaaa43a7bb8722a87b54383",
+  "import_transport_policy": "VERBATIM_EXPORT_WITH_BULK_IMPORT_FK_LOAD_PRAGMAS_AND_MANDATORY_POSTCHECKS",
+  "hosted_fk_observation": {
+    "enforcement": 0,
+    "enforcement_result_sets": 1,
+    "check_result_sets": 1,
+    "violations": 0,
+    "enforcement_meta": {
+      "changed_db": false,
+      "rows_written": 0
+    },
+    "check_meta": {
+      "changed_db": false,
+      "rows_written": 0
+    }
+  },
+  "error": "HOSTED_FOREIGN_KEY_ENFORCEMENT_OR_INTEGRITY_FAILED"
+}
