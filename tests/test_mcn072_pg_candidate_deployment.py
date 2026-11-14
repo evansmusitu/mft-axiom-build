@@ -9,6 +9,8 @@ class TargetedAudit(unittest.TestCase):
            {'name':'OTHER','type':'secret_text','text':'hidden'}]
         d=p.classify_bindings(b)
         self.assertEqual(d['strict_pg_cues'],2)
+        self.assertEqual(d['strict_pg_by_type'],{'plain_text':1,'secret_text':1})
+        self.assertEqual(d['generic_db_by_type'],{'r2_bucket':1})
         self.assertEqual(d['generic_db_cues'],1)
         self.assertEqual(d['types'],{'plain_text':1,'r2_bucket':1,'secret_text':2})
         self.assertNotIn('postgres://secrets',str(d))
