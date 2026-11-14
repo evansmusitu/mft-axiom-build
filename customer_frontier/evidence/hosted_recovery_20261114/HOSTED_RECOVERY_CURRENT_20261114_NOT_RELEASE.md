@@ -1,10 +1,13 @@
 # MUSITU AXIOM hosted recovery — 14 November 2026 — NOT_RELEASE
 
-Gate 2's hosted recovery and native OAuth migration rehearsal have passed. The
-remaining owner action is authenticated decryption of the separate production
-OAuth ciphertext on the owner's Windows PC. Gate 2 remains OPEN until that exact
-result is received and matched. The earlier Windows staging/IdP proof is already
-accepted and must not be repeated.
+Gate 2 is CLOSED — hosted recovery and OAuth safety acceptance passed for the
+captured snapshots. The owner submitted the complete production-backup decryption
+JSON, observed at `2026-11-14T20:14:04.081Z`, and every account/database, public-key,
+ciphertext, SQL-hash and length field matched the independently captured hosted
+record. This is attributed owner-terminal evidence, alongside separate hosted
+restore, native migration, tenant/revocation and rollback receipts. Neither owner
+Windows verification needs repeating. Whole-product status remains NOT_RELEASE;
+Gate 3 security, custody and anti-rollback work is next.
 
 ## Acceptance register
 
@@ -21,8 +24,8 @@ accepted and must not be repeated.
 | Reviewed 89-statement native OAuth batch on the recovered production copy | PASS |
 | Deliberate late failure, idempotency, concurrent batches and fresh-session readback | PASS |
 | Production-copy tenant pairing and both-token-family revocation | PASS — 15 checks |
-| Owner decryption of this production OAuth ciphertext | PENDING — final Gate 2 owner step |
-| Gate 2 overall | OPEN — WAIT_OWNER_PRODUCTION_BACKUP_DECRYPTION |
+| Owner decryption of this production OAuth ciphertext | PASS — complete attributed owner-terminal proof matched |
+| Gate 2 overall | CLOSED — GATE2_HOSTED_RECOVERY_AND_OAUTH_SAFETY_VERIFIED |
 | Whole-product release | NOT_RELEASE |
 
 ## Distinct databases and snapshots
@@ -118,28 +121,27 @@ not blindly retried. Original provider ZIPs are retained in an owner-private
 Drive folder; see `provider_archive_index_20261114.json`. The qualified production
 archive was downloaded from Drive and matched its original size and SHA-256.
 
-## Final owner-device step
+## Accepted production owner-device evidence
 
-Extract `MUSITU_AXIOM_PRODUCTION_OAUTH_BACKUP_VERIFY_WINDOWS_20261114.zip` into a new
-folder and run the root script with the existing encrypted key and passphrase:
+The full owner-submitted result is retained in
+`owner_submitted_prod_oauth_decryption_proof_20261114.json`. It reports authenticated
+decryption of the actual production ciphertext, exact 2,666,698-byte SQL hash
+verification, no plaintext SQL file and zero provider operations. Its field values
+are preserved from the pasted JSON; the stored file is a reencoding, and its hash
+is not claimed as the byte hash of the unseen original Windows file. No private
+key or passphrase was supplied or requested.
 
-```powershell
-powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\Run_MUSITU_AXIOM_Verify_Production_OAuth_Backup.ps1
-```
+`gate2_owner_and_hosted_acceptance_20261114.json` records the exact matches, evidence
+attribution and immutable hosted receipt hashes. Original provider receipts remain
+unchanged, including fields that correctly reported owner decryption pending at
+the time of those earlier runs. No hosted test or import was rerun for acceptance.
 
-Return only `OWNER_PROD_OAUTH_BACKUP_DECRYPTION_PROOF.json`. The verifier authenticates
-this production ciphertext, decrypts only in memory, checks the exact SQL hash
-and length, writes no plaintext SQL and performs zero provider operations.
-
-[43631467558](https://github.com/evansmusitu/mft-axiom-build/actions/runs/43631467558)
-passed 27 synthetic crypto/input checks plus the actual shared process transport
-under native Windows PowerShell 5.1.20348.5773 and PowerShell 7.6.10, using a
-synthetic SQL payload at least as large as this production snapshot. Unicode
-passphrases, paths with spaces, wrong-password refusal, timeout cleanup and cloud
-refusal passed. CI did not operate the owner's key or earn actual owner
-production-backup decryption. The packet's four runtime file hashes are pinned
-by manifest SHA-256 `ccd607ba89f8980290af4c97cd24c41bdd22c2541195bcae564e667759332025`.
-No Ubuntu, WSL, Python installation or new key ceremony is required on the PC.
+The packet was previously qualified in Windows PowerShell 5.1.20348.5773 and
+PowerShell 7.6.10 by [43631467558](https://github.com/evansmusitu/mft-axiom-build/actions/runs/43631467558),
+with 27 synthetic crypto/input checks plus the actual shared transport and a
+production-sized synthetic payload. That CI evidence stays separate from the
+subsequent actual owner result. Packet manifest SHA-256 remains
+`ccd607ba89f8980290af4c97cd24c41bdd22c2541195bcae564e667759332025`.
 
 ## Governance and continuation
 
@@ -149,5 +151,6 @@ draft on its existing Step1 base. No production sole-owner governance activation
 OAuth cutover, paid upgrade, merge, payment or release occurred. B27 and PR83
 vetoes are unchanged. Preserve the prior narrative in
 `HOSTED_RECOVERY_PRIOR_WINDOWS_AND_STAGING_CHECKPOINT_20261114.md`, every failed
-receipt and the accepted staging owner proof. Advance to Gate 3 only after this
-production owner result genuinely matches and Gate 2 is recorded complete.
+receipt and both accepted owner proofs. Gate 2 is now recorded complete. Continue
+to Gate 3 by inspecting the current B27, durable authority/nonce, custody recovery
+and PR83 security sources and tests; do not infer their acceptance from Gate 2.

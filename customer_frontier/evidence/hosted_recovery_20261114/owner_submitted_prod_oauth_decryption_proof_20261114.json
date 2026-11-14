@@ -1,0 +1,16 @@
+{
+  "schema": "musitu.axiom.owner-current-prod-oauth-backup-decryption-proof.v1",
+  "observed_at_utc": "2026-11-14T20:14:04.081Z",
+  "source_account": "93f395f5121954671f92fffa453d6b61",
+  "source_database": "504029cc-f9a5-495e-818f-63c6144b4ea4",
+  "recipient_spki_sha256": "704a7351da66a21e0b35df4880df194f1cf0e17b161246671288141beae7262c",
+  "encrypted_backup_sha256": "71011edc3c4c8919e72ddcab180dfc3caeccc2a322a9a316f30bb94d570d9af5",
+  "source_sql_sha256": "081a0b922b337059ad1efe935924b7da01bcb1dd2a43cb666910b6dff14d5ee4",
+  "sql_bytes": 2666698,
+  "authenticated_decryption_verified": true,
+  "decrypted_plaintext_written": false,
+  "provider_operations": 0,
+  "hosted_parity_is_separate_evidence": true,
+  "release_status": "NOT_RELEASE",
+  "status": "OWNER_CURRENT_PROD_OAUTH_BACKUP_DECRYPTION_VERIFIED"
+}

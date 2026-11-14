@@ -1,8 +1,8 @@
 {
   "schema": "musitu.axiom.gate2-recovery-current.v1",
   "release_status": "NOT_RELEASE",
-  "gate2_closed": false,
-  "status": "WAIT_OWNER_PRODUCTION_BACKUP_DECRYPTION",
+  "gate2_closed": true,
+  "status": "GATE2_HOSTED_RECOVERY_AND_OAUTH_SAFETY_VERIFIED",
   "staging_owner_decryption_accepted": true,
   "production_hosted_restore_and_rollback_verified": true,
   "native_89_statement_production_copy_rehearsal_verified": true,
@@ -10,7 +10,7 @@
   "production_source_unchanged_during_rehearsal": true,
   "production_oauth_migrated": false,
   "permanent_worker_deployment_performed": false,
-  "production_owner_decryption_verified": false,
+  "production_owner_decryption_verified": true,
   "production_source_database": "504029cc-f9a5-495e-818f-63c6144b4ea4",
   "recovery_database": "5c092b73-d093-483d-adf9-9883a8c2f063",
   "recipient_spki_sha256": "704a7351da66a21e0b35df4880df194f1cf0e17b161246671288141beae7262c",
@@ -28,5 +28,12 @@
   "pr1_draft_unmerged": true,
   "b27_and_pr83_vetoes_preserved": true,
   "combined_focused_node_tests_passed": 91,
-  "original_migration_python_regressions_passed": 21
+  "original_migration_python_regressions_passed": 21,
+  "production_owner_decryption_observed_at_utc": "2026-11-14T20:14:04.081Z",
+  "production_owner_decryption_evidence_origin": "OWNER_TERMINAL_SUBMITTED_EVIDENCE",
+  "production_owner_decryption_proof_path": "owner_submitted_prod_oauth_decryption_proof_20261114.json",
+  "production_owner_decryption_reencoded_sha256": "6c53c304016cbc1524bd2e6da2f234ff92b94ca78c27239356e3167e62576263",
+  "gate2_acceptance_path": "gate2_owner_and_hosted_acceptance_20261114.json",
+  "gate2_acceptance_sha256": "530bc478ff80e274e78f155df86c18fad2bbe56e1f1cb437e139f8c3f7fc07a5",
+  "next_gate": "GATE3_SECURITY_CUSTODY_AND_ANTI_ROLLBACK"
 }

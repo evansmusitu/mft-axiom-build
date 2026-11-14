@@ -1,0 +1,46 @@
+{
+  "schema": "musitu.axiom.gate2-owner-and-hosted-evidence-acceptance.v1",
+  "recorded_at_utc": "2026-11-14T20:18:09.903Z",
+  "status": "GATE2_HOSTED_RECOVERY_AND_OAUTH_SAFETY_VERIFIED",
+  "gate2_closed": true,
+  "release_status": "NOT_RELEASE",
+  "scope": "Current captured staging/IdP and production OAuth snapshots, isolated hosted restoration, reviewed migration rehearsal, tenant/revocation checks, rollback and owner decryption. No production OAuth cutover.",
+  "owner_production_decryption": {
+    "proof_path": "owner_submitted_prod_oauth_decryption_proof_20261114.json",
+    "reencoded_proof_sha256": "6c53c304016cbc1524bd2e6da2f234ff92b94ca78c27239356e3167e62576263",
+    "observed_at_utc": "2026-11-14T20:14:04.081Z",
+    "evidence_origin": "Owner pasted complete JSON and PASS terminal output in this conversation.",
+    "attribution": "OWNER_TERMINAL_SUBMITTED_EVIDENCE",
+    "original_file_bytes_independently_obtained": false,
+    "all_submitted_values_preserved": true,
+    "matched_to_exact_hosted_ciphertext_sql_length_and_public_pin": true,
+    "independent_attestation_or_remote_device_observation_claimed": false
+  },
+  "hosted_restore_receipt": {
+    "path": "prod_oauth_hosted_restore_parity_rollback_passed_20261114.json",
+    "sha256": "7c4bb77d2b717bd7126543dafc4ac4cd44d68d2b530d7c111b58448efa4463ae",
+    "run_id": 43627859736
+  },
+  "native_migration_receipt": {
+    "path": "prod_oauth_native_migration_tenant_rollback_passed_20261114.json",
+    "sha256": "d850580bcbf5e03a6cd865cdccc7cbb8538df541f3bcefdb650d6bd03d0a4079",
+    "run_id": 43630591859,
+    "exact_statement_count": 89,
+    "native_tenant_revocation_passes": 15
+  },
+  "staging_owner_proof": {
+    "path": "owner_submitted_decryption_proof_20261114.json",
+    "sha256": "212546bab17be2c12f5dfa1084d640bdae105fd5c57604e58d6b30ea7f4de8e2",
+    "previously_accepted": true
+  },
+  "prior_receipts_immutable": true,
+  "earlier_failures_preserved": true,
+  "provider_operations_during_this_acceptance": 0,
+  "production_oauth_migrated": false,
+  "release_approved": false,
+  "main_preserved_sha": "c3c5aaab90e94f1ca84ac9903f9d481c23c4f350",
+  "pr1_preserved_sha": "8fc1fbb7c5ebbcc1604ecf24c5f4594f2d5667e3",
+  "pr1_draft_unmerged": true,
+  "b27_and_pr83_vetoes_preserved": true,
+  "next_gate": "GATE3_SECURITY_CUSTODY_AND_ANTI_ROLLBACK"
+}
