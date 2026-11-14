@@ -1,0 +1,28 @@
+{
+  "schema": "musitu.axiom.authority2-owner-direct-access-confirmation.v1",
+  "recorded_at_utc": "2026-11-14T21:33:40.634Z",
+  "controller_name": "Evans Musitu",
+  "authority2_account": "67469478aa9349fa0a57fe3a72da200a",
+  "evidence_origin": "DIRECT_USER_RESPONSE_IN_THIS_CONVERSATION",
+  "question_answered": "Can you administer and recover that Cloudflare account directly, outside GitHub Actions?",
+  "user_answer": "I can",
+  "owner_confirms_direct_administration_and_recovery_outside_github_actions": true,
+  "independently_observed_provider_login_or_custody_proof": false,
+  "controller_name_question_resolved": true,
+  "outside_github_recovery_question_resolved": true,
+  "browser_review": {
+    "intended_target_origin": "https://dash.cloudflare.com",
+    "state": "TOKEN_POLICY_INSPECTION_BLOCKED_AUTH_ORIGIN_APPROVAL",
+    "secure_auth_request_timed_out": true,
+    "authentication_outcome": "UNKNOWN",
+    "automatic_approval_review_denied_page_observation": true,
+    "reported_blocked_origin": "https://accounts.google.com",
+    "review_reason": "Unresolved sign-in reached Google without confirmed user selection or authorization for that separate provider.",
+    "followup_authentication_method_authorization_required": true,
+    "credential_or_token_policy_changes_performed": false,
+    "secret_values_observed_by_assistant": false
+  },
+  "gate2_closed": true,
+  "gate3_closed": false,
+  "release_status": "NOT_RELEASE"
+}

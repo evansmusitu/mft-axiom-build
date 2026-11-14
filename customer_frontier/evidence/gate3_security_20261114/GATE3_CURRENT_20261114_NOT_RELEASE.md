@@ -52,6 +52,28 @@ review alongside previously observed builder administration. Preserve working
 owner-held recovery access before revoking or restricting build credentials.
 No credential value was read and no token was probed or revoked for this update.
 
+## Owner confirms direct recovery access
+
+In response to "Can you administer and recover that Cloudflare account directly,
+outside GitHub Actions?", Evans replied "I can". The attributed response is
+retained in `authority2_owner_direct_access_confirmation_20261114.json`. The
+outside-GitHub recovery question is resolved by owner confirmation and must not
+be repeated. Provider-origin custody and administrator isolation remain separate
+acceptance requirements.
+
+The Cloudflare account UI was opened for read-only token-policy inspection. It
+showed a sign-in screen. A secure authentication request timed out with its
+outcome unknown. Automatic approval review then denied page observation because
+the unresolved sign-in had reached Google without confirmed authorization for
+that provider. No credential or token-policy change was performed. Continue only
+after the user explicitly authorizes the sign-in method; do not retry through an
+alternate browser, provider route or credential surface to evade that rejection.
+
+The scoped restriction plan is retained in
+`AUTHORITY2_BUILD_CREDENTIAL_RESTRICTIONS_20261114_NOT_RELEASE.md`. Applying it
+requires actual token IDs and provider policy inspection. Nothing in this
+confirmation earns global nonrollback or waives the existing security vetoes.
+
 ## What genuinely remains
 
 1. **Authority and recovery control:** qualify independent administration,
@@ -90,14 +112,15 @@ that distinction without repeating Gate 1 or requesting another owner key.
 - [Existing independent operator ceremony](https://github.com/evansmusitu/mft-axiom-build/blob/14b5c520bd7cd53ccd4978f575dfcbe9b250ed0c/integrations/security-authority2/B27_INDEPENDENT_OPERATOR_CEREMONY_20261113.md).
 - Live PR discussion/review timelines for PR192, PR83 and PR190 were read. No independent review submission was returned; all discussion entries with authors were from the repository owner.
 
-**Next required qualification:** with Evans identified as the owner-operator,
-establish which Authority 2 administrator, signer and recovery credentials remain
-accessible to the AXIOM build pipeline. Verify the owner-operated custody boundary
-using public control/recovery and signer evidence. Credentials, private keys and
-MFA secrets stay with the operator. Then follow the existing reviewed-order
-ceremony for safe initialization and real disposable destructive acceptance.
-Independent review and administrator separation remain unqualified; Gate 3 stays
-in HOLD before real-customer identity acceptance or production cutover.
+**Next required action:** obtain explicit authorization of the Cloudflare
+sign-in method so the owner account's actual token IDs, policies and consumers can
+be reviewed. Owner control and direct recovery outside GitHub Actions are already
+confirmed. Prepare and apply exact Authority 2 build-credential restrictions
+without affecting other accounts or owner recovery, verify the resulting custody
+boundary, then follow the existing ceremony for safe initialization and real
+disposable destructive acceptance. Independent review and administrator
+separation remain unqualified; Gate 3 stays in HOLD before real-customer identity
+acceptance or production cutover.
 
 Main `c3c5aaab90e94f1ca84ac9903f9d481c23c4f350` and separate draft/unmerged PR1
 `8fc1fbb7c5ebbcc1604ecf24c5f4594f2d5667e3` remain preserved. PR192, PR83 and PR190
