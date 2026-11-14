@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { DatabaseSync } from 'node:sqlite';
 import { readFileSync } from 'node:fs';
 import worker, { qualifyNativeBatch, readNativePersistence } from '../recovery/step2_native_batch_preview_worker_20261114.mjs';
-import { qualifyPreview, allowed, trustedPreviewUrl, PreviewStop, PRODUCTION_BASE, PRODUCTION_DATABASE, PREVIEW_A, PREVIEW_B } from '../recovery/step2_native_batch_preview_20261114.mjs';
+import { apiClient, qualifyPreview, allowed, trustedPreviewUrl, PreviewStop, PRODUCTION_BASE, PRODUCTION_DATABASE, PREVIEW_A, PREVIEW_B } from '../recovery/step2_native_batch_preview_20261114.mjs';
 import { ACCOUNT, NAME, CATALOG_SQL } from '../recovery/step2_create_restore_target_20261114.mjs';
 import { TARGET, TARGET_BASE, ACCOUNT_BASE } from '../recovery/step2_hosted_restore_20261114.mjs';
 const receipt = JSON.parse(readFileSync(new URL('../evidence/hosted_recovery_20261114/hosted_restore_parity_rollback_passed.json', import.meta.url)));
@@ -71,7 +71,8 @@ function simulation(change = {}) {
     if (path.endsWith('/time_travel/bookmark')) return ok({ bookmark: mark });
     if (path.includes('/time_travel/restore?')) { rolled = true; return ok({ bookmark: mark }); }
     if (path.endsWith('/subdomain/edge-preview')) {
-      if (change.permissionDenied) throw new PreviewStop('RECOVERY_API_HTTP_403');
+      if (change.permissionDenied) throw new PreviewStop('RECOVERY_API_HTTP_403', {
+        api_operation: 'PREVIEW_SESSION_INITIALIZE', provider_error_codes: [10000] });
       return ok({ token: 'SYNTHETIC_PREVIEW_SECRET', exchange_url: 'https://exchange.synthetic.workers.dev/auth' });
     }
     if (path.endsWith('/edge-preview') && method === 'POST') {
@@ -110,6 +111,28 @@ test('a real preview permission refusal stops before invocation or rollback and 
   assert.equal(r.error, 'RECOVERY_API_HTTP_403'); assert.equal(r.native_invocation_attempted, false);
   assert.equal(s.state().rolled, false);
   assert.equal(s.calls.filter(c => c.path.endsWith('/subdomain/edge-preview')).length, 1);
+});
+test('provider refusal exposes only the fixed operation and bounded numeric error codes', async t => {
+  const privateMessage = 'SYNTHETIC_PRIVATE_PROVIDER_MESSAGE';
+  t.mock.method(globalThis, 'fetch', async () => new Response(JSON.stringify({ success: false,
+    errors: [{ code: 10000, message: privateMessage }, { code: 'secret-code-' + privateMessage },
+      { code: 10000, signed_url: 'https://secret.invalid/' + privateMessage }],
+    token: privateMessage }), { status: 403 }));
+  const api = apiClient({ recovery: 'SYNTHETIC_RECOVERY_SECRET' });
+  await assert.rejects(api('recovery', 'GET', ACCOUNT_BASE + '/workers/scripts/' + PREVIEW_A + '/subdomain/edge-preview'), error => {
+    assert.equal(error.code, 'RECOVERY_API_HTTP_403');
+    assert.equal(error.api_operation, 'PREVIEW_SESSION_INITIALIZE');
+    assert.deepEqual(error.provider_error_codes, [10000]);
+    assert.equal(JSON.stringify(error).includes(privateMessage), false);
+    return true;
+  });
+});
+test('a refused preview retains safe provider diagnostics and token kind without a secret value', async () => {
+  const r = await simulation({ permissionDenied: true }).run({ recoveryToken: 'cfat_SYNTHETIC_PRIVATE_TOKEN' });
+  assert.equal(r.refused_api_operation, 'PREVIEW_SESSION_INITIALIZE');
+  assert.deepEqual(r.provider_error_codes, [10000]);
+  assert.equal(r.recovery_credential_kind, 'account_api_token');
+  assert.equal(JSON.stringify(r).includes('SYNTHETIC_PRIVATE_TOKEN'), false);
 });
 test('a missing production table cannot be substituted with staging identity data', async () => {
   const s = simulation({ missingProductionTable: true }), r = await s.run();

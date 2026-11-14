@@ -16,7 +16,15 @@ export const PREVIEW_B = PREVIEW_A + '-fresh';
 export const FILE = 'native_batch_and_oauth_preflight_20261114.json';
 const sha = value => createHash('sha256').update(value).digest('hex');
 const BOOKMARK = /^[A-Za-z0-9-]{16,256}$/;
-export class PreviewStop extends Error { constructor(code) { super(code); this.code = code; } }
+const SAFE_OPERATIONS = ['PREVIEW_SESSION_INITIALIZE', 'PREVIEW_UPLOAD', 'WORKERS_SUBDOMAIN_READ', 'PINNED_API_OPERATION'];
+export class PreviewStop extends Error {
+  constructor(code, details = {}) {
+    super(code); this.code = code;
+    if (SAFE_OPERATIONS.includes(details.api_operation)) this.api_operation = details.api_operation;
+    if (Array.isArray(details.provider_error_codes)) this.provider_error_codes = [...new Set(details.provider_error_codes
+      .filter(value => Number.isSafeInteger(value) && value >= 0 && value <= 999999999))].slice(0, 10);
+  }
+}
 const check = (ok, code) => { if (!ok) throw new PreviewStop(code); };
 const result = doc => { check(doc?.success === true, 'API_ENVELOPE_INVALID'); return doc.result; };
 
@@ -62,7 +70,15 @@ export function apiClient(tokens) {
           ...(previewSessionToken ? { 'cf-preview-upload-config-token': previewSessionToken } : {}) },
         ...(body ? { body: multipart ? body : JSON.stringify(body) } : {}) });
       const bytes = await bounded(response, 500000);
-      check(response.ok, role.toUpperCase() + '_API_HTTP_' + response.status);
+      if (!response.ok) {
+        let codes = [];
+        try { const refused = JSON.parse(bytes); if (Array.isArray(refused?.errors)) codes = refused.errors.map(row => row?.code); } catch {}
+        const operation = method === 'GET' && path.endsWith('/subdomain/edge-preview') ? 'PREVIEW_SESSION_INITIALIZE' :
+          method === 'POST' && path.endsWith('/edge-preview') ? 'PREVIEW_UPLOAD' :
+          path === ACCOUNT_BASE + '/workers/subdomain' ? 'WORKERS_SUBDOMAIN_READ' : 'PINNED_API_OPERATION';
+        throw new PreviewStop(role.toUpperCase() + '_API_HTTP_' + response.status,
+          { api_operation: operation, provider_error_codes: codes });
+      }
       let doc; try { doc = JSON.parse(bytes); } catch { throw new PreviewStop('API_JSON_INVALID'); }
       result(doc); return doc;
     } catch (error) {
@@ -149,6 +165,8 @@ export async function qualifyPreview({ productionToken, recoveryToken, baselineR
     production_row_values_collected: 0, production_sql_export_performed: false, production_mutation_routes_available: false,
     production_oauth_migrated: false, permanent_worker_deployment_performed: false,
     native_invocation_attempted: false, cleanup_parity_verified: false, preview_workers_absent_after_cleanup: false,
+    recovery_credential_kind: typeof recoveryToken === 'string' && recoveryToken.startsWith('cfat_') ? 'account_api_token' :
+      typeof recoveryToken === 'string' && recoveryToken.startsWith('cfut_') ? 'user_api_token' : 'legacy_or_unknown',
     gate2_closed: false, release_status: 'NOT_RELEASE', status: 'PREFLIGHT_PENDING' };
   const record = () => save(r);
   let origin, previewAttempted = false;
@@ -201,6 +219,9 @@ export async function qualifyPreview({ productionToken, recoveryToken, baselineR
   } catch (error) {
     r.status = 'NATIVE_BATCH_OR_PRODUCTION_PREFLIGHT_STOPPED';
     r.error = error instanceof PreviewStop ? error.code : 'UNEXPECTED_PREFLIGHT_FAILURE';
+    if (error instanceof PreviewStop && error.api_operation) {
+      r.refused_api_operation = error.api_operation; r.provider_error_codes = error.provider_error_codes ?? [];
+    }
   } finally {
     if (r.native_invocation_attempted && origin) {
       r.rollback_attempted = true; record();
