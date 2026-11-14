@@ -25,8 +25,8 @@ jobs:
         run: |
           set -euo pipefail
           test "$(git hash-object qualification/mcn072_all_worker_settings_readonly.py)" = 'a906c2a7a1d4c71bbb77cc0e485fa9e3fe4a64db'
-          test "$(git hash-object qualification/mcn072_pg_candidate_deployment_readonly.py)" = 'c5262db92029c96d478047eebe1ffeaff52165ae'
-          test "$(git hash-object tests/test_mcn072_pg_candidate_deployment.py)" = '1d891b8548461a255e0b53ee740499ab4c97aa6e'
+          test "$(git hash-object qualification/mcn072_pg_candidate_deployment_readonly.py)" = '851cac1dac8a8b6012d336542812c3e47d1625c1'
+          test "$(git hash-object tests/test_mcn072_pg_candidate_deployment.py)" = '7816872e9dcdc3b5d847454e4b5df87837dd4e92'
           PYTHONDONTWRITEBYTECODE=1 python3 -B -m unittest discover -s tests -p 'test_mcn072_pg_candidate_deployment.py' -v
       - name: Authenticated GET-only alternate Worker deployment/version metadata
         shell: bash
