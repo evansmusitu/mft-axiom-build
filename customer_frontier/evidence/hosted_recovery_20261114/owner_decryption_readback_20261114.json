@@ -1,0 +1,19 @@
+{
+  "schema": "musitu.axiom.owner-backup-result-readback.v1",
+  "evidence_origin": "OWNER_SUPPLIED_TERMINAL_TRANSCRIPT",
+  "proof_json_reencoded_from_owner_paste": true,
+  "owner_observed_at_utc": "2026-11-14T13:44:31.235Z",
+  "independent_owner_device_execution_observed": false,
+  "captured_ciphertext_file_sha256_verified": true,
+  "all_source_and_key_and_sql_pins_match": true,
+  "owner_reported_actual_decryption_accepted": true,
+  "reported_plaintext_written": false,
+  "reported_provider_operations": 0,
+  "proof_content_sha256": "212546bab17be2c12f5dfa1084d640bdae105fd5c57604e58d6b30ea7f4de8e2",
+  "provider_receipt_sha256": "82ab871ea31dc55eeabb79803bb03e4a2d8ee98d789bafb8a1d6c9e99480cf07",
+  "encrypted_backup_sha256": "7377fca3044b3bf522c37e81cb575f445b8d4857850e9cc214a3e2bd0ee00cdc",
+  "status": "OWNER_RESULT_MATCHES_ACTUAL_CAPTURED_BACKUP",
+  "gate2_closed": false,
+  "production_oauth_migrated": false,
+  "release_status": "NOT_RELEASE"
+}

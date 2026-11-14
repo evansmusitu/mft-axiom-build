@@ -58,7 +58,7 @@ and target tokens are confined to fixed role-specific operation allowlists.
 | Live FK enforcement and integrity | PASS |
 | Target-only marker, destructive rollback and full parity afterward | PASS |
 | Independent final source data comparison | PASS |
-| Owner-PC authenticated decryption of this actual ciphertext | PENDING OWNER DEVICE |
+| Owner-PC authenticated decryption of this actual ciphertext | PASS — OWNER RESULT MATCHES CAPTURED BACKUP |
 | Application-level tenant separation using recovered runtime | OPEN |
 | Production OAuth recovery/migration safety acceptance | OPEN |
 | Gate 2 overall | OPEN |
@@ -104,4 +104,28 @@ the original owner key, authenticated backup, receipt and exact helper source.
 The owner should extract the corrected complete packet into a new folder and
 run the same root PS1 using the existing key and passphrase. No new key ceremony,
 Cloudflare request, production change or repeated hosted import is needed.
-Owner-device decryption of the actual ciphertext remains PENDING until observed.
+Owner-device decryption was pending when version 2 was packaged. The subsequent
+owner result below resolves this requirement.
+
+## Owner's actual Windows result received — 14 November 2026
+
+The owner supplied the successful verifier terminal output and complete result
+JSON, observed on the owner's PC at `2026-11-14T13:44:31.235Z` (15:44:31 Harare).
+The result reports authenticated decryption, no plaintext file and zero provider
+operations. Every source identifier, recipient public-key fingerprint, ciphertext
+SHA-256, plaintext SQL SHA-256 and the 28,985-byte length matches the previously
+captured provider backup. The ciphertext file's SHA-256 was independently
+recomputed locally and matches that exact backup. The owner private key and
+passphrase were not received.
+
+`owner_submitted_decryption_proof_20261114.json` preserves the JSON values pasted
+by the owner; whitespace is reencoded rather than asserted to be the byte-exact
+original Windows file. `owner_decryption_readback_20261114.json` records the match
+and explicitly attributes execution to the owner's terminal report. This is
+accepted owner-device evidence, not a claim that cloud CI independently operated
+the owner's PC. Do not ask the owner to repeat this completed step.
+
+The hosted restore/parity/rollback milestone plus actual owner backup decryption
+are complete for the current staging/IdP snapshot. Gate 2 remains OPEN for the
+recovered application's tenant separation and production OAuth recovery/migration
+safety. No production migration or release is authorized by this result alone.
