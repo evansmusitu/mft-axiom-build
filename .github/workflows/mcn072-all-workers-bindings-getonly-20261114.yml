@@ -1,0 +1,56 @@
+name: MUSITU MCN-072 all Workers binding metadata GET-only (NO RELEASE)
+
+on:
+  push:
+    branches:
+      - audit/mcn072-all-worker-settings-getonly-20261114
+    paths:
+      - .github/workflows/mcn072-all-workers-bindings-getonly-20261114.yml
+permissions:
+  contents: read
+concurrency:
+  group: mcn072-all-worker-settings-20261114
+  cancel-in-progress: false
+jobs:
+  inspect:
+    if: github.repository == 'evansmusitu/mft-axiom-build' && github.ref == 'refs/heads/audit/mcn072-all-worker-settings-getonly-20261114'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout without persisted credentials
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Verify exact source pins and local adversarial tests BEFORE secrets
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git hash-object qualification/mcn072_all_worker_settings_readonly.py)" = 'a906c2a7a1d4c71bbb77cc0e485fa9e3fe4a64db'
+          test "$(git hash-object tests/test_mcn072_all_worker_settings_readonly.py)" = '36037617bbff685fa2ad7952188142ce1cf21604'
+          PYTHONDONTWRITEBYTECODE=1 python3 -B -m unittest discover -s tests -p 'test_mcn072_all_worker_settings_readonly.py' -v
+      - name: Authenticated GET-only Cloudflare current Worker binding inventory
+        shell: bash
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          MCN072_CF_ACCOUNT_ID: 93f395f5121954671f92fffa453d6b61
+        run: |
+          set -euo pipefail
+          PYTHONDONTWRITEBYTECODE=1 python3 -B qualification/mcn072_all_worker_settings_readonly.py > mcn072-all-worker-settings-sanitized.json
+          python3 - <<'PY'
+          import json,hashlib
+          p='mcn072-all-worker-settings-sanitized.json'; b=open(p,'rb').read(); d=json.loads(b)
+          assert d['schema']=='musitu.mcn072.cloudflare_all_workers_settings_getonly.v1'
+          assert d['mcn072_qualified'] is False and d['postgres_authenticated'] is False
+          open(p+'.sha256','w').write(hashlib.sha256(b).hexdigest()+'  '+p+'\n')
+          print('sanitized GET-only inventory; settings read',d['worker_settings_read'],'of',d['worker_scripts_listed'],'candidates',d['potential_pg_binding_scripts'])
+          PY
+      - name: Upload sanitized audit report only
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: musitu-mcn072-all-workers-bindings-getonly-20261114
+          if-no-files-found: ignore
+          retention-days: 7
+          path: |
+            mcn072-all-worker-settings-sanitized.json
+            mcn072-all-worker-settings-sanitized.json.sha256
