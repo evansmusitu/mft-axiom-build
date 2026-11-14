@@ -1,0 +1,54 @@
+name: MUSITU MCN-072 Queue and alternate Worker current code hints GET-only (NO RELEASE)
+on:
+  push:
+    branches:
+      - audit/mcn072-queue-alternate-worker-link-getonly-20261114
+    paths:
+      - .github/workflows/mcn072-queue-alt-worker-link-getonly-20261114.yml
+permissions:
+  contents: read
+concurrency:
+  group: mcn072-queue-alternate-worker-link-getonly-20261114
+  cancel-in-progress: false
+jobs:
+  inspect:
+    if: github.repository == 'evansmusitu/mft-axiom-build' && github.ref == 'refs/heads/audit/mcn072-queue-alternate-worker-link-getonly-20261114'
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - name: Checkout isolated source without persisted credentials
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Check pinned blobs and adversarial tests BEFORE credential exposure
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git hash-object qualification/mcn072_all_worker_settings_readonly.py)" = 'a906c2a7a1d4c71bbb77cc0e485fa9e3fe4a64db'
+          test "$(git hash-object qualification/mcn072_worker_link_fingerprint_readonly.py)" = 'bb1e0991d4ad145755e74ff3777729547af589bc'
+          test "$(git hash-object tests/test_mcn072_worker_link_fingerprint_readonly.py)" = '1ab55327a5c936aea980d89365c14346aea2e222'
+          PYTHONDONTWRITEBYTECODE=1 python3 -B -m unittest discover -s tests -p 'test_mcn072_worker_link_fingerprint_readonly.py' -v
+      - name: GET-only bounded current-code comparison without exporting Worker content
+        shell: bash
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+        run: |
+          set -euo pipefail
+          PYTHONDONTWRITEBYTECODE=1 python3 -B -m qualification.mcn072_worker_link_fingerprint_readonly > mcn072-worker-link-hints-sanitized.json
+          python3 - <<'PY'
+          import hashlib,json
+          p='mcn072-worker-link-hints-sanitized.json';b=open(p,'rb').read();x=json.loads(b)
+          assert x['mcn072_qualified'] is False and x['correspondence_authenticated'] is False
+          open(p+'.sha256','w').write(hashlib.sha256(b).hexdigest()+'  '+p+'\n')
+          print('Sanitized source comparison; source_pair_complete:',x['source_pair_complete'])
+          PY
+      - name: Upload ONLY sanitized report and SHA receipt
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: musitu-mcn072-queue-alt-worker-link-getonly-20261114
+          if-no-files-found: ignore
+          retention-days: 7
+          path: |
+            mcn072-worker-link-hints-sanitized.json
+            mcn072-worker-link-hints-sanitized.json.sha256
