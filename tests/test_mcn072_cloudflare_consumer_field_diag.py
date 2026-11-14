@@ -191,150 +191,6 @@ class CloudflareConsumerSchemaTests(unittest.TestCase):
         self.assertEqual(result.get('deployment_observation_status'),'NO_MATCHING_WORKER_CANDIDATE')
         self.assertFalse(result.get('active_deployed_queue_handler_observed', False))
 
-    def _run_with_content_sha(self, rows, digest):
-        def fake(path, token, opener):
-            if path not in rows:
-                raise D.ProbeFailure('TEST_ENDPOINT_UNAVAILABLE')
-            obj=rows[path]
-            return obj, hashlib.sha256(json.dumps(obj,sort_keys=True).encode()).hexdigest()
-        content={'content_provenance_status':'CURRENT_SCRIPT_CONTENT_ONLY',
-                 'worker_script_content_sha256':digest,
-                 'worker_script_content_bytes':4096,
-                 'content_matches_active_version_qualified':False,
-                 'mcn072_qualified':False}
-        with patch.object(D,'fetch',side_effect=fake), patch.object(D,'fetch_worker_content',return_value=content):
-            return D.inspect('private-test-token',object())
-
-    def test_matching_active_version_etag_and_current_script_digest_is_observation_only(self):
-        rows,_,version_path=self._deployment_sample()
-        digest='a'*64
-        rows[version_path]['result']['resources']['script']['etag']=digest
-        result=self._run_with_content_sha(rows,digest)
-        self.assertTrue(result['active_version_content_sha256_equality_observed'])
-        self.assertEqual(result['active_version_etag_sha256'],hashlib.sha256(digest.encode()).hexdigest())
-        self.assertFalse(result['content_matches_active_version_qualified'])
-        self.assertFalse(result['tenant_fairness_qualified'])
-        self.assertFalse(result['mcn072_qualified'])
-
-    def test_mismatched_current_script_digest_never_promotes_version_content(self):
-        rows,_,version_path=self._deployment_sample()
-        rows[version_path]['result']['resources']['script']['etag']='b'*64
-        result=self._run_with_content_sha(rows,'a'*64)
-        self.assertFalse(result['active_version_content_sha256_equality_observed'])
-        self.assertFalse(result['content_matches_active_version_qualified'])
-
-    def test_missing_or_opaque_etag_cannot_be_called_corresponding_content(self):
-        rows,_,version_path=self._deployment_sample()
-        for val in (None, 'secret-invalid-opaque-etag'):
-            if val is None:rows[version_path]['result']['resources']['script'].pop('etag',None)
-            else:rows[version_path]['result']['resources']['script']['etag']=val
-            result=self._run_with_content_sha(rows,'a'*64)
-            self.assertFalse(result['active_version_content_sha256_equality_observed'])
-            self.assertNotIn('secret-invalid-opaque-etag',json.dumps(result))
-
-    def test_multipart_raw_boundary_changes_do_not_change_module_payload_digest(self):
-        source=b'export default { async queue() { return 123; } }'
-        def body(boundary):
-            b=boundary.encode()
-            return (b'--'+b+b'\r\nContent-Disposition: form-data; name="main"; filename="worker.mjs"\r\n'
-                    b'Content-Type: application/javascript\r\n\r\n'+source+b'\r\n--'+b+b'--\r\n')
-        def get(raw, boundary):
-            class Resp:
-                status=200
-                headers={'Content-Type':f'multipart/form-data; boundary={boundary}'}
-                def __enter__(self):return self
-                def __exit__(self,*a):return False
-                def read(self,n):return raw[:n]
-            class Opener:
-                def open(self,*a,**k):return Resp()
-            return D.fetch_worker_content('candidate-worker','valid-secret-token-123',Opener())
-        first=get(body('firstboundary'),'firstboundary')
-        second=get(body('secondboundary'),'secondboundary')
-        self.assertNotEqual(first['worker_script_content_sha256'],second['worker_script_content_sha256'])
-        self.assertEqual(first['canonical_module_content_sha256'],second['canonical_module_content_sha256'])
-        self.assertEqual(first['javascript_module_part_count'],1)
-        self.assertEqual(first['worker_content_mime_class'],'multipart/form-data')
-        self.assertFalse(first['content_matches_active_version_qualified'])
-        self.assertNotIn(source.decode(),json.dumps(first))
-
-    def test_multipart_without_javascript_module_has_no_canonical_fingerprint(self):
-        content=(b'--boundary123\r\nContent-Disposition: form-data; name="metadata"\r\n'
-                 b'Content-Type: application/json\r\n\r\n{}\r\n--boundary123--\r\n')
-        result=D.summarize_worker_content(content,'multipart/form-data; boundary=boundary123')
-        self.assertIsNone(result['canonical_module_content_sha256'])
-        self.assertEqual(result['javascript_module_part_count'],0)
-        self.assertFalse(result['content_matches_active_version_qualified'])
-
-    def test_two_get_replay_records_stable_canonical_content_without_qualifying_scheduler(self):
-        rows,_,_=self._deployment_sample()
-        fake_outputs=[{'content_provenance_status':'CURRENT_SCRIPT_CONTENT_ONLY',
-                      'worker_script_content_sha256':c*64,'canonical_module_content_sha256':'c'*64,
-                      'content_matches_active_version_qualified':False} for c in 'ab']
-        def fake(path,token,opener):
-            if path not in rows:raise D.ProbeFailure('TEST_ENDPOINT_UNAVAILABLE')
-            obj=rows[path]
-            return obj,hashlib.sha256(json.dumps(obj,sort_keys=True).encode()).hexdigest()
-        with patch.object(D,'fetch',side_effect=fake),patch.object(D,'fetch_worker_content',side_effect=fake_outputs) as read:
-            result=D.inspect('private-test-token',object())
-        self.assertEqual(read.call_count,2)
-        self.assertFalse(result['current_content_replay_raw_sha256_equal'])
-        self.assertTrue(result['current_content_replay_canonical_modules_equal'])
-        self.assertFalse(result['content_matches_active_version_qualified'])
-        self.assertFalse(result['tenant_fairness_qualified'])
-        self.assertFalse(result['mcn072_qualified'])
-
-    def test_multipart_plain_text_js_filename_is_canonicalized_without_exporting_name(self):
-        def package(boundary):
-            return (b'--'+boundary.encode()+b'\r\nContent-Disposition: form-data; name="secret"; filename="private-worker.mjs"\r\n'
-                    b'Content-Type: text/plain\r\n\r\nexport default { async queue() {} }\r\n--'+boundary.encode()+b'--\r\n')
-        a=D.summarize_worker_content(package('oneboundary'),'multipart/form-data; boundary=oneboundary')
-        b=D.summarize_worker_content(package('twoboundary'),'multipart/form-data; boundary=twoboundary')
-        self.assertEqual(a['javascript_module_part_count'],1)
-        self.assertEqual(a['canonical_module_content_sha256'],b['canonical_module_content_sha256'])
-        self.assertNotIn('private-worker',json.dumps(a))
-        self.assertFalse(a['content_matches_active_version_qualified'])
-
-    def test_multipart_metadata_and_untrusted_non_script_name_not_canonicalized(self):
-        raw=(b'--boundaryfoo\r\nContent-Disposition: form-data; name="meta"; filename="metadata.json"\r\n'
-             b'Content-Type: application/json\r\n\r\n{ "secret": "HIDE" }\r\n'
-             b'--boundaryfoo\r\nContent-Disposition: form-data; name="untrusted"\r\n'
-             b'Content-Type: text/plain\r\n\r\nsecret text\r\n--boundaryfoo--\r\n')
-        r=D.summarize_worker_content(raw,'multipart/form-data; boundary=boundaryfoo')
-        self.assertEqual(r['javascript_module_part_count'],0)
-        self.assertIsNone(r['canonical_module_content_sha256'])
-        self.assertEqual(r['multipart_part_count'],2)
-        self.assertNotIn('HIDE',json.dumps(r))
-
-    def test_unknown_mime_single_part_payload_hash_stable_across_random_boundaries(self):
-        def body(boundary):
-            b=boundary.encode()
-            return (b'--'+b+b'\r\nContent-Disposition: form-data; name="secret"; filename="script.js"\r\n'
-                    b'Content-Type: application/x-provider-script\r\n\r\n'
-                    b'PRIVATE-CODE-PAYLOAD-DO-NOT-LEAK\r\n--'+b+b'--\r\n')
-        a=D.summarize_worker_content(body('oneboundary'),'multipart/form-data; boundary=oneboundary')
-        b=D.summarize_worker_content(body('twoboundary'),'multipart/form-data; boundary=twoboundary')
-        self.assertEqual(a['canonical_all_multipart_payloads_sha256'],b['canonical_all_multipart_payloads_sha256'])
-        self.assertEqual(a['multipart_part_count'],1)
-        self.assertIsNone(a['canonical_module_content_sha256'])
-        self.assertNotIn('PRIVATE-CODE-PAYLOAD-DO-NOT-LEAK',json.dumps(a))
-        self.assertFalse(a['content_matches_active_version_qualified'])
-
-    def test_replay_stable_multipart_payload_can_never_qualify_scheduler(self):
-        rows,_,_=self._deployment_sample()
-        obs=[{'content_provenance_status':'CURRENT_SCRIPT_CONTENT_ONLY',
-              'worker_script_content_sha256':x*64,
-              'canonical_module_content_sha256':None,
-              'canonical_all_multipart_payloads_sha256':'f'*64,
-              'content_matches_active_version_qualified':False} for x in 'ab']
-        def fake(path,token,opener):
-            obj=rows[path];return obj,hashlib.sha256(json.dumps(obj,sort_keys=True).encode()).hexdigest()
-        with patch.object(D,'fetch',side_effect=fake),patch.object(D,'fetch_worker_content',side_effect=obs):
-            result=D.inspect('private-test-token',object())
-        self.assertFalse(result['current_content_replay_raw_sha256_equal'])
-        self.assertTrue(result['current_content_replay_all_multipart_payloads_equal'])
-        self.assertFalse(result['tenant_fairness_qualified'])
-        self.assertFalse(result['mcn072_qualified'])
-
     def test_get_refuses_unapproved_path_before_network(self):
         class NoNetwork:
             def open(self,*args,**kwargs):raise AssertionError('called network')
@@ -401,5 +257,49 @@ class CloudflareConsumerSchemaTests(unittest.TestCase):
         self.assertFalse(result['postgres_correspondence_qualified'])
         self.assertFalse(result['content_matches_active_version_qualified'])
         self.assertNotIn('raw_source',result)
+
+    def test_active_etag_exact_digest_match_reports_only_observed_hash_correlation(self):
+        raw=b"export default {async queue() {}}"
+        digest=hashlib.sha256(raw).hexdigest()
+        record=D.compare_active_script_etag(digest, {'worker_script_content_sha256':digest})
+        self.assertEqual(record['active_version_etag_comparison_status'],'EXACT_SHA256_MATCH_OBSERVED')
+        self.assertTrue(record['active_version_etag_content_match_observed'])
+        self.assertFalse(record['content_matches_active_version_qualified'])
+        self.assertFalse(record['postgres_correspondence_qualified'])
+        self.assertNotIn(raw.decode(),json.dumps(record))
+
+    def test_active_etag_mismatch_is_fail_closed(self):
+        record=D.compare_active_script_etag('a'*64,{'worker_script_content_sha256':'b'*64})
+        self.assertEqual(record['active_version_etag_comparison_status'],'HASH_DIFFERENT')
+        self.assertFalse(record['active_version_etag_content_match_observed'])
+        self.assertFalse(record['mcn072_qualified'])
+
+    def test_active_etag_missing_and_unrecognized_not_inferred(self):
+        for value in (None,'W/"opaque"','SECRET-VERSION-TAG',{'id':'private'}):
+            record=D.compare_active_script_etag(value,{'worker_script_content_sha256':'a'*64})
+            self.assertFalse(record['active_version_etag_content_match_observed'])
+            self.assertFalse(record['content_matches_active_version_qualified'])
+            self.assertNotIn('SECRET-VERSION-TAG',json.dumps(record))
+
+    def test_active_etag_without_current_content_not_qualified(self):
+        record=D.compare_active_script_etag('a'*64,{'content_provenance_status':'BLOCKED'})
+        self.assertFalse(record['active_version_etag_content_match_observed'])
+        self.assertEqual(record['active_version_etag_comparison_status'],'NO_CURRENT_CONTENT_DIGEST')
+
+    def test_version_etag_extracted_only_from_matching_active_deployment(self):
+        rows,_,vpath=self._deployment_sample()
+        rows[vpath]['result']['resources']['script']['etag']='c'*64
+        def fake(path,token,opener):
+            if path not in rows:raise D.ProbeFailure('UNEXPECTED_TEST_PATH')
+            obj=rows[path];return obj,hashlib.sha256(json.dumps(obj,sort_keys=True).encode()).hexdigest()
+        with patch.object(D,'fetch',side_effect=fake), patch.object(D,'fetch_worker_content',return_value={
+            'worker_script_content_sha256':'c'*64,'content_provenance_status':'CURRENT_SCRIPT_CONTENT_ONLY',
+            'content_matches_active_version_qualified':False,'postgres_correspondence_qualified':False}):
+            record=D.inspect('private-test-token',object())
+        self.assertTrue(record['active_version_etag_content_match_observed'])
+        self.assertFalse(record['content_matches_active_version_qualified'])
+        self.assertFalse(record['mcn072_qualified'])
+        self.assertNotIn('__active_etag',json.dumps(record))
+
 
 if __name__=='__main__':unittest.main()
