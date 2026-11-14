@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { DatabaseSync } from 'node:sqlite';
 import { readFileSync } from 'node:fs';
 import worker, { qualifyNativeBatch, readNativePersistence } from '../recovery/step2_native_batch_preview_worker_20261114.mjs';
-import { apiClient, qualifyPreview, allowed, trustedPreviewUrl, PreviewStop, PRODUCTION_BASE, PRODUCTION_DATABASE, PREVIEW_A, PREVIEW_B } from '../recovery/step2_native_batch_preview_20261114.mjs';
+import { apiClient, edgeFetch, qualifyPreview, allowed, trustedPreviewUrl, PreviewStop, PRODUCTION_BASE, PRODUCTION_DATABASE, PREVIEW_A, PREVIEW_B } from '../recovery/step2_native_batch_preview_20261114.mjs';
 import { ACCOUNT, NAME, CATALOG_SQL } from '../recovery/step2_create_restore_target_20261114.mjs';
 import { TARGET, TARGET_BASE, ACCOUNT_BASE } from '../recovery/step2_hosted_restore_20261114.mjs';
 const receipt = JSON.parse(readFileSync(new URL('../evidence/hosted_recovery_20261114/hosted_restore_parity_rollback_passed.json', import.meta.url)));
@@ -179,6 +179,16 @@ test('provider refusal exposes only the fixed operation and bounded numeric erro
     assert.deepEqual(error.provider_error_codes, [10000]);
     assert.equal(JSON.stringify(error).includes(privateMessage), false);
     return true;
+  });
+});
+test('edge transport diagnostics expose a DNS reason without raw exception text or URL', async t => {
+  t.mock.method(globalThis, 'fetch', async () => {
+    const error = new TypeError('SYNTHETIC_PRIVATE_URL_AND_TOKEN');
+    error.cause = { code: 'ENOTFOUND', message: 'SYNTHETIC_PRIVATE_DETAIL' }; throw error;
+  });
+  await assert.rejects(edgeFetch('https://synthetic.workers.dev/private-synthetic-path'), error => {
+    assert.equal(error.code, 'PREVIEW_EDGE_TRANSPORT_UNKNOWN'); assert.equal(error.edge_transport_reason, 'ENOTFOUND');
+    assert.equal(JSON.stringify(error).includes('SYNTHETIC_PRIVATE'), false); return true;
   });
 });
 test('a refused preview retains safe provider diagnostics and token kind without a secret value', async () => {

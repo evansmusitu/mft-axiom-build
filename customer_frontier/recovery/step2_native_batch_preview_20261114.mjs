@@ -18,10 +18,13 @@ export const FILE = 'native_batch_and_oauth_preflight_20261114.json';
 const sha = value => createHash('sha256').update(value).digest('hex');
 const BOOKMARK = /^[A-Za-z0-9-]{16,256}$/;
 const SAFE_OPERATIONS = ['PREVIEW_SESSION_INITIALIZE', 'PREVIEW_UPLOAD', 'WORKERS_SUBDOMAIN_READ', 'WORKERS_SUBDOMAIN_REGISTER', 'PINNED_API_OPERATION'];
+const SAFE_EDGE_REASONS = ['ENOTFOUND', 'EAI_AGAIN', 'ECONNRESET', 'ECONNREFUSED', 'ETIMEDOUT',
+  'UND_ERR_CONNECT_TIMEOUT', 'UND_ERR_SOCKET', 'ERR_TLS_CERT_ALTNAME_INVALID', 'TIMEOUT', 'UNCLASSIFIED'];
 export class PreviewStop extends Error {
   constructor(code, details = {}) {
     super(code); this.code = code;
     if (SAFE_OPERATIONS.includes(details.api_operation)) this.api_operation = details.api_operation;
+    if (SAFE_EDGE_REASONS.includes(details.edge_transport_reason)) this.edge_transport_reason = details.edge_transport_reason;
     if (Array.isArray(details.provider_error_codes)) this.provider_error_codes = [...new Set(details.provider_error_codes
       .filter(value => Number.isSafeInteger(value) && value >= 0 && value <= 999999999))].slice(0, 10);
   }
@@ -102,10 +105,16 @@ export async function edgeFetch(url, init = {}) {
   const checked = trustedPreviewUrl(url);
   try {
     const response = await fetch(checked, { ...init, redirect: 'manual', signal: AbortSignal.timeout(30000) });
+    check(response.body !== null, 'PREVIEW_EDGE_BODY_MISSING_HTTP_' + response.status);
     const bytes = await bounded(response, 100000);
     check(response.ok || response.status === 409, 'PREVIEW_EDGE_HTTP_' + response.status);
     try { return JSON.parse(bytes); } catch { throw new PreviewStop('PREVIEW_EDGE_JSON_INVALID'); }
-  } catch (error) { if (error instanceof PreviewStop) throw error; throw new PreviewStop('PREVIEW_EDGE_TRANSPORT_UNKNOWN'); }
+  } catch (error) {
+    if (error instanceof PreviewStop) throw error;
+    const reason = SAFE_EDGE_REASONS.includes(error?.cause?.code) ? error.cause.code :
+      ['TimeoutError', 'AbortError'].includes(error?.name) ? 'TIMEOUT' : 'UNCLASSIFIED';
+    throw new PreviewStop('PREVIEW_EDGE_TRANSPORT_UNKNOWN', { edge_transport_reason: reason });
+  }
 }
 
 async function preview(api, edge, name, source, challenge, instanceTag) {
@@ -267,6 +276,7 @@ export async function qualifyPreview({ productionToken, recoveryToken, baselineR
     if (error instanceof PreviewStop && error.api_operation) {
       r.refused_api_operation = error.api_operation; r.provider_error_codes = error.provider_error_codes ?? [];
     }
+    if (error instanceof PreviewStop && error.edge_transport_reason) r.edge_transport_reason = error.edge_transport_reason;
   } finally {
     if (r.native_invocation_attempted && origin) {
       r.rollback_attempted = true; record();
