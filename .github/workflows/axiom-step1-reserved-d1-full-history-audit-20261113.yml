@@ -1,0 +1,112 @@
+name: AXIOM Step1 historical OAuth DR extended audit GET-only (NOT RELEASE)
+on:
+  push:
+    branches:
+      - review/axiom-step1-owner-sole-authority-policy-20261112-not-release
+    paths:
+      - .github/workflows/axiom-step1-reserved-d1-full-history-audit-20261113.yml
+permissions: {contents: read}
+jobs:
+  reserved-d1-audit:
+    if: >-
+      github.repository == 'evansmusitu/mft-axiom-build' &&
+      github.actor == 'evansmusitu' &&
+      github.ref == 'refs/heads/review/axiom-step1-owner-sole-authority-policy-20261112-not-release' &&
+      github.run_attempt == 1
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - name: Bounded single-resource Cloudflare audit GET; do not preserve raw provider events
+        shell: bash
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import os,json,hashlib,urllib.request,urllib.parse,urllib.error,datetime,re
+          ACCOUNT='93f395f5121954671f92fffa453d6b61'
+          RESERVED='c023a0a0-472a-4178-ad07-02f1d6b2e122'
+          token=os.environ.get('CLOUDFLARE_API_TOKEN','')
+          end=datetime.datetime.now(datetime.timezone.utc).isoformat(timespec='seconds').replace('+00:00','Z')
+          start='2026-09-01'
+          receipt={'schema':'musitu.axiom.step1.reserved-d1-extended-history-readonly.v1',
+            'account':ACCOUNT,'reserved_uuid':RESERVED,'start':start,'end':end,
+            'provider_methods':['GET'],'raw_actors_saved':False,'raw_events_saved':False,
+            'sql_operations':0,'database_mutations':0,'audit_pages_complete':False,
+            'audit_event_count':None,'successful_delete_events':None,
+            'successful_create_events':None,'failed_events':None,
+            'historic_reserved_status_reconciled':False,'source_reuse_authorized':False,
+            'customer_sql_export_authorized':False,'step1_closed':False,
+            'step2_authorized':False,'release':'NOT_RELEASE',
+            'status':'HISTORICAL_RESERVED_AUDIT_UNQUALIFIED_NO_GO'}
+          class NoRedirect(urllib.request.HTTPRedirectHandler):
+            def redirect_request(self,*args,**kwargs):return None
+          class AuditNoGo(Exception):pass
+          def query(cursor=None):
+            if not token or any(x in token for x in '\r\n'):raise AuditNoGo('TOKEN_UNAVAILABLE')
+            params={'since':start,'before':end,'resource_id':RESERVED,'direction':'asc','limit':1000}
+            if cursor:
+              if not isinstance(cursor,str) or not re.fullmatch('[A-Za-z0-9_+=/.-]{1,2048}',cursor):raise AuditNoGo('INVALID_CURSOR')
+              params['cursor']=cursor
+            url='https://api.cloudflare.com/client/v4/accounts/'+ACCOUNT+'/logs/audit?'+urllib.parse.urlencode(params)
+            req=urllib.request.Request(url,method='GET',headers={'Authorization':'Bearer '+token,'Accept':'application/json'})
+            try:
+              with urllib.request.build_opener(NoRedirect()).open(req,timeout=18) as response:
+                if response.status!=200:raise AuditNoGo('HTTP_NON_200')
+                raw=response.read(1500001)
+                if len(raw)>1500000:raise AuditNoGo('OVERSIZED_PAGE')
+                return json.loads(raw)
+            except urllib.error.HTTPError as exc:raise AuditNoGo('HTTP_'+str(exc.code)) from None
+            except (OSError,UnicodeError,ValueError,TimeoutError):raise AuditNoGo('PROVIDER_UNAVAILABLE') from None
+          try:
+            delete_count=create_count=failed=total=0
+            seen_ids=set();cursor=None;seen_cursors=set();pages=0
+            for pages in range(1,13):
+              doc=query(cursor)
+              if not isinstance(doc,dict) or doc.get('success') is not True:raise AuditNoGo('INVALID_SUCCESS')
+              events=doc.get('result');info=doc.get('result_info')
+              if not isinstance(events,list) or not isinstance(info,dict) or len(events)>1000:raise AuditNoGo('BAD_PAGE')
+              if str(info.get('count'))!=str(len(events)):raise AuditNoGo('BAD_COUNT')
+              for evt in events:
+                if not isinstance(evt,dict):raise AuditNoGo('INVALID_EVENT')
+                account=evt.get('account');resource=evt.get('resource');action=evt.get('action')
+                if not all(isinstance(x,dict) for x in (account,resource,action)):raise AuditNoGo('EVENT_SHAPE')
+                if account.get('id')!=ACCOUNT or resource.get('id')!=RESERVED:raise AuditNoGo('OUT_OF_SCOPE_EVENT')
+                eid=evt.get('id')
+                if not isinstance(eid,str) or eid in seen_ids:raise AuditNoGo('DUPLICATE_EVENT')
+                seen_ids.add(eid)
+                if action.get('result')=='success':
+                  if action.get('type')=='delete':delete_count+=1
+                  if action.get('type')=='create':create_count+=1
+                elif action.get('result')=='failure':failed+=1
+                else:raise AuditNoGo('UNSUPPORTED_RESULT')
+                total+=1
+              next_cursor=info.get('cursor')
+              if not next_cursor:
+                if len(events)==1000:raise AuditNoGo('PAGE_AT_LIMIT')
+                cursor=None;break
+              if not isinstance(next_cursor,str) or next_cursor in seen_cursors:raise AuditNoGo('CURSOR_LOOP')
+              seen_cursors.add(next_cursor);cursor=next_cursor
+            if cursor:raise AuditNoGo('TRUNCATED_AUDIT')
+            receipt.update({'audit_pages_complete':True,'audit_pages':pages,'audit_event_count':total,
+              'successful_delete_events':delete_count,'successful_create_events':create_count,
+              'failed_events':failed,
+              'status':'HISTORICAL_RESERVED_AUDIT_OBSERVED_RECONCILIATION_NO_GO' if total else 'NO_AUDIT_EVENTS_OR_SCOPE_UNQUALIFIED_NO_GO'})
+          except AuditNoGo as exc:
+            receipt['sanitized_error_code']=str(exc)
+          output='axiom_step1_reserved_d1_full_history_20261113.json'
+          raw=(json.dumps(receipt,sort_keys=True,indent=2)+'\n').encode()
+          with open(output,'wb') as f:f.write(raw)
+          with open(output+'.sha256','w') as f:f.write(hashlib.sha256(raw).hexdigest()+'  '+output+'\n')
+          print('AXIOM_STEP1_RESERVED_D1_AUDIT_EXTENDED_NO_GO_NOT_RELEASE')
+          PY
+      - name: Preserve sanitized audit counts and SHA only
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: axiom-step1-reserved-d1-full-history-20261113
+          retention-days: 10
+          if-no-files-found: error
+          path: |
+            axiom_step1_reserved_d1_full_history_20261113.json
+            axiom_step1_reserved_d1_full_history_20261113.json.sha256

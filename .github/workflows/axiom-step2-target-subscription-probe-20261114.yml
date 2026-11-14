@@ -1,0 +1,66 @@
+name: AXIOM recovery target subscription diagnostic GET only
+on:
+  push:
+    branches:
+      - review/axiom-step1-owner-sole-authority-policy-20261112-not-release
+    paths:
+      - .github/workflows/axiom-step2-target-subscription-probe-20261114.yml
+permissions: {contents: read}
+jobs:
+  read-subscription-shape:
+    if: >-
+      github.repository == 'evansmusitu/mft-axiom-build' &&
+      github.actor == 'evansmusitu' &&
+      github.ref == 'refs/heads/review/axiom-step1-owner-sole-authority-policy-20261112-not-release' &&
+      github.run_attempt == 1
+    runs-on: ubuntu-24.04
+    timeout-minutes: 3
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with: {persist-credentials: false}
+      - name: Verify existing fixed-target GET implementation
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git hash-object customer_frontier/recovery/step2_create_restore_target_20261114.mjs)" = '2a0126e8cd1afad3875129412f3749004a01c3f1'
+          test "$(git hash-object customer_frontier/qualification/step1_gate1_free_isolated_account_readonly_20261114.mjs)" = '32b9bd3ec61657cd0bd9a0e784f3e23d8430e490'
+      - name: Read one subscription response and retain plan fields only
+        env:
+          AXIOM_D1_RECOVERY_CF_API_TOKEN: ${{ secrets.AXIOM_D1_RECOVERY_CF_API_TOKEN }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --input-type=module <<'JS'
+          import { providerRequest, PREFIX, ACCOUNT } from './customer_frontier/recovery/step2_create_restore_target_20261114.mjs';
+          import { writeFileSync } from 'node:fs';
+          import { createHash } from 'node:crypto';
+          const r={schema:'musitu.axiom.recovery-target-subscription-probe.v1',target_account:ACCOUNT,captured_at_utc:new Date().toISOString(),operation:'GET_SUBSCRIPTIONS_ONLY',creation_attempted:false};
+          try {
+            const doc=await providerRequest(process.env.AXIOM_D1_RECOVERY_CF_API_TOKEN,'GET',PREFIX+'/subscriptions');
+            r.http=200;r.provider_success=doc?.success===true;
+            if(!r.provider_success||!Array.isArray(doc.result)||doc.result.length>1000)throw Error();
+            r.subscription_count=doc.result.length;
+            r.subscriptions=doc.result.map(x=>({
+              state: typeof x?.state==='string'&&/^[A-Za-z]{1,40}$/.test(x.state)?x.state:'UNRECOGNIZED',
+              price: typeof x?.price==='number'&&Number.isFinite(x.price)?x.price:null,
+              rate_plan_id: typeof x?.rate_plan?.id==='string'&&/^[a-z0-9_-]{1,100}$/.test(x.rate_plan.id)?x.rate_plan.id:'UNRECOGNIZED',
+              rate_plan_currency: typeof x?.rate_plan?.currency==='string'&&/^[A-Z]{3}$/.test(x.rate_plan.currency)?x.rate_plan.currency:null
+            }));
+          } catch(e) {
+            r.error=typeof e?.code==='string'&&/^[A-Z0-9_]{1,100}$/.test(e.code)?e.code:'UNQUALIFIED_SUBSCRIPTION_SHAPE';
+          }
+          const f='recovery_target_subscription_probe_20261114.json';
+          const b=Buffer.from(JSON.stringify(r,null,2)+'\n');
+          writeFileSync(f,b,{mode:0o600});
+          writeFileSync(f+'.sha256',createHash('sha256').update(b).digest('hex')+'  '+f+'\n',{mode:0o600});
+          console.log(JSON.stringify(r));
+          JS
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        if: always()
+        with:
+          name: axiom-recovery-subscription-diagnostic-20261114
+          retention-days: 10
+          if-no-files-found: error
+          path: |
+            recovery_target_subscription_probe_20261114.json
+            recovery_target_subscription_probe_20261114.json.sha256

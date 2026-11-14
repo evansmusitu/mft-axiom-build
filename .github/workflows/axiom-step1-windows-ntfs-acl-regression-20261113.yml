@@ -1,0 +1,79 @@
+name: AXIOM Step1 Windows NTFS ACL regression SYNTHETIC ONLY (NOT RELEASE)
+on:
+  push:
+    branches:
+      - review/axiom-step1-owner-sole-authority-policy-20261112-not-release
+    paths:
+      - Run_MUSITU_AXIOM_Windows_Owner_Offline.ps1
+      - customer_frontier/qualification/step1_owner_windows_key_ceremony.ps1
+      - customer_frontier/qualification/step1_owner_windows_signed_proposal.ps1
+      - .github/workflows/axiom-step1-windows-ntfs-acl-regression-20261113.yml
+permissions: {contents: read}
+jobs:
+  synthetic-ntfs-acl-only:
+    if: >-
+      github.repository == 'evansmusitu/mft-axiom-build' &&
+      github.ref == 'refs/heads/review/axiom-step1-owner-sole-authority-policy-20261112-not-release' &&
+      github.run_attempt == 1
+    runs-on: windows-2022
+    timeout-minutes: 6
+    steps:
+      - name: Read source in isolated draft, no persisted GitHub credentials
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with: {persist-credentials: false}
+      - name: Parse three PowerShell sources and assert exact owner-file ACE fix
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop'
+          foreach($f in @('Run_MUSITU_AXIOM_Windows_Owner_Offline.ps1','customer_frontier/qualification/step1_owner_windows_key_ceremony.ps1','customer_frontier/qualification/step1_owner_windows_signed_proposal.ps1')) {
+            $t=$null; $errors=$null
+            [void][Management.Automation.Language.Parser]::ParseFile((Resolve-Path $f).Path,[ref]$t,[ref]$errors)
+            if($errors.Count -gt 0){throw ('Invalid PowerShell '+$f+':'+($errors|Out-String))}
+            $source=Get-Content -LiteralPath $f -Raw
+            if(-not $source.Contains("('*{0}:F' -f `$sid)")){throw ('Missing FILE ACE '+$f)}
+            if($source.Contains('Invoke-WebRequest') -or $source.Contains('Invoke-RestMethod')){throw 'External network forbidden'}
+          }
+          $runner=Get-Content 'Run_MUSITU_AXIOM_Windows_Owner_Offline.ps1' -Raw
+          if(-not $runner.Contains('OWNER_FILE_ACL_ALLOW_MISSING') -or -not $runner.Contains('NOT_RELEASE')){throw 'Owner ACL or release veto missing'}
+          Write-Output 'AXIOM_WINDOWS_ACL_PS_PARSE_AND_GATES_PASS_NOT_RELEASE'
+      - name: Synthetic Windows NTFS owner-file ACL and access test only
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop'
+          $root=Join-Path $env:RUNNER_TEMP ('axiom-ntfs-acl-synthetic-'+[guid]::NewGuid().ToString('N'))
+          $sid=[Security.Principal.WindowsIdentity]::GetCurrent().User.Value
+          $private=Join-Path $root 'private'
+          try {
+            [void][IO.Directory]::CreateDirectory($private)
+            foreach($name in @('synthetic_ed25519_fake.txt','synthetic_x25519_fake.txt')){
+              [IO.File]::WriteAllText((Join-Path $private $name),'SYNTHETIC ONLY: NOT A PRIVATE KEY')
+            }
+            $drive=[IO.DriveInfo]::new($root.Substring(0,3))
+            if($drive.DriveFormat -ne 'NTFS'){throw 'Windows synthetic test requires NTFS'}
+            & icacls.exe $root '/inheritance:r' '/grant:r' ('*{0}:(OI)(CI)F' -f $sid) '/T' | Out-Null
+            if($LASTEXITCODE -ne 0){throw 'Initial directory grant failed'}
+            $leafFiles=@(Get-ChildItem -LiteralPath $root -Recurse -Force -File -ErrorAction Stop)
+            if($leafFiles.Count -ne 2){throw 'Failed to enumerate files after original recursive ACL change'}
+            foreach($file in $leafFiles){
+              if($file.Attributes -band [IO.FileAttributes]::ReparsePoint){throw 'Unsafe synthetic link'}
+              & icacls.exe $file.FullName '/inheritance:r' '/grant:r' ('*{0}:F' -f $sid) | Out-Null
+              if($LASTEXITCODE -ne 0){throw 'Leaf owner FILE ACE failed'}
+              $acl=Get-Acl -LiteralPath $file.FullName
+              if(-not $acl.AreAccessRulesProtected){throw 'Leaf inheritance still enabled'}
+              $rules=$acl.GetAccessRules($true,$true,[Security.Principal.SecurityIdentifier])
+              $ownerAllow=$false
+              foreach($rule in $rules){
+                if($rule.AccessControlType -eq [Security.AccessControl.AccessControlType]::Allow){
+                  if($rule.IdentityReference.Value -ne $sid){throw 'Unexpected synthetic access principal'}
+                  $ownerAllow=$true
+                }
+              }
+              if(-not $ownerAllow){throw 'Missing exact owner file Allow ACE'}
+              $bytes=[IO.File]::ReadAllText($file.FullName)
+              if($bytes -ne 'SYNTHETIC ONLY: NOT A PRIVATE KEY'){throw 'Synthetic read failed'}
+            }
+            Write-Output 'AXIOM_WINDOWS_SYNTHETIC_NTFS_OWNER_FILE_READ_PASS_NOT_RELEASE'
+            exit 0
+          } finally {
+            if(Test-Path -LiteralPath $root){ Remove-Item -LiteralPath $root -Force -Recurse -ErrorAction SilentlyContinue }
+          }

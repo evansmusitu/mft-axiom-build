@@ -1,0 +1,44 @@
+name: AXIOM Step1 owner-device signed proposal OFFLINE ONLY (NOT RELEASE)
+on:
+  push:
+    branches:
+      - review/axiom-step1-owner-sole-authority-policy-20261112-not-release
+    paths:
+      - .github/workflows/axiom-step1-owner-signed-proposal-offline-20261112.yml
+      - customer_frontier/qualification/step1_owner_device_signed_proposal.mjs
+      - customer_frontier/qualification/step1_owner_device_sign_proposal.sh
+      - customer_frontier/tests/step1_owner_device_signed_proposal.test.mjs
+      - customer_frontier/tests/test_step1_owner_device_sign_confirmation.py
+permissions: { contents: read }
+jobs:
+  signed-proposal-offline:
+    if: >-
+      github.repository == 'evansmusitu/mft-axiom-build' &&
+      github.ref == 'refs/heads/review/axiom-step1-owner-sole-authority-policy-20261112-not-release' &&
+      github.run_attempt == 1
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - name: Checkout candidate without credentials
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with: { persist-credentials: false }
+      - name: Confirm Node and OpenSSL available
+        run: |
+          node --version
+          openssl version
+          test -z "${AXIOM_TRUSTED_OWNER_ED25519_SPKI_SHA256:-}"
+          test -z "${AXIOM_TRUSTED_OWNER_X25519_SPKI_SHA256:-}"
+      - name: Syntax and shell validation
+        run: |
+          node --check customer_frontier/qualification/step1_owner_device_signed_proposal.mjs
+          bash -n customer_frontier/qualification/step1_owner_device_sign_proposal.sh
+      - name: Run synthetic Ed25519 OpenSSL interoperability and NO_GO tests
+        run: node --test customer_frontier/tests/step1_owner_device_signed_proposal.test.mjs
+      - name: Verify exact owner-review digest confirmation with mock signer only
+        run: python3 -m unittest -v customer_frontier/tests/test_step1_owner_device_sign_confirmation.py
+      - name: Confirm owner-owned keys not generated or attached and runtime stays blocked
+        run: |
+          test ! -d "private"
+          test ! -e "OWNER_SIGNATURE.bin"
+          grep -Fq "release_authorized:false" customer_frontier/qualification/step1_owner_device_signed_proposal.mjs
+          echo 'AXIOM_STEP1_OWNER_SIGNED_PROPOSAL_OFFLINE_TEST_ONLY_NO_GO_NOT_RELEASE'

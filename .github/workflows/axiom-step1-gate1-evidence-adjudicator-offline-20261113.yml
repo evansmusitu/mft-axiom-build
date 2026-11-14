@@ -1,0 +1,38 @@
+name: AXIOM Gate1 signed evidence adjudicator synthetic (NOT RELEASE)
+on:
+  push:
+    branches:
+      - review/axiom-step1-owner-sole-authority-policy-20261112-not-release
+    paths:
+      - customer_frontier/qualification/step1_gate1_evidence_adjudicator_20261113.py
+      - customer_frontier/tests/test_step1_gate1_evidence_adjudicator_20261113.py
+      - .github/workflows/axiom-step1-gate1-evidence-adjudicator-offline-20261113.yml
+permissions: {contents: read}
+jobs:
+  synthetic-evidence-denials:
+    if: >-
+      github.repository == 'evansmusitu/mft-axiom-build' &&
+      github.ref == 'refs/heads/review/axiom-step1-owner-sole-authority-policy-20261112-not-release' &&
+      github.run_attempt == 1
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - name: Checkout isolated draft without GitHub credentials
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with: {persist-credentials: false}
+      - name: Offline 21 synthetic tamper/replay/mutation denial tests (NO provider tokens)
+        shell: bash
+        run: |
+          set -euo pipefail
+          env -u CLOUDFLARE_API_TOKEN -u CF_API_TOKEN -u GITHUB_TOKEN \
+            python3 -m unittest discover -s customer_frontier/tests \
+            -p test_step1_gate1_evidence_adjudicator_20261113.py -v
+      - name: Confirm fail-closed verdict remains immutable
+        shell: bash
+        run: |
+          set -euo pipefail
+          grep -F "'gate1_closed':False" customer_frontier/qualification/step1_gate1_evidence_adjudicator_20261113.py
+          grep -F "'d1_creation_authorized':False" customer_frontier/qualification/step1_gate1_evidence_adjudicator_20261113.py
+          grep -F "GET_ONLY_BILLING_RECEIPT_IS_NOT_A_SPEND_CONTRACT" customer_frontier/qualification/step1_gate1_evidence_adjudicator_20261113.py
+          grep -F "GET_ONLY_MFA_POSTURE_NOT_AN_OWNER_IDENTITY_ATTESTATION" customer_frontier/qualification/step1_gate1_evidence_adjudicator_20261113.py
+          echo 'AXIOM_GATE1_ADJUDICATOR_SYNTHETIC_PASS_BUT_PROVIDER_NO_GO_NOT_RELEASE'
