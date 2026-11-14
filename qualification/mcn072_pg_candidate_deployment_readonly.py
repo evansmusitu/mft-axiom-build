@@ -26,9 +26,12 @@ GENERIC_CUE=re.compile(r'(?:^|_)(?:DB|DATABASE|SQL|PERSISTENCE|POOL|CONNECTION)(
 def classify_bindings(bindings):
     if not isinstance(bindings,list) or not all(isinstance(x,dict) and isinstance(x.get('name'),str) and isinstance(x.get('type'),str) for x in bindings):
         raise ValueError('invalid binding list')
-    strict=sum(bool(PG_CUE.search(x['name'])) for x in bindings)
-    generic=sum(bool(GENERIC_CUE.search(x['name'])) and not PG_CUE.search(x['name']) for x in bindings)
-    return {'strict_pg_cues':strict,'generic_db_cues':generic,
+    strict_by_type=Counter(x['type'] for x in bindings if PG_CUE.search(x['name']))
+    generic_by_type=Counter(x['type'] for x in bindings if GENERIC_CUE.search(x['name']) and not PG_CUE.search(x['name']))
+    return {'strict_pg_cues':sum(strict_by_type.values()),
+            'generic_db_cues':sum(generic_by_type.values()),
+            'strict_pg_by_type':dict(sorted(strict_by_type.items())),
+            'generic_db_by_type':dict(sorted(generic_by_type.items())),
             'types':dict(sorted(Counter(x['type'] for x in bindings).items())),
             'binding_count':len(bindings)}
 
