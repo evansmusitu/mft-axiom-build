@@ -1,0 +1,45 @@
+name: G1 AWS administrator identity preflight (read-only)
+
+on:
+  workflow_dispatch:
+    inputs:
+      confirm_identity_read_only:
+        description: 'Owner authorizes identity-only AWS access verification; no provisioning or admin actions'
+        required: true
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+concurrency:
+  group: g1-aws-admin-identity-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  admin-identity-preflight:
+    if: github.event_name == 'workflow_dispatch' && github.repository == 'evansmusitu/mft-axiom-build' && github.ref == 'refs/heads/main' && github.actor == 'evansmusitu' && inputs.confirm_identity_read_only == true
+    environment: g1-aws-admin
+    runs-on: ubuntu-24.04
+    timeout-minutes: 6
+    env:
+      AWS_REGION: us-east-2
+      AWS_DEFAULT_REGION: us-east-2
+      AWS_PAGER: ''
+      AWS_EC2_METADATA_DISABLED: 'true'
+    steps:
+      - name: Checkout protected source only
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Verify AWS identity without disclosing IDs or secrets
+        shell: bash
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ADMIN_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_ADMIN_SECRET_ACCESS_KEY }}
+        run: |
+          set -euo pipefail
+          test -n "$AWS_ACCESS_KEY_ID"
+          test -n "$AWS_SECRET_ACCESS_KEY"
+          command -v aws >/dev/null
+          python3 scripts/g1_aws_admin_identity_preflight.py
