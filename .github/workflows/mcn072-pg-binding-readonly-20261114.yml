@@ -1,0 +1,56 @@
+name: MUSITU MCN-072 Queue Worker binding authority GET-only (NO RELEASE)
+
+on:
+  push:
+    branches:
+      - audit/mcn072-pg-binding-readonly-20261114
+    paths:
+      - .github/workflows/mcn072-pg-binding-readonly-20261114.yml
+
+permissions:
+  contents: read
+
+concurrency:
+  group: mcn072-pg-binding-readonly-20261114
+  cancel-in-progress: false
+
+jobs:
+  observe:
+    if: >-
+      github.repository == 'evansmusitu/mft-axiom-build' &&
+      github.ref == 'refs/heads/audit/mcn072-pg-binding-readonly-20261114' &&
+      github.event_name == 'push'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 8
+    steps:
+      - name: Checkout without persisted credentials
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
+      - name: Verify exact file blob pins and adverse controls before any secret
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git hash-object qualification/mcn072_cloudflare_consumer_field_diag.py)" = '2e907fb3460d3cc19c6709775bff35fe043d16c8'
+          test "$(git hash-object tests/test_mcn072_cloudflare_consumer_field_diag.py)" = '2daa6320d3a88bc14396b70add9cd61a994942a5'
+          test "$(git hash-object qualification/mcn072_pg_binding_probe_readonly.py)" = 'fcf266b3a8b0ecb0b4afbd5427e94c6d8c25c1e6'
+          test "$(git hash-object tests/test_mcn072_pg_binding_probe_readonly.py)" = '370da5bada508f4c3a3725bdb09b1a94ff3804f0'
+          PYTHONDONTWRITEBYTECODE=1 python3 -B -m unittest discover -s tests -p 'test_mcn072_cloudflare_consumer_field_diag.py' -v
+          PYTHONDONTWRITEBYTECODE=1 python3 -B -m unittest discover -s tests -p 'test_mcn072_pg_binding_probe_readonly.py' -v
+      - name: Query Cloudflare Queue consumer, deployed Worker, and redacted settings with GET only
+        shell: bash
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+        run: |
+          set -euo pipefail
+          PYTHONDONTWRITEBYTECODE=1 python3 -B qualification/mcn072_pg_binding_probe_readonly.py
+      - name: Upload only sanitized NO-GO hashes and metadata
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: musitu-mcn072-pg-binding-getonly-20261114
+          path: |
+            mcn072-worker-binding-readonly.json
+            mcn072-worker-binding-readonly.json.sha256
+          retention-days: 7
+          if-no-files-found: warn
