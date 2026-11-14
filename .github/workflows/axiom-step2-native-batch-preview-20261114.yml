@@ -63,3 +63,6 @@ jobs:
           path: |
             native_batch_and_oauth_preflight_20261114.json
             native_batch_and_oauth_preflight_20261114.json.sha256
+
+# Fresh controlled run after owner reported the recovery-token permission update.
+# The original HTTP 403 qualification result remains preserved as failed evidence.
