@@ -55,9 +55,10 @@ test('preview requires authorization and never accepts caller SQL', async () => 
 const ok = result => ({ success: true, result });
 function simulation(change = {}) {
   const calls = [], forms = new Map(); let invoked = false, rolled = false;
+  let subdomain = change.missingSubdomain ? undefined : 'synthetic-existing';
   const mark = '00000001-00000002-00000003-0123456789abcdef0123456789abcdef';
   const api = async (role, method, path, body, sessionToken) => {
-    assert.equal(allowed(role, method, path, body), true); calls.push({ role, method, path });
+    assert.equal(allowed(role, method, path, body), true); calls.push({ role, method, path, body });
     if (path === PRODUCTION_BASE) return ok({ uuid: PRODUCTION_DATABASE, file_size: 2453521 });
     if (path === PRODUCTION_BASE + '/query') return ok([{ success: true, meta: { changed_db: false, rows_written: 0 },
       results: ['customers', 'api_keys', 'oauth_clients', 'oauth_authorization_flows', 'oauth_authorization_codes', 'oauth_access_tokens', 'oauth_refresh_tokens']
@@ -70,6 +71,20 @@ function simulation(change = {}) {
     if (path.endsWith('/export')) return ok({ at_bookmark: mark, status: 'complete', result: { signed_url: 'https://synthetic.r2.cloudflarestorage.com/export' } });
     if (path.endsWith('/time_travel/bookmark')) return ok({ bookmark: mark });
     if (path.includes('/time_travel/restore?')) { rolled = true; return ok({ bookmark: mark }); }
+    if (path === ACCOUNT_BASE + '/workers/subdomain') {
+      if (method === 'GET') {
+        if (change.subdomainReadDenied) throw new PreviewStop('RECOVERY_API_HTTP_403', {
+          api_operation: 'WORKERS_SUBDOMAIN_READ', provider_error_codes: [10000] });
+        if (!subdomain) throw new PreviewStop('RECOVERY_API_HTTP_404', {
+          api_operation: 'WORKERS_SUBDOMAIN_READ', provider_error_codes: [10007] });
+        return ok({ subdomain });
+      }
+      assert.equal(method, 'PUT'); assert.equal(subdomain, undefined);
+      assert.deepEqual(body, { subdomain: 'axiom-recovery-704a7351' });
+      subdomain = body.subdomain;
+      if (change.subdomainAckLost) throw new PreviewStop('API_TRANSPORT_OUTCOME_UNKNOWN');
+      return ok({ subdomain });
+    }
     if (path.endsWith('/subdomain/edge-preview')) {
       if (change.permissionDenied) throw new PreviewStop('RECOVERY_API_HTTP_403', {
         api_operation: 'PREVIEW_SESSION_INITIALIZE', provider_error_codes: [10000] });
@@ -96,7 +111,7 @@ function simulation(change = {}) {
   };
   return { calls, forms, run: options => qualifyPreview({ baselineReceipt: receipt, ownerProof, workerSource: source,
     api, edge, transfer: async () => Buffer.from('SYNTHETIC SQL'), inspect: () => change.corruptCleanup && rolled ? { ...receipt.baseline, user_data_sha256: '0'.repeat(64) } : receipt.baseline,
-    pause: async () => {}, save: () => {}, ...options }), state: () => ({ invoked, rolled }) };
+    pause: async () => {}, save: () => {}, ...options }), state: () => ({ invoked, rolled, subdomain }) };
 }
 test('controller binds only the recovery copy, qualifies fresh preview persistence and restores all tables', async () => {
   const s = simulation(), r = await s.run();
@@ -105,6 +120,35 @@ test('controller binds only the recovery copy, qualifies fresh preview persisten
   assert.equal(r.production_sql_export_performed, false); assert.equal(r.production_mutation_routes_available, false);
   assert.ok(!JSON.stringify(r).includes('SYNTHETIC_PREVIEW_SECRET'));
   assert.ok(!s.calls.some(c => c.role === 'production' && ![PRODUCTION_BASE, PRODUCTION_BASE + '/query'].includes(c.path)));
+  assert.equal(s.state().subdomain, 'synthetic-existing'); assert.equal(s.calls.some(c => c.method === 'PUT'), false);
+});
+test('an empty recovery account registers only the fixed preview subdomain before invocation', async () => {
+  const s = simulation({ missingSubdomain: true }), r = await s.run();
+  assert.equal(r.status, 'NATIVE_BATCH_AND_FRESH_PREVIEW_PERSISTENCE_QUALIFIED');
+  assert.equal(r.recovery_subdomain_registration_acknowledged, true);
+  assert.equal(r.recovery_subdomain_registration_verified, true);
+  assert.equal(s.calls.filter(c => c.method === 'PUT').length, 1);
+  assert.equal(s.state().subdomain, 'axiom-recovery-704a7351');
+});
+test('a subdomain permission refusal is not treated as permission to register or replace it', async () => {
+  const s = simulation({ subdomainReadDenied: true }), r = await s.run();
+  assert.equal(r.error, 'RECOVERY_API_HTTP_403'); assert.equal(r.refused_api_operation, 'WORKERS_SUBDOMAIN_READ');
+  assert.equal(s.calls.some(c => c.method === 'PUT'), false); assert.equal(s.state().invoked, false);
+});
+test('a lost subdomain registration acknowledgement is reconciled by readback without repeating PUT', async () => {
+  const s = simulation({ missingSubdomain: true, subdomainAckLost: true }), r = await s.run();
+  assert.equal(r.recovery_subdomain_registration_acknowledged, false);
+  assert.equal(r.recovery_subdomain_registration_outcome_unknown, true);
+  assert.equal(r.recovery_subdomain_registration_verified, true);
+  assert.equal(s.calls.filter(c => c.method === 'PUT').length, 1);
+  assert.equal(r.status, 'NATIVE_BATCH_AND_FRESH_PREVIEW_PERSISTENCE_QUALIFIED');
+});
+test('registration capability cannot rename an arbitrary account subdomain or add unrelated settings', () => {
+  const path = ACCOUNT_BASE + '/workers/subdomain';
+  assert.equal(allowed('recovery', 'PUT', path, { subdomain: 'axiom-recovery-704a7351' }), true);
+  assert.equal(allowed('recovery', 'PUT', path, { subdomain: 'production' }), false);
+  assert.equal(allowed('recovery', 'PUT', path, { subdomain: 'axiom-recovery-704a7351', enabled: true }), false);
+  assert.equal(allowed('production', 'PUT', path, { subdomain: 'axiom-recovery-704a7351' }), false);
 });
 test('a real preview permission refusal stops before invocation or rollback and does not retry', async () => {
   const s = simulation({ permissionDenied: true }), r = await s.run();

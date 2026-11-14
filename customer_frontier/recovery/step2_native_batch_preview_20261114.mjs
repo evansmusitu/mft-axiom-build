@@ -13,10 +13,11 @@ export const PRODUCTION_DATABASE = '504029cc-f9a5-495e-818f-63c6144b4ea4';
 export const PRODUCTION_BASE = '/accounts/93f395f5121954671f92fffa453d6b61/d1/database/' + PRODUCTION_DATABASE;
 export const PREVIEW_A = 'axiom-gate2-native-batch-20261114-704a7351';
 export const PREVIEW_B = PREVIEW_A + '-fresh';
+export const RECOVERY_SUBDOMAIN = 'axiom-recovery-704a7351';
 export const FILE = 'native_batch_and_oauth_preflight_20261114.json';
 const sha = value => createHash('sha256').update(value).digest('hex');
 const BOOKMARK = /^[A-Za-z0-9-]{16,256}$/;
-const SAFE_OPERATIONS = ['PREVIEW_SESSION_INITIALIZE', 'PREVIEW_UPLOAD', 'WORKERS_SUBDOMAIN_READ', 'PINNED_API_OPERATION'];
+const SAFE_OPERATIONS = ['PREVIEW_SESSION_INITIALIZE', 'PREVIEW_UPLOAD', 'WORKERS_SUBDOMAIN_READ', 'WORKERS_SUBDOMAIN_REGISTER', 'PINNED_API_OPERATION'];
 export class PreviewStop extends Error {
   constructor(code, details = {}) {
     super(code); this.code = code;
@@ -32,6 +33,8 @@ export function allowed(role, method, path, body) {
   if (role === 'production') return method === 'GET' && path === PRODUCTION_BASE && body === undefined ||
     method === 'POST' && path === PRODUCTION_BASE + '/query' && body?.sql === CATALOG_SQL && Object.keys(body).join('|') === 'sql';
   if (role !== 'recovery') return false;
+  if (method === 'PUT' && path === ACCOUNT_BASE + '/workers/subdomain')
+    return body?.subdomain === RECOVERY_SUBDOMAIN && Object.keys(body).join('|') === 'subdomain';
   const bases = [ACCOUNT_BASE, ACCOUNT_BASE + '/subscriptions', ACCOUNT_BASE + '/workers/scripts',
     ACCOUNT_BASE + '/pages/projects?page=1&per_page=10', TARGET_BASE,
     TARGET_BASE + '/time_travel/bookmark', ACCOUNT_BASE + '/workers/subdomain'];
@@ -75,7 +78,8 @@ export function apiClient(tokens) {
         try { const refused = JSON.parse(bytes); if (Array.isArray(refused?.errors)) codes = refused.errors.map(row => row?.code); } catch {}
         const operation = method === 'GET' && path.endsWith('/subdomain/edge-preview') ? 'PREVIEW_SESSION_INITIALIZE' :
           method === 'POST' && path.endsWith('/edge-preview') ? 'PREVIEW_UPLOAD' :
-          path === ACCOUNT_BASE + '/workers/subdomain' ? 'WORKERS_SUBDOMAIN_READ' : 'PINNED_API_OPERATION';
+          path === ACCOUNT_BASE + '/workers/subdomain' ?
+            (method === 'PUT' ? 'WORKERS_SUBDOMAIN_REGISTER' : 'WORKERS_SUBDOMAIN_READ') : 'PINNED_API_OPERATION';
         throw new PreviewStop(role.toUpperCase() + '_API_HTTP_' + response.status,
           { api_operation: operation, provider_error_codes: codes });
       }
@@ -130,6 +134,35 @@ async function preview(api, edge, name, source, challenge, instanceTag) {
   const uploaded = result(await api('recovery', 'POST', ACCOUNT_BASE + '/workers/scripts/' + name + '/edge-preview', form, value));
   check(typeof uploaded?.preview_token === 'string' && uploaded.preview_token.length > 5, 'PREVIEW_UPLOAD_TOKEN_UNAVAILABLE');
   return { host, token: uploaded.preview_token };
+}
+async function ensurePreviewSubdomain(api, receipt, record) {
+  const path = ACCOUNT_BASE + '/workers/subdomain';
+  try {
+    const existing = result(await api('recovery', 'GET', path))?.subdomain;
+    check(typeof existing === 'string' && /^[a-z0-9-]{1,63}$/.test(existing), 'EXISTING_PREVIEW_SUBDOMAIN_INVALID');
+    receipt.existing_recovery_subdomain_preserved = true; record(); return;
+  } catch (error) {
+    // Missing registration is distinct from authentication/permission failure.
+    const missing = error instanceof PreviewStop &&
+      ['RECOVERY_API_HTTP_404', 'RECOVERY_API_HTTP_403'].includes(error.code) &&
+      error.provider_error_codes?.length === 1 && [10007, 10063].includes(error.provider_error_codes[0]);
+    if (!missing) throw error;
+  }
+  receipt.recovery_subdomain_registration_attempted = true;
+  receipt.recovery_subdomain_registration_acknowledged = false; record();
+  try {
+    const registered = result(await api('recovery', 'PUT', path, { subdomain: RECOVERY_SUBDOMAIN }));
+    check(registered?.subdomain === RECOVERY_SUBDOMAIN, 'RECOVERY_SUBDOMAIN_REGISTRATION_RESULT_MISMATCH');
+    receipt.recovery_subdomain_registration_acknowledged = true;
+  } catch (error) {
+    if (!(error instanceof PreviewStop) || error.code !== 'API_TRANSPORT_OUTCOME_UNKNOWN') throw error;
+    receipt.recovery_subdomain_registration_outcome_unknown = true;
+  }
+  // A lost write acknowledgement is reconciled by GET; the PUT is never retried.
+  const current = result(await api('recovery', 'GET', path))?.subdomain;
+  check(current === RECOVERY_SUBDOMAIN, 'RECOVERY_SUBDOMAIN_REGISTRATION_READBACK_MISMATCH');
+  receipt.recovery_subdomain_registration_verified = true;
+  receipt.recovery_subdomain_registration_retained_for_recovery = true; record();
 }
 async function snapshot(api, transfer, inspect, pause) {
   let body = { output_format: 'polling' }, bookmark;
@@ -200,6 +233,8 @@ export async function qualifyPreview({ productionToken, recoveryToken, baselineR
     check(same(r.baseline, baselineReceipt.baseline), 'RECOVERY_BASELINE_DRIFT');
     origin = result(await api('recovery', 'GET', TARGET_BASE + '/time_travel/bookmark'))?.bookmark;
     check(BOOKMARK.test(origin ?? ''), 'RECOVERY_ROLLBACK_BOOKMARK_INVALID'); r.rollback_bookmark_sha256 = sha(origin);
+    r.status = 'RECOVERY_PREVIEW_SUBDOMAIN_PREFLIGHT'; record();
+    await ensurePreviewSubdomain(api, r, record);
     const challenge = randomBytes(32).toString('hex'), instanceA = randomBytes(16).toString('hex'), instanceB = randomBytes(16).toString('hex');
     r.status = 'TRANSIENT_PREVIEW_SESSION_STARTING'; previewAttempted = true; record();
     const a = await preview(api, edge, PREVIEW_A, workerSource, challenge, instanceA);
