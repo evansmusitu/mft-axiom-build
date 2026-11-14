@@ -59,7 +59,7 @@ and target tokens are confined to fixed role-specific operation allowlists.
 | Target-only marker, destructive rollback and full parity afterward | PASS |
 | Independent final source data comparison | PASS |
 | Owner-PC authenticated decryption of this actual ciphertext | PASS — OWNER RESULT MATCHES CAPTURED BACKUP |
-| Application-level tenant separation using recovered runtime | OPEN |
+| Application-level tenant separation using recovered canonical runtime seam | PASS — 15 HOSTED FIXTURE CHECKS AND FULL CLEANUP PARITY |
 | Production OAuth recovery/migration safety acceptance | OPEN |
 | Gate 2 overall | OPEN |
 | Whole-product release | NOT_RELEASE |
@@ -126,6 +126,38 @@ accepted owner-device evidence, not a claim that cloud CI independently operated
 the owner's PC. Do not ask the owner to repeat this completed step.
 
 The hosted restore/parity/rollback milestone plus actual owner backup decryption
-are complete for the current staging/IdP snapshot. Gate 2 remains OPEN for the
-recovered application's tenant separation and production OAuth recovery/migration
-safety. No production migration or release is authorized by this result alone.
+are complete for the current staging/IdP snapshot. The later hosted tenant result
+is recorded below. Production OAuth recovery/migration safety remains OPEN.
+No production migration or release is authorized by the decryption result alone.
+
+## Recovered tenant boundaries qualified on hosted D1
+
+[Run 43602865149](https://github.com/evansmusitu/mft-axiom-build/actions/runs/43602865149)
+passed at immutable head `9d65349787e97d8b4da74a6357dfb206db77da2d`. It used the
+unchanged reviewed canonical application and OAuth canonical-read seam against
+the actual recovered D1 via parameter-bound REST queries. Production credentials
+were absent from that job. Two isolated synthetic fixture principals exercised
+15 checks: proper own-tenant UUID/role mapping, denial in both cross-tenant
+directions, unrecognized subject/issuer denial, SQL-injection value binding,
+canonical OAuth mapping pairing, FK-backed tenant pairing, immutable mapping,
+terminal link revocation, revoked membership and suspended tenant denial.
+
+The target was re-exported and its full schema/data/sequence fingerprint matched
+the original baseline before any fixture write. After the tests, target-only
+Time Travel rollback was acknowledged and a fresh complete export matched every
+original table and schema object. All test fixtures were removed by that restore.
+No real customer login, provider IdP assertion or public HTTP session is claimed;
+those retain their Gate 4 acceptance criteria.
+
+Downloaded provider artifact SHA-256:
+`4d61179b8b924a5d45c5ca78b695673af6210e36714f840cd8e746858314d487`.
+Sanitized receipt SHA-256:
+`e7436dad279f5be2b80cf882ea400f3b43c180ccc91658293d1a92e41828417c`.
+The receipt is `recovered_tenant_qualification_passed_20261114.json`.
+
+The production OAuth database is separately pinned by the existing historical
+encrypted-intake contract to `504029cc-f9a5-495e-818f-63c6144b4ea4`. Its base OAuth
+and customer tables are absent from the restored staging/IdP source, so that
+source cannot be substituted for production real-data migration acceptance.
+The reviewed upgrade requires one native `D1Database.batch`; REST or local
+SQLite atomicity must not be claimed as that native hosted witness.
