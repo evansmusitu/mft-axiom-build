@@ -11,8 +11,6 @@ never put that token in arguments, logs, file output, or test artifacts.
 from __future__ import annotations
 
 import hashlib
-from email import policy
-from email.parser import BytesParser
 import json
 import os
 import re
@@ -201,7 +199,7 @@ def worker_listing(token, opener):
 
 
 
-def summarize_worker_content(raw, content_type="application/javascript"):
+def summarize_worker_content(raw):
     """Summarize current Worker content without preserving a single original byte.
 
     Literal presence is not an execution trace, code-to-version attestation, or
@@ -211,62 +209,7 @@ def summarize_worker_content(raw, content_type="application/javascript"):
         raise ProbeFailure('WORKER_CONTENT_BOUNDS_INVALID')
     markers = (b'axiom_tenant_fair_cursor', b'axiom_tenant_fair_served',
                b'axiom_distributed_execution_jobs')
-    mime=content_type.split(';',1)[0].strip().lower() if type(content_type) is str else ''
-    javascript_mimes={'application/javascript','text/javascript','application/x-javascript',
-                      'application/ecmascript','text/ecmascript'}
-    modules=[]
-    multipart_all_payloads=[]
-    parts_count=0
-    mime_classes=[]
-    suffix_classes=[]
-    if mime=='multipart/form-data':
-        match=re.search(r'(?:^|;)\s*boundary=(?:"([A-Za-z0-9_-]{1,70})"|([A-Za-z0-9_-]{1,70}))(?:\s*;|\s*$)',content_type)
-        if not match:
-            raise ProbeFailure('WORKER_MULTIPART_BOUNDARY_INVALID')
-        message=BytesParser(policy=policy.default).parsebytes(
-            b'Content-Type: '+content_type.encode('ascii')+b'\r\nMIME-Version: 1.0\r\n\r\n'+raw)
-        if not message.is_multipart():
-            raise ProbeFailure('WORKER_MULTIPART_INVALID')
-        parts=list(message.iter_parts())
-        parts_count=len(parts)
-        if len(parts)>64:
-            raise ProbeFailure('WORKER_MULTIPART_TOO_MANY_PARTS')
-        for part in parts:
-            payload_bytes=part.get_payload(decode=True)
-            if type(payload_bytes) is not bytes or len(payload_bytes)>MAX_SCRIPT_CONTENT:
-                raise ProbeFailure('WORKER_MULTIPART_PART_INVALID')
-            multipart_all_payloads.append(sha(payload_bytes))
-            part_mime=part.get_content_type().lower()
-            filename=part.get_filename()
-            suffix=filename.rsplit('.',1)[-1].lower() if type(filename) is str and '.' in filename else 'none'
-            suffix=suffix if suffix in ('js','mjs','cjs','json') else ('none' if suffix=='none' else 'other')
-            suffix_classes.append(suffix)
-            mime_classes.append(part_mime if part_mime in javascript_mimes or
-                                part_mime in ('text/plain','application/octet-stream','application/json')
-                                else 'other')
-            if part_mime in javascript_mimes or (
-                suffix in ('js','mjs','cjs') and part_mime in ('text/plain','application/octet-stream')):
-                body=part.get_payload(decode=True)
-                if type(body) is not bytes or not body or len(body)>MAX_SCRIPT_CONTENT:
-                    raise ProbeFailure('WORKER_MULTIPART_MODULE_INVALID')
-                modules.append(sha(body))
-    elif mime in javascript_mimes or mime in ('application/octet-stream','text/plain'):
-        modules=[sha(raw)]
-    # Canonical module-payload fingerprints exclude MIME boundary strings, headers,
-    # and unpublished module filenames. No source bytes are persisted.
-    canonical=sha(json.dumps(sorted(modules),separators=(',',':')).encode()) if modules else None
     return {
-        'worker_content_mime_class': mime,
-        'multipart_part_count': parts_count,
-        # Hash the *decoded* MIME payloads, regardless of MIME classification.
-        # This establishes representation stability only, not source identity.
-        'canonical_all_multipart_payloads_sha256': (
-            sha(json.dumps(sorted(multipart_all_payloads), separators=(',',':')).encode())
-            if multipart_all_payloads else None),
-        'multipart_part_mime_classes': sorted(mime_classes),
-        'multipart_part_suffix_classes': sorted(suffix_classes),
-        'javascript_module_part_count': len(modules),
-        'canonical_module_content_sha256': canonical,
         'content_provenance_status': 'CURRENT_SCRIPT_CONTENT_ONLY',
         'worker_script_content_sha256': sha(raw),
         'worker_script_content_bytes': len(raw),
@@ -276,6 +219,29 @@ def summarize_worker_content(raw, content_type="application/javascript"):
         'tenant_fairness_qualified': False,
         'mcn072_qualified': False,
     }
+
+
+def compare_active_script_etag(etag, content):
+    """One strict digest comparison, not deployment or fairness qualification.
+
+    Cloudflare calls etag hashed script content, not proof that two independently
+    retrieved API resources refer to one immutable deployment. Do not emit it.
+    """
+    common = {'active_version_etag_content_match_observed': False,
+              'content_matches_active_version_qualified': False,
+              'postgres_correspondence_qualified': False,
+              'tenant_fairness_qualified': False,
+              'mcn072_qualified': False}
+    if etag is None:
+        return {**common, 'active_version_etag_comparison_status': 'ETAG_UNAVAILABLE'}
+    if type(etag) is not str or re.fullmatch(r'[0-9a-f]{64}', etag) is None:
+        return {**common, 'active_version_etag_comparison_status': 'ETAG_FORMAT_UNRECOGNIZED'}
+    if (type(content) is not dict or type(content.get('worker_script_content_sha256')) is not str
+            or re.fullmatch(r'[0-9a-f]{64}', content['worker_script_content_sha256']) is None):
+        return {**common, 'active_version_etag_comparison_status': 'NO_CURRENT_CONTENT_DIGEST'}
+    match = etag == content['worker_script_content_sha256']
+    return {**common, 'active_version_etag_content_match_observed': match,
+            'active_version_etag_comparison_status': 'EXACT_SHA256_MATCH_OBSERVED' if match else 'HASH_DIFFERENT'}
 
 
 def fetch_worker_content(script, token, opener):
@@ -298,7 +264,6 @@ def fetch_worker_content(script, token, opener):
                        'text/plain', 'application/octet-stream', 'multipart/form-data')
             if kind not in allowed:
                 raise ProbeFailure('WORKER_CONTENT_MIME_INVALID')
-            response_content_type=response.headers.get('Content-Type','')
             raw = response.read(MAX_SCRIPT_CONTENT + 1)
     except urllib.error.HTTPError as exc:
         if exc.code in (401, 403, 404):
@@ -306,7 +271,7 @@ def fetch_worker_content(script, token, opener):
         raise ProbeFailure('WORKER_CONTENT_HTTP_NON_200') from None
     except (urllib.error.URLError, OSError, TimeoutError):
         raise ProbeFailure('WORKER_CONTENT_TRANSPORT_UNAVAILABLE') from None
-    return summarize_worker_content(raw, response_content_type)
+    return summarize_worker_content(raw)
 
 
 def observe_active_deployment(token, opener, script):
@@ -349,11 +314,8 @@ def observe_active_deployment(token, opener, script):
         'deployment_observation_status': ('QUEUE_HANDLER_OBSERVED_ONLY' if handler
                                           else 'NO_QUEUE_HANDLER_IN_OBSERVED_VERSION'),
         'active_deployed_queue_handler_observed': handler,
+        '_active_script_etag_for_private_comparison': script_info.get('etag'),
         'active_version_sha256': sha(vid),
-        # Keep raw version hash in memory only; do not export it or the source.
-        '_private_version_script_etag': script_info.get('etag') if
-            type(script_info.get('etag')) is str and
-            re.fullmatch(r'[0-9a-f]{64}', script_info['etag']) else None,
         'deployment_response_sha256': deployment_hash,
         'version_response_sha256': version_hash,
         'active_version_hyperdrive_binding_count': sum(1 for b in bindings or [] if b.get('type') == 'hyperdrive'),
@@ -453,26 +415,6 @@ def inspect(token, opener):
             deployment.get('active_deployed_queue_handler_observed') is True):
         try:
             content_observation = fetch_worker_content(active_candidate_names[0], token, opener)
-            try:
-                second = fetch_worker_content(active_candidate_names[0], token, opener)
-                first_raw=content_observation.get('worker_script_content_sha256')
-                second_raw=second.get('worker_script_content_sha256')
-                first_module=content_observation.get('canonical_module_content_sha256')
-                second_module=second.get('canonical_module_content_sha256')
-                content_observation['current_content_replay_raw_sha256_equal'] = bool(
-                    first_raw and first_raw==second_raw)
-                content_observation['current_content_replay_canonical_modules_equal'] = bool(
-                    first_module and first_module==second_module)
-                first_parts=content_observation.get('canonical_all_multipart_payloads_sha256')
-                second_parts=second.get('canonical_all_multipart_payloads_sha256')
-                content_observation['current_content_replay_all_multipart_payloads_equal'] = bool(
-                    first_parts and first_parts==second_parts)
-                content_observation['current_content_replay_status']='TWO_GETS_OBSERVED_ONLY'
-            except ProbeFailure as exc:
-                content_observation['current_content_replay_status']='BLOCKED'
-                content_observation['current_content_replay_reason_code']=str(exc)
-                content_observation['current_content_replay_raw_sha256_equal']=False
-                content_observation['current_content_replay_canonical_modules_equal']=False
         except ProbeFailure as exc:
             content_observation = {**content_observation,
                                    'content_provenance_status': 'BLOCKED',
@@ -481,15 +423,9 @@ def inspect(token, opener):
             content_observation = {**content_observation,
                                    'content_provenance_status': 'BLOCKED',
                                    'content_reason_code': 'WORKER_CONTENT_UNEXPECTED_FAIL_CLOSED'}
-    version_etag = deployment.pop('_private_version_script_etag', None)
-    current_sha = content_observation.get('worker_script_content_sha256')
-    content_observation['active_version_etag_sha256'] = sha(version_etag) if version_etag else None
-    # Exact byte hash equality is only a provider-level content observation;
-    # it cannot establish queue->Postgres execution or tenant fairness.
-    content_observation['active_version_content_sha256_equality_observed'] = bool(
-        version_etag and type(current_sha) is str and
-        re.fullmatch(r'[0-9a-f]{64}', current_sha) and version_etag == current_sha)
-    return {**deployment, **content_observation,
+    private_etag = deployment.pop('_active_script_etag_for_private_comparison', None)
+    version_content_comparison = compare_active_script_etag(private_etag, content_observation)
+    return {**deployment, **content_observation, **version_content_comparison,
         'schema': 'musitu.mcn072.cloudflare_consumer_field_diag.v1',
         'queue_id_sha256': sha(qid), 'queue_count': 1,
         'consumer_count': count, 'worker_consumer_count': worker_count,
