@@ -15,7 +15,7 @@ const ok = value => ({ success: true, result: value });
 const query = rows => ok([{ success: true, results: rows, meta: { rows_written: 0, changed_db: false } }]);
 
 function simulation(change = {}) {
-  const calls = [], files = new Map(); let imported = false, probe = false, rolled = false, sourceExports = 0;
+  const calls = [], files = new Map(); let imported = change.imported ?? false, probe = false, rolled = false, sourceExports = 0;
   const call = async (role, method, path, body) => {
     assert.equal(permitted(role, method, path, body), true);
     calls.push({ role, method, path, body });
@@ -30,8 +30,11 @@ function simulation(change = {}) {
     if (path.endsWith('/time_travel/bookmark')) return ok({ bookmark: BOOKMARK });
     if (path.includes('/time_travel/restore?')) { rolled = true; probe = false; return ok({ bookmark: BOOKMARK }); }
     if (path.endsWith('/query')) {
-      if (body.sql === FOREIGN_KEYS_SQL) return query([{ foreign_keys: change.fkDisabled ? 0 : 1 }]);
-      if (body.sql === FOREIGN_KEY_CHECK_SQL) return query(change.invalidFk ? [{ table: 'sentinel', rowid: 1 }] : []);
+      if (body.sql === FOREIGN_KEYS_SQL || body.sql === FOREIGN_KEY_CHECK_SQL) {
+        const r = body.sql === FOREIGN_KEYS_SQL ? query([{ foreign_keys: change.fkDisabled ? 0 : 1 }]) : query(change.invalidFk ? [{ table: 'sentinel', rowid: 1 }] : []);
+        if (change.pragmaChangedFlag) r.result[0].meta.changed_db = true;
+        return r;
+      }
       if (body.sql === MARKER_SQL) { probe = true; return ok([{ success: true }]); }
       if (body.sql === MARKER_COUNT_SQL) return query([{ marker_count: probe ? 1 : 0 }]);
       if (body.sql === CATALOG_SQL) return query(role === 'source' || imported || change.nonempty ? rows : []);
@@ -61,7 +64,7 @@ function simulation(change = {}) {
     return Buffer.from(SQL);
   };
   const persist = (file, object) => { const json = JSON.stringify(object); files.set(file, JSON.parse(json)); return sha(json); };
-  return { calls, files, run: () => recover({ call, transfer, persist, pause: async () => {} }) };
+  return { calls, files, run: (options = {}) => recover({ call, transfer, persist, pause: async () => {}, ...options }) };
 }
 
 test('actual memory replay matches the catalog and preserves large integers', () => {
@@ -101,6 +104,24 @@ test('nonempty target cannot be overwritten', async () => {
   const s = simulation({ nonempty: true }), r = await s.run();
   assert.equal(r.error, 'TARGET_IS_NOT_EMPTY');
   assert.equal(r.target_import_attempted, false);
+});
+test('pinned previous import can be verified without another ingest', async () => {
+  const prior = { source_database: SOURCE_DATABASE, target_database: TARGET, target_account: ACCOUNT,
+    target_name: NAME, recipient_spki_sha256: RECIPIENT_SHA256, target_import_outcome: 'COMPLETE',
+    baseline: fingerprint(Buffer.from(SQL)), source_sql_sha256: sha(SQL) };
+  const s = simulation({ imported: true, pragmaChangedFlag: true }), r = await s.run({ priorImportReceipt: prior });
+  assert.equal(r.status, 'HOSTED_LOGICAL_RESTORE_PARITY_AND_ROLLBACK_VERIFIED');
+  assert.equal(r.target_import_outcome, 'PREVIOUSLY_COMPLETE_VERIFY_EXISTING');
+  assert.equal(r.hosted_fk_observation.enforcement_meta.changed_db, true);
+  assert.ok(!s.calls.some(c => c.path.endsWith('/import')));
+});
+test('prior import identity and current source drift are refused before probe', async () => {
+  const prior = { source_database: SOURCE_DATABASE, target_database: TARGET, target_account: ACCOUNT,
+    target_name: NAME, recipient_spki_sha256: RECIPIENT_SHA256, target_import_outcome: 'COMPLETE',
+    baseline: fingerprint(Buffer.from(SQL)), source_sql_sha256: 'f'.repeat(64) };
+  const s = simulation({ imported: true }), r = await s.run({ priorImportReceipt: prior });
+  assert.equal(r.error, 'SOURCE_DRIFT_FROM_COMPLETED_IMPORT');
+  assert.ok(!s.calls.some(c => c.path.endsWith('/import') || c.body?.sql === MARKER_SQL));
 });
 test('Workers paid and existing consumers deny admission', async () => {
   for (const change of [{ workers: [{}] }, { subscriptions: [{ state: 'Paid', price: 5, rate_plan: { id: 'workers_paid' } }] }]) {

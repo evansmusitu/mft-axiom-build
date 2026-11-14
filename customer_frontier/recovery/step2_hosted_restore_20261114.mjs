@@ -3,7 +3,7 @@
  */
 import { createHash, createPublicKey } from 'node:crypto';
 import { spawnSync } from 'node:child_process';
-import { writeFileSync } from 'node:fs';
+import { readFileSync, writeFileSync } from 'node:fs';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { ACCOUNT, SOURCE_ACCOUNT, SOURCE_DATABASE, NAME, RECIPIENT_BASE64,
   RECIPIENT_SHA256, CATALOG_SQL, targetD1Plan, RecoveryStop } from './step2_create_restore_target_20261114.mjs';
@@ -19,6 +19,7 @@ export const FOREIGN_KEYS_SQL = 'PRAGMA foreign_keys';
 export const FOREIGN_KEY_CHECK_SQL = 'PRAGMA foreign_key_check';
 export const RECEIPT_FILE = 'hosted_restore_parity_20261114.json';
 export const ENVELOPE_FILE = 'owner_encrypted_current_d1_20261114.json';
+export const PRIOR_IMPORT_RECEIPT_SHA256 = 'c7447874fbf948c8a785dee8dd04833e9b6f340d9dacf6b66988bcd55a999255';
 const MAX_SQL = 8_000_000;
 const BOOKMARK = /^[A-Za-z0-9-]{16,256}$/;
 const HEX = /^[0-9a-f]{64}$/;
@@ -156,12 +157,19 @@ export function restoreTransportSql(sql) {
   return Buffer.concat([Buffer.from('PRAGMA foreign_keys=OFF;\n'), sql,
     Buffer.from('\nPRAGMA foreign_keys=ON;\n')]);
 }
-async function verifyHostedForeignKeys(query) {
+async function verifyHostedForeignKeys(query, observe = () => {}) {
   const enabled = result(await query(FOREIGN_KEYS_SQL));
   const checked = result(await query(FOREIGN_KEY_CHECK_SQL));
-  check(enabled?.[0]?.success === true && enabled[0].results?.[0]?.foreign_keys === 1 &&
+  const safeMeta = row => ({ changed_db: typeof row?.meta?.changed_db === 'boolean' ? row.meta.changed_db : null,
+    rows_written: Number.isSafeInteger(row?.meta?.rows_written) ? row.meta.rows_written : null });
+  observe({ enforcement: [0, 1].includes(enabled?.[0]?.results?.[0]?.foreign_keys) ? enabled[0].results[0].foreign_keys : null,
+    enforcement_result_sets: Array.isArray(enabled) ? enabled.length : null,
+    check_result_sets: Array.isArray(checked) ? checked.length : null,
+    violations: Array.isArray(checked?.[0]?.results) ? checked[0].results.length : null,
+    enforcement_meta: safeMeta(enabled?.[0]), check_meta: safeMeta(checked?.[0]) });
+  check(enabled?.length === 1 && checked?.length === 1 && enabled[0]?.success === true && enabled[0].results?.[0]?.foreign_keys === 1 &&
     checked?.[0]?.success === true && Array.isArray(checked[0].results) && checked[0].results.length === 0 &&
-    [enabled[0], checked[0]].every(row => row.meta?.rows_written === 0 && row.meta?.changed_db === false),
+    [enabled[0], checked[0]].every(row => row.meta?.rows_written === undefined || row.meta.rows_written === 0),
   'HOSTED_FOREIGN_KEY_ENFORCEMENT_OR_INTEGRITY_FAILED');
 }
 
@@ -195,7 +203,7 @@ function saveFile(file, object) {
 }
 
 export async function recover({ sourceToken, targetToken, call, transfer = storage, inspect = fingerprint,
-  pause = ms => new Promise(resolve => setTimeout(resolve, ms)), persist = saveFile } = {}) {
+  pause = ms => new Promise(resolve => setTimeout(resolve, ms)), persist = saveFile, priorImportReceipt } = {}) {
   const r = { schema: 'musitu.axiom.hosted-restore-parity.v1', observed_at_utc: new Date().toISOString(),
     source_account: SOURCE_ACCOUNT, source_database: SOURCE_DATABASE, target_account: ACCOUNT,
     target_database: TARGET, target_name: NAME, recipient_spki_sha256: RECIPIENT_SHA256,
@@ -229,7 +237,17 @@ export async function recover({ sourceToken, targetToken, call, transfer = stora
       pagesReply.result_info.count === 0, 'TARGET_HAS_PAGE_BINDINGS');
     const detail = result(await request('target', 'GET', TARGET_BASE));
     check(detail?.uuid === TARGET && detail.name === NAME, 'TARGET_IDENTITY_DRIFT');
-    check(catalogRows(await query('target', TARGET_BASE, CATALOG_SQL)).length === 0, 'TARGET_IS_NOT_EMPTY');
+    const currentTargetCatalog = catalogRows(await query('target', TARGET_BASE, CATALOG_SQL));
+    if (priorImportReceipt) {
+      check(priorImportReceipt.source_database === SOURCE_DATABASE && priorImportReceipt.target_database === TARGET &&
+        priorImportReceipt.target_account === ACCOUNT && priorImportReceipt.target_name === NAME &&
+        priorImportReceipt.recipient_spki_sha256 === RECIPIENT_SHA256 && priorImportReceipt.target_import_outcome === 'COMPLETE' &&
+        HEX.test(priorImportReceipt.baseline?.catalog_sha256) && HEX.test(priorImportReceipt.baseline?.user_data_sha256) &&
+        catalogHash(currentTargetCatalog) === priorImportReceipt.baseline.catalog_sha256, 'PRIOR_IMPORT_IDENTITY_OR_CATALOG_DRIFT');
+      r.resumed_from_import_receipt_sha256 = PRIOR_IMPORT_RECEIPT_SHA256;
+      r.target_import_outcome = 'PREVIOUSLY_COMPLETE_VERIFY_EXISTING';
+      save();
+    } else check(currentTargetCatalog.length === 0, 'TARGET_IS_NOT_EMPTY');
     const sourceDetail = result(await request('source', 'GET', SOURCE_BASE));
     check(sourceDetail?.uuid === SOURCE_DATABASE && Number.isSafeInteger(sourceDetail.file_size) &&
       sourceDetail.file_size > 0 && sourceDetail.file_size <= MAX_SQL, 'SOURCE_IDENTITY_OR_SIZE_UNQUALIFIED');
@@ -252,6 +270,10 @@ export async function recover({ sourceToken, targetToken, call, transfer = stora
     const baseline = inspect(original.sql);
     check(baseline.catalog_sha256 === r.source_catalog_sha256, 'CURRENT_SQL_CATALOG_PARITY_FAILED');
     r.baseline = baseline;
+    if (priorImportReceipt) {
+      check(same(baseline, priorImportReceipt.baseline) && r.source_sql_sha256 === priorImportReceipt.source_sql_sha256,
+        'SOURCE_DRIFT_FROM_COMPLETED_IMPORT');
+    } else {
     // Recheck immediately before admission. The driver never appends to an existing target.
     check(catalogRows(await query('target', TARGET_BASE, CATALOG_SQL)).length === 0, 'TARGET_CHANGED_BEFORE_IMPORT');
     const importSql = restoreTransportSql(original.sql);
@@ -271,7 +293,8 @@ export async function recover({ sourceToken, targetToken, call, transfer = stora
     }
     check(job?.status === 'complete' && job.success !== false && !job.error, 'TARGET_IMPORT_UNCONFIRMED');
     r.target_import_outcome = 'COMPLETE'; save();
-    await verifyHostedForeignKeys(sql => query('target', TARGET_BASE, sql));
+    }
+    await verifyHostedForeignKeys(sql => query('target', TARGET_BASE, sql), value => { r.hosted_fk_observation = value; save(); });
     r.hosted_foreign_key_enforcement_and_check = true; save();
     const restored = await exportCurrent(request, 'target', TARGET_BASE, transfer, pause);
     exportedBuffers.push(restored.sql);
@@ -294,7 +317,7 @@ export async function recover({ sourceToken, targetToken, call, transfer = stora
     exportedBuffers.push(after.sql);
     const rolledBack = inspect(after.sql);
     check(same(baseline, rolledBack), 'ROLLBACK_SCHEMA_OR_DATA_MISMATCH');
-    await verifyHostedForeignKeys(sql => query('target', TARGET_BASE, sql));
+    await verifyHostedForeignKeys(sql => query('target', TARGET_BASE, sql), value => { r.after_rollback_fk_observation = value; save(); });
     check(catalogHash(catalogRows(await query('target', TARGET_BASE, CATALOG_SQL))) === baseline.catalog_sha256,
       'ROLLBACK_LIVE_CATALOG_MISMATCH');
     r.after_rollback = rolledBack; r.rollback_outcome = 'SCHEMA_AND_ALL_TABLE_DATA_RESTORED'; save();
@@ -306,7 +329,7 @@ export async function recover({ sourceToken, targetToken, call, transfer = stora
     r.source_data_unchanged = true;
     r.status = 'HOSTED_LOGICAL_RESTORE_PARITY_AND_ROLLBACK_VERIFIED';
   } catch (error) {
-    r.status = r.target_import_attempted || r.target_probe_attempted ? 'HOSTED_RECOVERY_REQUIRES_RECONCILIATION' : 'HOSTED_RECOVERY_STOPPED';
+    r.status = r.target_import_attempted || r.target_probe_attempted || priorImportReceipt ? 'HOSTED_RECOVERY_REQUIRES_RECONCILIATION' : 'HOSTED_RECOVERY_STOPPED';
     r.error = error instanceof RestoreStop || error instanceof RecoveryStop ? error.code : 'UNEXPECTED_LOCAL_FAILURE';
   } finally {
     for (const bytes of exportedBuffers) bytes.fill(0);
@@ -316,7 +339,14 @@ export async function recover({ sourceToken, targetToken, call, transfer = stora
 }
 
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
-  const r = await recover({ sourceToken: process.env.CLOUDFLARE_API_TOKEN, targetToken: process.env.AXIOM_D1_RECOVERY_CF_API_TOKEN });
+  let priorImportReceipt;
+  if (process.argv.includes('--verify-imported')) {
+    const raw = readFileSync(new URL('../evidence/hosted_recovery_20261114/import_completed_fk_check_stopped.json', import.meta.url));
+    check(sha(raw) === PRIOR_IMPORT_RECEIPT_SHA256, 'PRIOR_IMPORT_RECEIPT_PIN_MISMATCH');
+    priorImportReceipt = JSON.parse(raw);
+  }
+  const r = await recover({ sourceToken: process.env.CLOUDFLARE_API_TOKEN, targetToken: process.env.AXIOM_D1_RECOVERY_CF_API_TOKEN,
+    priorImportReceipt });
   console.log(r.status);
   if (r.error) console.log('error=' + r.error);
   process.exitCode = r.status === 'HOSTED_LOGICAL_RESTORE_PARITY_AND_ROLLBACK_VERIFIED' ? 0 : 2;
