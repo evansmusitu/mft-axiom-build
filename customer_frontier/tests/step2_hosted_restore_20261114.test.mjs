@@ -2,7 +2,8 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
 import { recover, permitted, signedStorageUrl, fingerprint, SOURCE_BASE, TARGET_BASE,
-  ACCOUNT_BASE, TARGET, MARKER_SQL, MARKER_COUNT_SQL, catalogHash, ENVELOPE_FILE } from '../recovery/step2_hosted_restore_20261114.mjs';
+  ACCOUNT_BASE, TARGET, MARKER_SQL, MARKER_COUNT_SQL, catalogHash, ENVELOPE_FILE,
+  FOREIGN_KEYS_SQL, FOREIGN_KEY_CHECK_SQL, restoreTransportSql } from '../recovery/step2_hosted_restore_20261114.mjs';
 import { ACCOUNT, SOURCE_DATABASE, NAME, CATALOG_SQL, RECIPIENT_SHA256 } from '../recovery/step2_create_restore_target_20261114.mjs';
 
 const sha = value => createHash('sha256').update(value).digest('hex');
@@ -29,6 +30,8 @@ function simulation(change = {}) {
     if (path.endsWith('/time_travel/bookmark')) return ok({ bookmark: BOOKMARK });
     if (path.includes('/time_travel/restore?')) { rolled = true; probe = false; return ok({ bookmark: BOOKMARK }); }
     if (path.endsWith('/query')) {
+      if (body.sql === FOREIGN_KEYS_SQL) return query([{ foreign_keys: change.fkDisabled ? 0 : 1 }]);
+      if (body.sql === FOREIGN_KEY_CHECK_SQL) return query(change.invalidFk ? [{ table: 'sentinel', rowid: 1 }] : []);
       if (body.sql === MARKER_SQL) { probe = true; return ok([{ success: true }]); }
       if (body.sql === MARKER_COUNT_SQL) return query([{ marker_count: probe ? 1 : 0 }]);
       if (body.sql === CATALOG_SQL) return query(role === 'source' || imported || change.nonempty ? rows : []);
@@ -118,6 +121,19 @@ test('data mismatch blocks rollback probe and cannot pass', async () => {
   const r = await simulation({ corruptTarget: true }).run();
   assert.equal(r.error, 'HOSTED_RESTORE_SCHEMA_OR_DATA_MISMATCH');
   assert.equal(r.rollback_attempted, false);
+});
+test('hosted FK enforcement and complete FK check cannot be bypassed', async () => {
+  for (const change of [{ fkDisabled: true }, { invalidFk: true }]) {
+    const r = await simulation(change).run();
+    assert.equal(r.error, 'HOSTED_FOREIGN_KEY_ENFORCEMENT_OR_INTEGRITY_FAILED');
+    assert.equal(r.hosted_schema_and_data_parity, false);
+    assert.equal(r.rollback_attempted, false);
+  }
+});
+test('bulk transport preserves every original export byte and validates post-load integrity', () => {
+  const body = restoreTransportSql(Buffer.from(SQL));
+  assert.equal(body.toString(), 'PRAGMA foreign_keys=OFF;\n' + SQL + '\nPRAGMA foreign_keys=ON;\n');
+  assert.deepEqual(fingerprint(body), fingerprint(Buffer.from(SQL)));
 });
 test('rollback must remove marker and retain all original data', async () => {
   const r = await simulation({ corruptRollback: true }).run();

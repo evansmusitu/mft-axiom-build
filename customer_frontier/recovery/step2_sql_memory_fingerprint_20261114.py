@@ -39,7 +39,10 @@ def fingerprint(sql):
     db = sqlite3.connect(':memory:')
     try:
         db.enable_load_extension(False)
-        db.execute('PRAGMA foreign_keys=ON')
+        # D1 exports may insert a child before emitting its parent CREATE TABLE.
+        # Load into this fresh memory-only database, then enforce and exhaustively
+        # validate every FK and parent definition before reporting any success.
+        db.execute('PRAGMA foreign_keys=OFF')
         db.execute('PRAGMA temp_store=MEMORY')
         db.setlimit(sqlite3.SQLITE_LIMIT_ATTACHED, 0)
         db.setlimit(sqlite3.SQLITE_LIMIT_LENGTH, MAX_SQL)
@@ -53,7 +56,7 @@ def fingerprint(sql):
             if action == sqlite3.SQLITE_FUNCTION and str(arg2).lower() in ('load_extension', 'readfile', 'writefile'):
                 return sqlite3.SQLITE_DENY
             if action == sqlite3.SQLITE_PRAGMA and str(arg1).lower() not in (
-                    'foreign_keys', 'defer_foreign_keys', 'integrity_check', 'foreign_key_check', 'table_info'):
+                    'foreign_keys', 'defer_foreign_keys', 'integrity_check', 'foreign_key_check', 'foreign_key_list', 'table_info'):
                 return sqlite3.SQLITE_DENY
             return sqlite3.SQLITE_OK
 
@@ -72,6 +75,10 @@ def fingerprint(sql):
         tables = []
         total = 0
         names = [name for kind, name, _ in objects if kind == 'table']
+        for name in names:
+            for fk in db.execute('PRAGMA foreign_key_list("' + name.replace('"', '""') + '")'):
+                if fk[2] not in names:
+                    raise ValueError('FOREIGN_KEY_PARENT_TABLE_MISSING')
         # Sequence state affects future IDs and must also survive the restore.
         if db.execute("SELECT 1 FROM sqlite_schema WHERE name='sqlite_sequence'").fetchone():
             names.append('sqlite_sequence')
@@ -91,7 +98,7 @@ def fingerprint(sql):
         return {'schema': 'musitu.axiom.sql-typed-memory-fingerprint.v1',
                 'catalog_sha256': sha(canonical(catalog)), 'user_objects': len(objects),
                 'tables': tables, 'total_rows': total, 'user_data_sha256': sha(canonical(tables)),
-                'integrity_check': True, 'foreign_key_check': True}
+                'integrity_check': True, 'foreign_key_check': True, 'foreign_key_parent_definitions': True}
     finally:
         db.close()
 

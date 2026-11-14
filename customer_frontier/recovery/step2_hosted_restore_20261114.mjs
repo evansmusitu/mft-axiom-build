@@ -15,6 +15,8 @@ export const TARGET_BASE = `/accounts/${ACCOUNT}/d1/database/${TARGET}`;
 export const ACCOUNT_BASE = '/accounts/' + ACCOUNT;
 export const MARKER_SQL = "CREATE TABLE axiom_recovery_probe_20261114 (id INTEGER PRIMARY KEY, value TEXT NOT NULL); INSERT INTO axiom_recovery_probe_20261114(id,value) VALUES(1,'rollback-704a7351');";
 export const MARKER_COUNT_SQL = "SELECT count(*) AS marker_count FROM sqlite_schema WHERE name='axiom_recovery_probe_20261114'";
+export const FOREIGN_KEYS_SQL = 'PRAGMA foreign_keys';
+export const FOREIGN_KEY_CHECK_SQL = 'PRAGMA foreign_key_check';
 export const RECEIPT_FILE = 'hosted_restore_parity_20261114.json';
 export const ENVELOPE_FILE = 'owner_encrypted_current_d1_20261114.json';
 const MAX_SQL = 8_000_000;
@@ -56,7 +58,8 @@ export function permitted(role, method, path, body) {
     ACCOUNT_BASE + '/d1/database?page=1&per_page=100', ACCOUNT_BASE + '/workers/scripts',
     ACCOUNT_BASE + '/pages/projects?page=1&per_page=10', TARGET_BASE, TARGET_BASE + '/time_travel/bookmark'].includes(path);
   if (method !== 'POST') return false;
-  if (path === TARGET_BASE + '/query') return exactKeys(body, ['sql']) && [CATALOG_SQL, MARKER_SQL, MARKER_COUNT_SQL].includes(body.sql);
+  if (path === TARGET_BASE + '/query') return exactKeys(body, ['sql']) && [CATALOG_SQL, MARKER_SQL, MARKER_COUNT_SQL,
+    FOREIGN_KEYS_SQL, FOREIGN_KEY_CHECK_SQL].includes(body.sql);
   if (path === TARGET_BASE + '/export') return exportBody(body);
   if (path === TARGET_BASE + '/import') return importBody(body);
   const prefix = TARGET_BASE + '/time_travel/restore?bookmark=';
@@ -144,6 +147,23 @@ function catalogRows(doc) {
 export const catalogHash = rows => sha(JSON.stringify(rows.map(row => [row.type, sha(row.name), sha(row.sql)])));
 const same = (a, b) => a.catalog_sha256 === b.catalog_sha256 && a.user_data_sha256 === b.user_data_sha256 &&
   JSON.stringify(a.tables) === JSON.stringify(b.tables);
+
+export function restoreTransportSql(sql) {
+  check(Buffer.isBuffer(sql) && sql.length > 0 && sql.length < MAX_SQL - 100, 'IMPORT_SQL_SIZE_INVALID');
+  // The bulk /import endpoint supports autocommit PRAGMAs. Retain the entire
+  // provider dump verbatim. Final enforcement, FK checks and table parity are
+  // mandatory after import; a failed check can never qualify recovery.
+  return Buffer.concat([Buffer.from('PRAGMA foreign_keys=OFF;\n'), sql,
+    Buffer.from('\nPRAGMA foreign_keys=ON;\n')]);
+}
+async function verifyHostedForeignKeys(query) {
+  const enabled = result(await query(FOREIGN_KEYS_SQL));
+  const checked = result(await query(FOREIGN_KEY_CHECK_SQL));
+  check(enabled?.[0]?.success === true && enabled[0].results?.[0]?.foreign_keys === 1 &&
+    checked?.[0]?.success === true && Array.isArray(checked[0].results) && checked[0].results.length === 0 &&
+    [enabled[0], checked[0]].every(row => row.meta?.rows_written === 0 && row.meta?.changed_db === false),
+  'HOSTED_FOREIGN_KEY_ENFORCEMENT_OR_INTEGRITY_FAILED');
+}
 
 async function exportCurrent(call, role, base, transfer, pause) {
   let body = { output_format: 'polling' }; let exportBookmark;
@@ -234,10 +254,14 @@ export async function recover({ sourceToken, targetToken, call, transfer = stora
     r.baseline = baseline;
     // Recheck immediately before admission. The driver never appends to an existing target.
     check(catalogRows(await query('target', TARGET_BASE, CATALOG_SQL)).length === 0, 'TARGET_CHANGED_BEFORE_IMPORT');
-    const etag = createHash('md5').update(original.sql).digest('hex');
+    const importSql = restoreTransportSql(original.sql);
+    exportedBuffers.push(importSql);
+    r.import_sql_sha256 = sha(importSql);
+    r.import_transport_policy = 'VERBATIM_EXPORT_WITH_BULK_IMPORT_FK_LOAD_PRAGMAS_AND_MANDATORY_POSTCHECKS';
+    const etag = createHash('md5').update(importSql).digest('hex');
     const init = result(await request('target', 'POST', TARGET_BASE + '/import', { action: 'init', etag }));
     check(typeof init?.filename === 'string' && importBody({ action: 'ingest', etag, filename: init.filename }), 'IMPORT_INIT_INVALID');
-    if (init.upload_url) await transfer('PUT', init.upload_url, original.sql);
+    if (init.upload_url) await transfer('PUT', init.upload_url, importSql);
     r.target_import_attempted = true; r.target_import_outcome = 'UNKNOWN'; r.status = 'TARGET_IMPORTING'; save();
     let job = result(await request('target', 'POST', TARGET_BASE + '/import', { action: 'ingest', etag, filename: init.filename }));
     for (let i = 0; i < 45 && job?.status !== 'complete'; i++) {
@@ -247,6 +271,8 @@ export async function recover({ sourceToken, targetToken, call, transfer = stora
     }
     check(job?.status === 'complete' && job.success !== false && !job.error, 'TARGET_IMPORT_UNCONFIRMED');
     r.target_import_outcome = 'COMPLETE'; save();
+    await verifyHostedForeignKeys(sql => query('target', TARGET_BASE, sql));
+    r.hosted_foreign_key_enforcement_and_check = true; save();
     const restored = await exportCurrent(request, 'target', TARGET_BASE, transfer, pause);
     exportedBuffers.push(restored.sql);
     const replay = inspect(restored.sql);
@@ -268,6 +294,7 @@ export async function recover({ sourceToken, targetToken, call, transfer = stora
     exportedBuffers.push(after.sql);
     const rolledBack = inspect(after.sql);
     check(same(baseline, rolledBack), 'ROLLBACK_SCHEMA_OR_DATA_MISMATCH');
+    await verifyHostedForeignKeys(sql => query('target', TARGET_BASE, sql));
     check(catalogHash(catalogRows(await query('target', TARGET_BASE, CATALOG_SQL))) === baseline.catalog_sha256,
       'ROLLBACK_LIVE_CATALOG_MISMATCH');
     r.after_rollback = rolledBack; r.rollback_outcome = 'SCHEMA_AND_ALL_TABLE_DATA_RESTORED'; save();

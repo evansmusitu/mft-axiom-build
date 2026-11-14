@@ -46,6 +46,15 @@ class MemoryReplayTests(unittest.TestCase):
         with self.assertRaises(Exception):
             self.fp('PRAGMA foreign_keys=OFF; CREATE TABLE a(id PRIMARY KEY); CREATE TABLE b(id REFERENCES a(id)); INSERT INTO b VALUES(99);')
 
+    def test_real_d1_export_child_before_parent_order(self):
+        result = self.fp('PRAGMA defer_foreign_keys=TRUE; CREATE TABLE child(id REFERENCES parent(id)); INSERT INTO child VALUES(1); CREATE TABLE parent(id PRIMARY KEY); INSERT INTO parent VALUES(1);')
+        self.assertTrue(result['foreign_key_check'])
+        self.assertEqual(result['total_rows'], 2)
+
+    def test_missing_parent_is_rejected_even_when_child_is_empty(self):
+        with self.assertRaises(Exception):
+            self.fp('CREATE TABLE child(id REFERENCES missing_parent(id));')
+
     def test_file_and_unsafe_pragma_operations_denied(self):
         for sql in ["ATTACH ':memory:' AS other;", 'PRAGMA writable_schema=ON;', "SELECT load_extension('a');", "SELECT readfile('/etc/passwd');"]:
             with self.subTest(sql=sql), self.assertRaises(Exception):
