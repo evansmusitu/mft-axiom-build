@@ -1,0 +1,45 @@
+name: G1 AWS read-only inventory (no spending / no writes)
+
+on:
+  workflow_dispatch:
+    inputs:
+      confirm_read_only:
+        description: 'I am the owner and authorize a read-only, zero-provision AWS inventory (not a G1 acceptance or credit verification)'
+        required: true
+        default: false
+        type: boolean
+
+permissions:
+  contents: read
+
+concurrency:
+  group: g1-aws-inventory-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  aws-inventory:
+    if: github.event_name == 'workflow_dispatch' && github.repository == 'evansmusitu/mft-axiom-build' && github.ref == 'refs/heads/main' && github.actor == 'evansmusitu' && inputs.confirm_read_only == true
+    environment: g1-aws-readonly
+    runs-on: ubuntu-24.04
+    timeout-minutes: 8
+    env:
+      AWS_REGION: us-east-2
+      AWS_DEFAULT_REGION: us-east-2
+      AWS_PAGER: ''
+      AWS_EC2_METADATA_DISABLED: 'true'
+    steps:
+      - name: Checkout protected source only
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Run strictly read-only, redacted Ohio AWS inventory
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_G1_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_G1_SECRET_ACCESS_KEY }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "$AWS_ACCESS_KEY_ID"
+          test -n "$AWS_SECRET_ACCESS_KEY"
+          command -v aws >/dev/null
+          python3 scripts/g1_aws_inventory_readonly.py

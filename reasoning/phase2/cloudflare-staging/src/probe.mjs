@@ -71,7 +71,9 @@ const READINESS_SQL=`SELECT current_database() AS database_name,
     AND NOT pg_catalog.has_schema_privilege(current_user,'axiom_spend','CREATE')
  END AS protected_rpc_schema_safe,
  has_database_privilege(current_user,current_database(),'CREATE') AS can_create_database_objects,
- has_schema_privilege(current_user,'public','CREATE') AS can_create_schema_objects`;
+ has_schema_privilege(current_user,'public','CREATE') AS can_create_schema_objects,
+ (SELECT ssl FROM pg_catalog.pg_stat_ssl WHERE pid=pg_catalog.pg_backend_pid()) AS origin_tls_active,
+ (SELECT version FROM pg_catalog.pg_stat_ssl WHERE pid=pg_catalog.pg_backend_pid()) AS origin_tls_version`;
 
 export async function inspectStagingHyperdrive(env, clientFactory){
   if(typeof env?.HYPERDRIVE?.connectionString !== 'string'||
@@ -101,10 +103,17 @@ export async function inspectStagingHyperdrive(env, clientFactory){
     if(row.protected_rpc_present!==true||row.protected_rpc_definers_safe!==true||
        row.protected_rpc_grants_safe!==true||row.protected_rpc_schema_safe!==true)
       throw new Error('STAGING_PROTECTED_RPC_INVALID');
+    // Strict G1 mode must prove encrypted PostgreSQL *origin* transport.
+    // It is still NOT evidence of hostname/CA verify-full, which requires
+    // independent Cloudflare Workers VPC service configuration attestation.
+    if(env.G1_REQUIRE_ORIGIN_TLS==='true'&&
+       (row.origin_tls_active!==true||
+        !['TLSv1.2','TLSv1.3'].includes(row.origin_tls_version)))
+      throw new Error('STAGING_ORIGIN_TLS_UNVERIFIED');
     // Schema existence is not evidence of budgets, enforced call paths, or invoice reconciliation.
     return {connected:true,identityVerified:true,billingSchemaPresent:true,productionBillingEnforced:false};
   }catch(error){
-    if(error instanceof Error && /^STAGING_(?:IDENTITY_MISMATCH|SCHEMA_MISSING|PRIVILEGED_ROLE_DENIED|PROTECTED_RPC_INVALID)$/.test(error.message))throw error;
+    if(error instanceof Error && /^STAGING_(?:IDENTITY_MISMATCH|SCHEMA_MISSING|PRIVILEGED_ROLE_DENIED|PROTECTED_RPC_INVALID|ORIGIN_TLS_UNVERIFIED)$/.test(error.message))throw error;
     throw new Error('STAGING_DATABASE_UNAVAILABLE');
   }finally{
     if(client){try{await client.end();}catch{}}
