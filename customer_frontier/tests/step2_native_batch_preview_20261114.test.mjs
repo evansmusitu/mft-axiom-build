@@ -91,7 +91,7 @@ function simulation(change = {}) {
       return ok({ token: 'SYNTHETIC_PREVIEW_SECRET', exchange_url: 'https://exchange.synthetic.workers.dev/auth' });
     }
     if (path.endsWith('/edge-preview') && method === 'POST') {
-      assert.equal(sessionToken, 'SYNTHETIC_EXPANDED_SECRET');
+      assert.equal(sessionToken, change.exchangeUnavailable ? 'SYNTHETIC_PREVIEW_SECRET' : 'SYNTHETIC_EXPANDED_SECRET');
       const metadata = JSON.parse(await body.get('metadata').text());
       assert.equal(metadata.bindings.find(b => b.type === 'd1').id, TARGET);
       forms.set(path.includes(PREVIEW_B) ? PREVIEW_B : PREVIEW_A, metadata);
@@ -100,7 +100,10 @@ function simulation(change = {}) {
     assert.fail('Unexpected synthetic API call');
   };
   const edge = async (url, init) => {
-    if (!init) return { token: 'SYNTHETIC_EXPANDED_SECRET' };
+    if (!init) {
+      if (change.exchangeUnavailable) throw new PreviewStop('PREVIEW_EDGE_TRANSPORT_UNKNOWN');
+      return { token: 'SYNTHETIC_EXPANDED_SECRET' };
+    }
     assert.equal(init.headers['cf-workers-preview-token'], 'SYNTHETIC_UPLOADED_PREVIEW_SECRET');
     const name = new URL(url).hostname.startsWith(PREVIEW_B) ? PREVIEW_B : PREVIEW_A;
     const metadata = forms.get(name), binding = key => metadata.bindings.find(row => row.name === key).text;
@@ -134,6 +137,13 @@ test('a subdomain permission refusal is not treated as permission to register or
   const s = simulation({ subdomainReadDenied: true }), r = await s.run();
   assert.equal(r.error, 'RECOVERY_API_HTTP_403'); assert.equal(r.refused_api_operation, 'WORKERS_SUBDOMAIN_READ');
   assert.equal(s.calls.some(c => c.method === 'PUT'), false); assert.equal(s.state().invoked, false);
+});
+test('an unavailable optional token exchange uses the original provider session token', async () => {
+  const s = simulation({ exchangeUnavailable: true }), r = await s.run();
+  assert.equal(r.status, 'NATIVE_BATCH_AND_FRESH_PREVIEW_PERSISTENCE_QUALIFIED');
+  assert.equal(r.preview_a_optional_exchange_fallback, true);
+  assert.equal(r.preview_b_optional_exchange_fallback, true);
+  assert.equal(r.cleanup_parity_verified, true);
 });
 test('a lost subdomain registration acknowledgement is reconciled by readback without repeating PUT', async () => {
   const s = simulation({ missingSubdomain: true, subdomainAckLost: true }), r = await s.run();

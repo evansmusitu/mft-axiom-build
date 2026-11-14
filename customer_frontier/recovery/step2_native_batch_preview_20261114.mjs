@@ -111,11 +111,19 @@ export async function edgeFetch(url, init = {}) {
 async function preview(api, edge, name, source, challenge, instanceTag) {
   const session = result(await api('recovery', 'GET', ACCOUNT_BASE + '/workers/scripts/' + name + '/subdomain/edge-preview'));
   check(typeof session?.token === 'string' && session.token.length > 5, 'PREVIEW_SESSION_TOKEN_UNAVAILABLE');
-  let value = session.token, host;
+  let value = session.token, host, exchangeFallback = false;
   if (session.exchange_url) {
     const url = trustedPreviewUrl(session.exchange_url);
-    const expanded = await edge(url.href);
-    if (typeof expanded?.token === 'string') value = expanded.token;
+    // Like Wrangler, expansion is optional: a failed provider-edge exchange
+    // retains the original session token. This never retries native SQL.
+    try {
+      const expanded = await edge(url.href);
+      if (typeof expanded?.token === 'string' && expanded.token.length > 5) value = expanded.token;
+      else exchangeFallback = true;
+    } catch (error) {
+      if (!(error instanceof PreviewStop) || !error.code.startsWith('PREVIEW_EDGE_')) throw error;
+      exchangeFallback = true;
+    }
     const dot = url.hostname.indexOf('.');
     check(dot > 0, 'PREVIEW_EXCHANGE_HOST_INVALID'); host = name + url.hostname.slice(dot);
   } else {
@@ -133,7 +141,7 @@ async function preview(api, edge, name, source, challenge, instanceTag) {
   form.set('wrangler-session-config', JSON.stringify({ workers_dev: true, minimal_mode: false }));
   const uploaded = result(await api('recovery', 'POST', ACCOUNT_BASE + '/workers/scripts/' + name + '/edge-preview', form, value));
   check(typeof uploaded?.preview_token === 'string' && uploaded.preview_token.length > 5, 'PREVIEW_UPLOAD_TOKEN_UNAVAILABLE');
-  return { host, token: uploaded.preview_token };
+  return { host, token: uploaded.preview_token, exchangeFallback };
 }
 async function ensurePreviewSubdomain(api, receipt, record) {
   const path = ACCOUNT_BASE + '/workers/subdomain';
@@ -238,6 +246,7 @@ export async function qualifyPreview({ productionToken, recoveryToken, baselineR
     const challenge = randomBytes(32).toString('hex'), instanceA = randomBytes(16).toString('hex'), instanceB = randomBytes(16).toString('hex');
     r.status = 'TRANSIENT_PREVIEW_SESSION_STARTING'; previewAttempted = true; record();
     const a = await preview(api, edge, PREVIEW_A, workerSource, challenge, instanceA);
+    r.preview_a_optional_exchange_fallback = a.exchangeFallback;
     r.preview_upload_verified = true; r.native_invocation_attempted = true; record();
     r.native_batch_result = await edge('https://' + a.host + '/gate2/native-batch', { method: 'POST',
       headers: { 'cf-workers-preview-token': a.token, Authorization: 'Bearer ' + challenge, 'Content-Type': 'application/json' },
@@ -245,6 +254,7 @@ export async function qualifyPreview({ productionToken, recoveryToken, baselineR
     check(r.native_batch_result.status === 'NATIVE_D1_BATCH_BEHAVIOR_VERIFIED' && r.native_batch_result.preview_instance_tag === instanceA,
       'NATIVE_BATCH_RESULT_NOT_QUALIFIED'); record();
     const b = await preview(api, edge, PREVIEW_B, workerSource, challenge, instanceB);
+    r.preview_b_optional_exchange_fallback = b.exchangeFallback;
     r.fresh_preview_result = await edge('https://' + b.host + '/gate2/native-batch', { method: 'POST',
       headers: { 'cf-workers-preview-token': b.token, Authorization: 'Bearer ' + challenge, 'Content-Type': 'application/json' },
       body: JSON.stringify({ operation: 'fresh-preview-readback' }) });
