@@ -15,3 +15,13 @@
 The preflight checks only GET account identity, `/subscriptions` and fully bounded D1 list; it records only sanitized metadata and SHA-256, and keeps `gate1_closed=false`, `target_creation_authorized=false`, `NOT_RELEASE` even if everything appears safe. It does not attest fresh Cloudflare MFA, external trust pin activation or owner authority. Owner's earlier 15-minute signed proposal expired and explicitly denied customer export, restore, D1 creation and production changes. PR216 retains two-signer runtime while PR241 remains a draft; governance changes must be independently reviewed.
 
 **Exact remaining Gate 1 requirements:** owner controls Free target identity and MFA; second account independently proven Free with zero chargeable enabled services, no payment method or paid plan, isolated access and available capacity; enforce Free limits across the recovery run; provider readback; owner specific non-expired operation authorization and applicable reviewed runtime authority; fully retained evidence and no historical veto erasure. Current Paid account has no D1 hard USD 0 overage spending cap. In all cases this package is **NO_GO** and is not a recovery approval.
+
+## Native Windows path (NO Python, Ubuntu or WSL)
+
+The additional `Run_MUSITU_AXIOM_Gate1_Free_Readonly_Windows.ps1` and local `step1_gate1_free_isolated_account_readonly_20261114.mjs` support Windows PowerShell 5.1 and Node.js >=20. After an owner-created separate Free account exists, extract the complete updated package in a new private non-synced Windows folder; verify SHA-256 against independently retained manifest; then run:
+
+```powershell
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File ".\Run_MUSITU_AXIOM_Gate1_Free_Readonly_Windows.ps1"
+```
+
+It prompts locally for the new account ID and an **independently scoped read-only token**, hiding the token; does three strict authenticated GET requests only; saves a sanitized owner-local receipt under `%LOCALAPPDATA%/AXIOM_GATE1_NEW_FREE_READONLY`, removes temporary environment credentials, and never writes source customer data, performs account/resource creation, charges anything, or grants authority. It refuses GitHub CI and noninteractive execution. **Do not run it for the existing Paid account ID.** Read-only metadata success always means `GATE1_OPEN`, not owner/MFA or spending approval.
