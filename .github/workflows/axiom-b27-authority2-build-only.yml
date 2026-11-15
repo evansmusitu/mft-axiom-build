@@ -108,6 +108,35 @@ jobs:
         with:
           name: axiom-a2-owner-review-build-${{ github.event.pull_request.head.sha || github.sha }}
           path: ${{ runner.temp }}/a2-owner-review-input
+      - name: Bind verifier to exact Git blob and retain checkout byte diagnostics
+        shell: powershell
+        run: |
+          $ErrorActionPreference='Stop'
+          $materializeCode=@'
+          import pathlib,os,subprocess,hashlib,json
+          workspace=pathlib.Path(os.environ['GITHUB_WORKSPACE'])
+          relative='integrations/security-authority2/verify-owner-review-packet.ps1'
+          source=workspace/relative
+          before=source.read_bytes()
+          raw=subprocess.check_output(['git','cat-file','blob','HEAD:'+relative],cwd=workspace)
+          expected='86c59f3097e4a46c71904585b37cd6bd9da08889b1b8a34171c7b8623299e165'
+          if hashlib.sha256(raw).hexdigest()!=expected:
+            raise SystemExit('A2_VERIFIER_GIT_BLOB_HASH_MISMATCH_HOLD')
+          downloaded=pathlib.Path(os.environ['RUNNER_TEMP'])/'a2-owner-review-input'/'Verify_Authority2_Review_Packet.ps1'
+          if downloaded.read_bytes()!=raw:
+            raise SystemExit('A2_DOWNLOADED_VERIFIER_GIT_BLOB_MISMATCH_HOLD')
+          crlf_changed=before!=raw and before.replace(bytes([13,10]),bytes([10]))==raw
+          if before!=raw and not crlf_changed:
+            raise SystemExit('A2_UNEXPECTED_CHECKOUT_BYTE_DRIFT_HOLD')
+          source.write_bytes(raw)
+          evidence=pathlib.Path(os.environ['RUNNER_TEMP'])/'a2-windows-review-proof'
+          evidence.mkdir(exist_ok=True)
+          receipt={'schema':'musitu.axiom.authority2.verifier-source-materialization.v1','source_commit':os.environ['VERIFY_SOURCE_COMMIT'],'checkout_sha256':hashlib.sha256(before).hexdigest(),'git_blob_sha256':hashlib.sha256(raw).hexdigest(),'downloaded_sha256':hashlib.sha256(downloaded.read_bytes()).hexdigest(),'checkout_crlf_conversion_observed':crlf_changed,'exact_git_bytes_materialized':True,'provider_operations':0,'release_status':'NOT_RELEASE'}
+          (evidence/'verifier_source_materialization.json').write_text(json.dumps(receipt,indent=2))
+          print(json.dumps(receipt,sort_keys=True))
+          '@
+          $materializeCode | python -
+          if ($LASTEXITCODE -ne 0) { throw 'A2_VERIFIER_EXACT_GIT_MATERIALIZATION_FAILED_HOLD' }
       - name: Verify actual review packet under Windows PowerShell 5.1
         shell: powershell
         run: |
