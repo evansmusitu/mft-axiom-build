@@ -243,3 +243,18 @@ test('negative candidate: restoring BOTH DO and R2 can re-provision; global cust
   assert.equal(result.dispatch_allowed,false);assert.equal(first,2);
   assert.equal(f.counters.puts,2,'candidate alone does not establish global nonrollback');
 });
+
+test('candidate rejects an expired operator deadline before any provider or storage operation',async()=>{
+  const f=await fixture();await assert.rejects(f.run({deadline_ms:Date.now()-1}),/DEADLINE_EXPIRED_HOLD/);
+  assert.deepEqual(f.getCalls,[]);assert.equal(f.counters.transactions,0);assert.equal(f.counters.puts,0);
+});
+test('candidate expiry after irreversible R2 commit retains pending without promoting tip',async()=>{
+  const f=await fixture(),realNow=Date.now,now=realNow(),deadline=now+60000,put=f.bucket.put;let simulated=now;
+  Date.now=()=>simulated;
+  try{
+    f.bucket.put=async(...args)=>{const r=await put(...args);simulated=deadline+1;return r;};
+    await assert.rejects(f.run({deadline_ms:deadline}),/DEADLINE_EXPIRED_HOLD/);
+    assert.ok(await f.storage.get('highwater/pending'));assert.equal(await f.storage.get('highwater/tip'),undefined);
+    assert.equal(f.counters.puts,1);assert.equal(f.objects.size,1);
+  }finally{Date.now=realNow;}
+});

@@ -15,6 +15,24 @@ export class WorkerBindingHold extends Error{
  constructor(code){super(code);this.name='WorkerBindingHold';this.code=code;}
 }
 const hold=code=>{throw new WorkerBindingHold(code);};
+// Pure validation for settings and exact-version metadata; not a provider read.
+export function validateAuthority2BindingList(bindings){
+ if(!Array.isArray(bindings))hold('WORKER_SETTINGS_REPLY_INVALID_HOLD');
+ const seen=new Set();
+ for(const binding of bindings){
+  if(!binding||typeof binding.name!=='string'||seen.has(binding.name)||!REQUIRED.has(binding.name))
+    hold('WORKER_UNEXPECTED_BINDING_HOLD');
+  seen.add(binding.name);
+  if(binding.type!==REQUIRED.get(binding.name))hold('WORKER_BINDING_TYPE_MISMATCH_HOLD');
+  if(binding.name==='HIGHWATER_STATE'&&(binding.class_name!=='Authority2Highwater'||
+    binding.script_name&&binding.script_name!==SCRIPT))
+    hold('WORKER_DURABLE_OBJECT_IDENTITY_HOLD');
+  if(binding.name==='HIGHWATER_WORM'&&binding.bucket_name!==BUCKET)
+    hold('WORKER_R2_BUCKET_IDENTITY_HOLD');
+ }
+ if(seen.size!==REQUIRED.size)hold('WORKER_REQUIRED_BINDING_MISSING_HOLD');
+ return seen.size;
+}
 export async function verifyAuthority2WorkerBindings({
  account_id,token,fetchImpl=fetch,timeoutMs=5000
 }={}){
@@ -61,22 +79,10 @@ export async function verifyAuthority2WorkerBindings({
  finally{clearTimeout(timer);}
  if(data?.success!==true||!Array.isArray(data.errors)||data.errors.length!==0||
     !Array.isArray(data.result?.bindings))hold('WORKER_SETTINGS_REPLY_INVALID_HOLD');
- const seen=new Set();
- for(const binding of data.result.bindings){
-  if(!binding||typeof binding.name!=='string'||seen.has(binding.name)||!REQUIRED.has(binding.name))
-    hold('WORKER_UNEXPECTED_BINDING_HOLD');
-  seen.add(binding.name);
-  if(binding.type!==REQUIRED.get(binding.name))hold('WORKER_BINDING_TYPE_MISMATCH_HOLD');
-  if(binding.name==='HIGHWATER_STATE'&&(binding.class_name!=='Authority2Highwater'||
-    binding.script_name&&binding.script_name!==SCRIPT))
-    hold('WORKER_DURABLE_OBJECT_IDENTITY_HOLD');
-  if(binding.name==='HIGHWATER_WORM'&&binding.bucket_name!==BUCKET)
-    hold('WORKER_R2_BUCKET_IDENTITY_HOLD');
- }
- if(seen.size!==REQUIRED.size)hold('WORKER_REQUIRED_BINDING_MISSING_HOLD');
+ const checked=validateAuthority2BindingList(data.result.bindings);
  return Object.freeze({
   status:'WORKER_METADATA_READBACK_NOT_RELEASE',account_id:ACCOUNT,
-  script_name:SCRIPT,bucket_name:BUCKET,checked_binding_count:seen.size,
+  script_name:SCRIPT,bucket_name:BUCKET,checked_binding_count:checked,
   secret_values_exposed:false,active_deployment_verified:false,
   signer_custody_verified:false,release_eligible:false
  });

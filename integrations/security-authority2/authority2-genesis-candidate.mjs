@@ -65,8 +65,14 @@ export function genesisBarrierKey(pin){return prefixFor(validatedPin(pin))+'gene
  */
 export async function provisionAuthority2Genesis({storage,bucket,pin,
   anchor_pin,commitment,anchor_proof,expected_commitment_sha256,
-  anchor_read_token,fetchImpl=fetch}){
+  anchor_read_token,fetchImpl=fetch,deadline_ms=Number.MAX_SAFE_INTEGER}){
   requireStorage(storage);requireBucket(bucket);
+  if(!Number.isSafeInteger(deadline_ms)||deadline_ms<1)
+    hold('A2_GENESIS_DEADLINE_INVALID_HOLD');
+  const checkDeadline=()=>{
+    if(Date.now()>=deadline_ms)hold('A2_GENESIS_DEADLINE_EXPIRED_HOLD');
+  };
+  checkDeadline();
   // Detach all public objects before the first await; caller mutation must not
   // change a commitment after the independently supplied hash was checked.
   const c=validatedPin(structuredClone(pin));
@@ -90,12 +96,13 @@ export async function provisionAuthority2Genesis({storage,bucket,pin,
     anchor_pin:a,anchor:proof});
   if(encoder.encode(barrier).length>8192)hold('A2_GENESIS_BARRIER_SIZE_HOLD');
   const pending={kind:'AUTHORITY2_GENESIS_PENDING',
-    commitment_sha256:expected_commitment_sha256,barrier_key:barrierKey};
+    commitment_sha256:expected_commitment_sha256,barrier_key:barrierKey,deadline_ms};
 
   // This transaction alone arbitrates concurrent initializers. It is the
   // only write before R2, and the serving Worker already refuses this key.
   // No network operation is ever performed inside a retryable transaction.
   await storage.transaction(async s=>{
+    checkDeadline();
     // getAlarm is a storage API, not a DurableObjectTransaction method. In
     // SQLite its access through the storage handle joins this transaction.
     await emptyStorage(s,storage);
@@ -104,11 +111,13 @@ export async function provisionAuthority2Genesis({storage,bucket,pin,
   await storage.sync();
 
   await boundedR2(async()=>{
+    checkDeadline();
     const before=await bucket.list({prefix,limit:1});
     if(!before||!Array.isArray(before.objects)||before.objects.length||before.truncated!==false)
       hold('A2_GENESIS_EXISTING_R2_HISTORY_HOLD');
     // Exactly one conditional PUT. A lost ACK is not retried or reconciled
     // into a success, even when a later read can observe the object.
+    checkDeadline();
     const result=await bucket.put(barrierKey,barrier,{
       onlyIf:new Headers({'if-none-match':'*'}),
       httpMetadata:{contentType:'application/json'}});
@@ -121,12 +130,14 @@ export async function provisionAuthority2Genesis({storage,bucket,pin,
        after.objects.length!==1||after.objects[0].key!==barrierKey||
        await bucket.head(wormKey(c,0)))hold('A2_GENESIS_R2_NAMESPACE_CHANGED_HOLD');
   });
+  checkDeadline();
   // Observe the immutable proof and original repository identity again after
   // the irreversible R2 operation, before promoting the pre-genesis tip.
   await verifyGithubCheckpoint({pin:a,token:anchor_read_token,
     payload:anchored,fetchImpl});
   const {public_key_jwk:_publicKey,...identity}=c;
   await storage.transaction(async s=>{
+    checkDeadline();
     const values=await s.list({limit:2});
     if(!(values instanceof Map)||values.size!==1||
        canonicalJson(values.get('highwater/pending')??null)!==canonicalJson(pending)||

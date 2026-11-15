@@ -1,0 +1,33 @@
+# TEMPORARY REVIEW CANDIDATE ONLY. Independent approval and private custody required.
+# No schedule is configured. This file does not authorize a deployment.
+name = "axiom-security-authority2-highwater"
+main = "./authority2-private-genesis-controller.mjs"
+compatibility_date = "2026-07-01"
+account_id = "67469478aa9349fa0a57fe3a72da200a"
+workers_dev = false
+preview_urls = false
+
+[[durable_objects.bindings]]
+name = "HIGHWATER_STATE"
+class_name = "Authority2Highwater"
+
+[[migrations]]
+tag = "authority2-highwater-v1"
+new_sqlite_classes = ["Authority2Highwater"]
+
+[[r2_buckets]]
+binding = "HIGHWATER_WORM"
+bucket_name = "musitu-axiom-b27-highwater-a2"
+
+[triggers]
+crons = []
+
+[observability]
+enabled = false
+
+# Original private operator settings, never supplied to builder CI:
+# HW_CONFIG_JSON, HW_ROLE_TOKEN_SHA256_JSON, HW_SIGNING_JWK.
+# Temporary operator settings:
+# HW_GENESIS_CONTROL_JSON, HW_GENESIS_CONTROL_TOKEN, HW_GENESIS_GITHUB_READ_TOKEN.
+# After actual approved genesis, remove all temporary settings and triggers,
+# and restore the EXACT separately reviewed serving Worker bundle/config.

@@ -92,6 +92,69 @@ jobs:
           path: ${{ runner.temp }}/axiom-a2-build/
           if-no-files-found: error
           retention-days: 30
+  private-initializer-build-only:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - name: Checkout without persistent credentials
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          persist-credentials: false
+      - name: Pinned Node runtime
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: '24.12.0'
+      - name: Build private initializer review candidate without provider credentials or deployment
+        shell: bash
+        env:
+          WRANGLER_SEND_METRICS: 'false'
+          CI: 'true'
+          A2_SOURCE_COMMIT: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          set -euo pipefail
+          test -z "${CLOUDFLARE_API_TOKEN:-}"
+          test -z "${CLOUDFLARE_API_KEY:-}"
+          test -z "${CLOUDFLARE_EMAIL:-}"
+          node --check integrations/security-authority2/authority2-private-genesis-controller.mjs
+          npm_config_ignore_scripts=true npx --yes wrangler@4.150.0 deploy --dry-run \
+            --config integrations/security-authority2/wrangler.private-genesis-review.toml \
+            --outdir "$RUNNER_TEMP/axiom-a2-private-initializer-build"
+          python3 - <<'PY'
+          import hashlib,json,os,pathlib,shutil,tomllib
+          config_path=pathlib.Path('integrations/security-authority2/wrangler.private-genesis-review.toml')
+          config=tomllib.loads(config_path.read_text())
+          assert config['account_id']=='67469478aa9349fa0a57fe3a72da200a'
+          assert config['workers_dev'] is False and config['preview_urls'] is False
+          assert config['triggers']['crons']==[] and 'route' not in config and 'routes' not in config
+          root=pathlib.Path(os.environ['RUNNER_TEMP'])/'axiom-a2-private-initializer-build'
+          outputs=list(root.glob('*.js'));assert len(outputs)==1
+          sources=[str(config_path),'integrations/security-authority2/authority2-private-genesis-controller.mjs',
+            'integrations/security-authority2/authority2-genesis-candidate.mjs',
+            'integrations/security-authority2/authority2-r2-worm.mjs',
+            'integrations/independent-ledger/github-anchor.mjs','integrations/independent-ledger/protocol.mjs',
+            'axiom_interface/vnext/execution_integrity.mjs','axiom_interface/vnext/analytical_workflows.mjs',
+            'axiom_interface/vnext/decision_analysis.mjs']
+          for name in sources:
+            dst=root/'reviewed-source'/name;dst.parent.mkdir(parents=True,exist_ok=True);shutil.copyfile(name,dst)
+          manifest={'schema':'musitu.axiom.authority2.private-initializer-build.v1',
+            'source_commit':os.environ['A2_SOURCE_COMMIT'],'wrangler_version':'4.150.0',
+            'bundle_file':outputs[0].name,'bundle_bytes':outputs[0].stat().st_size,
+            'bundle_sha256':hashlib.sha256(outputs[0].read_bytes()).hexdigest(),
+            'source_sha256':{name:hashlib.sha256(pathlib.Path(name).read_bytes()).hexdigest() for name in sources},
+            'deployment':'NONE','secrets_used':False,'cron_triggers_configured':False,
+            'public_routes_configured':False,'hosted_genesis_initialized':False,
+            'independent_operator_or_review_qualified':False,'release_status':'NOT_RELEASE'}
+          (root/'PRIVATE_INITIALIZER_BUILD_MANIFEST.json').write_text(json.dumps(manifest,indent=2))
+          print(json.dumps(manifest,sort_keys=True))
+          PY
+      - name: Retain private initializer build for separate review only
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: axiom-a2-private-initializer-review-build-${{ github.event.pull_request.head.sha || github.sha }}
+          path: ${{ runner.temp }}/axiom-a2-private-initializer-build/
+          if-no-files-found: error
+          retention-days: 30
+
   windows-review-verifier:
     needs: wrangler-dryrun
     runs-on: windows-2022
