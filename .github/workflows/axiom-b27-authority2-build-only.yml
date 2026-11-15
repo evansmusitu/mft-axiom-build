@@ -78,6 +78,9 @@ jobs:
             target=root/'reviewed-source'/source
             target.parent.mkdir(parents=True,exist_ok=True)
             shutil.copyfile(source,target)
+          verifier=pathlib.Path('integrations/security-authority2/verify-owner-review-packet.ps1')
+          manifest['verifier_sha256']=hashlib.sha256(verifier.read_bytes()).hexdigest()
+          shutil.copyfile(verifier,root/'Verify_Authority2_Review_Packet.ps1')
           (root/'A2_BUILD_MANIFEST.json').write_text(json.dumps(manifest,indent=2))
           print(json.dumps(manifest,sort_keys=True,separators=(',',':')))
           print('B27_WRANGLER_DRY_RUN_PASS_NOT_RELEASE')
@@ -87,5 +90,84 @@ jobs:
         with:
           name: axiom-a2-owner-review-build-${{ github.event.pull_request.head.sha || github.sha }}
           path: ${{ runner.temp }}/axiom-a2-build/
+          if-no-files-found: error
+          retention-days: 30
+  windows-review-verifier:
+    needs: wrangler-dryrun
+    runs-on: windows-2022
+    timeout-minutes: 10
+    env:
+      VERIFY_SOURCE_COMMIT: ${{ github.event.pull_request.head.sha || github.sha }}
+    steps:
+      - name: Checkout reviewed verifier without persistent credentials
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          persist-credentials: false
+      - name: Download this run's exact credential-free build
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+        with:
+          name: axiom-a2-owner-review-build-${{ github.event.pull_request.head.sha || github.sha }}
+          path: ${{ runner.temp }}/a2-owner-review-input
+      - name: Verify actual review packet under Windows PowerShell 5.1
+        shell: powershell
+        run: |
+          $ErrorActionPreference='Stop'
+          $root=Join-Path $env:RUNNER_TEMP 'a2-owner-review-input'
+          $source=Join-Path $env:GITHUB_WORKSPACE 'integrations/security-authority2/verify-owner-review-packet.ps1'
+          $script=Join-Path $root 'Verify_Authority2_Review_Packet.ps1'
+          if ((Get-FileHash $source).Hash -ne (Get-FileHash $script).Hash) { throw 'A2_VERIFIER_SOURCE_MISMATCH_HOLD' }
+          & powershell.exe -NoProfile -ExecutionPolicy Bypass -File $script -PacketRoot $root
+          if ($LASTEXITCODE -ne 0) { throw 'A2_POWERSHELL51_VERIFIER_FAILED_HOLD' }
+          $evidence=Join-Path $env:RUNNER_TEMP 'a2-windows-review-proof'
+          New-Item -ItemType Directory -Force -Path $evidence | Out-Null
+          Copy-Item -LiteralPath (Join-Path $root 'OWNER_AUTHORITY2_REVIEW_PACKET_INTEGRITY_PROOF.json') -Destination (Join-Path $evidence 'powershell51-proof.json')
+      - name: Verify actual review packet under PowerShell 7
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop'
+          $root=Join-Path $env:RUNNER_TEMP 'a2-owner-review-input'
+          $script=Join-Path $root 'Verify_Authority2_Review_Packet.ps1'
+          & pwsh -NoProfile -File $script -PacketRoot $root
+          if ($LASTEXITCODE -ne 0) { throw 'A2_POWERSHELL7_VERIFIER_FAILED_HOLD' }
+          Copy-Item -LiteralPath (Join-Path $root 'OWNER_AUTHORITY2_REVIEW_PACKET_INTEGRITY_PROOF.json') -Destination (Join-Path $env:RUNNER_TEMP 'a2-windows-review-proof/powershell7-proof.json')
+      - name: Reject changed bundle source claims and manifest pin without stale proof
+        shell: powershell
+        run: |
+          $ErrorActionPreference='Stop'
+          $inputRoot=Join-Path $env:RUNNER_TEMP 'a2-owner-review-input'
+          $results=@()
+          foreach ($label in @('bundle','source','claim','manifest-pin')) {
+            $caseRoot=Join-Path $env:RUNNER_TEMP ('a2-review-negative-'+$label)
+            New-Item -ItemType Directory -Path $caseRoot | Out-Null
+            Copy-Item -Path (Join-Path $inputRoot '*') -Destination $caseRoot -Recurse
+            $script=Join-Path $caseRoot 'Verify_Authority2_Review_Packet.ps1'
+            if ($label -eq 'bundle') { [IO.File]::AppendAllText((Join-Path $caseRoot 'authority2-highwater-worker.js'),'// synthetic tamper') }
+            if ($label -eq 'source') { [IO.File]::AppendAllText((Join-Path $caseRoot 'reviewed-source/integrations/security-authority2/authority2-r2-worm.mjs'),'// synthetic tamper') }
+            if ($label -eq 'claim') {
+              $mfile=Join-Path $caseRoot 'A2_BUILD_MANIFEST.json'
+              $m=Get-Content -LiteralPath $mfile -Raw | ConvertFrom-Json
+              $m.worker_uploaded=$true
+              [IO.File]::WriteAllText($mfile,($m | ConvertTo-Json -Depth 10))
+            }
+            $invokeArgs=@('-NoProfile','-ExecutionPolicy','Bypass','-File',$script,'-PacketRoot',$caseRoot)
+            if ($label -eq 'manifest-pin') { $invokeArgs+=@('-ExpectedManifestSha256',('0'*64)) }
+            & powershell.exe @invokeArgs
+            $exitCode=$LASTEXITCODE
+            if ($exitCode -eq 0) { throw ('A2_NEGATIVE_ACCEPTED_'+$label) }
+            if (Test-Path -LiteralPath (Join-Path $caseRoot 'OWNER_AUTHORITY2_REVIEW_PACKET_INTEGRITY_PROOF.json')) { throw ('A2_STALE_PROOF_RETAINED_'+$label) }
+            $results+=@{case=$label;exit_code=$exitCode;stale_proof_present=$false}
+          }
+          $evidence=Join-Path $env:RUNNER_TEMP 'a2-windows-review-proof'
+          $p51=Get-Content (Join-Path $evidence 'powershell51-proof.json') -Raw | ConvertFrom-Json
+          $p7=Get-Content (Join-Path $evidence 'powershell7-proof.json') -Raw | ConvertFrom-Json
+          if (-not $p51.powershell_version.StartsWith('5.1.') -or -not $p7.powershell_version.StartsWith('7.')) { throw 'A2_NATIVE_SHELL_VERSION_MISMATCH_HOLD' }
+          $receipt=@{schema='musitu.axiom.authority2.review-packet-native-windows-verifier.v1';source_commit=$env:VERIFY_SOURCE_COMMIT;status='POWERSHELL51_AND7_REVIEW_PACKET_VERIFIER_QUALIFIED_NOT_DEPLOYED';checks_passed=6;powershell51_version=$p51.powershell_version;powershell7_version=$p7.powershell_version;negative_cases=$results;provider_operations=0;secrets_used=$false;worker_uploaded=$false;gate3_closed=$false;release_status='NOT_RELEASE'}
+          [IO.File]::WriteAllText((Join-Path $evidence 'NATIVE_WINDOWS_VERIFIER_PROOF.json'),($receipt | ConvertTo-Json -Depth 10))
+          exit 0
+      - name: Retain native Windows verifier qualification evidence
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: axiom-a2-native-windows-review-verifier-${{ github.event.pull_request.head.sha || github.sha }}
+          path: ${{ runner.temp }}/a2-windows-review-proof/
           if-no-files-found: error
           retention-days: 30
