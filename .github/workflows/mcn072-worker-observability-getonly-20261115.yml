@@ -1,0 +1,52 @@
+name: MUSITU MCN-072 Worker observability routing GET only (NO RELEASE)
+
+on:
+  push:
+    branches:
+      - audit/mcn072-worker-observability-getonly-20261115
+    paths:
+      - .github/workflows/mcn072-worker-observability-getonly-20261115.yml
+
+permissions:
+  contents: read
+
+jobs:
+  inspect:
+    if: github.repository == 'evansmusitu/mft-axiom-build' && github.ref == 'refs/heads/audit/mcn072-worker-observability-getonly-20261115'
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - name: Checkout isolated audit with no saved credential
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Validate pinned audit source and adverse tests before secrets
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git hash-object qualification/mcn072_worker_observability_readonly.py)" = '573b571b1e433d91d0fcd5063589eb53add4d0b1'
+          test "$(git hash-object tests/test_mcn072_worker_observability_readonly.py)" = 'd2ff640a8396a65ac658eee5c3d8144e3ac890b8'
+          PYTHONDONTWRITEBYTECODE=1 python3 -B -m unittest discover -s tests -p test_mcn072_worker_observability_readonly.py -v
+      - name: Read Cloudflare logging configuration and Worker custom-domain scope GET only
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          umask 077
+          python3 -B -m qualification.mcn072_worker_observability_readonly > mcn072-logging-route-audit.json
+      - name: Hash and upload bounded sanitized report only
+        if: always()
+        shell: bash
+        run: |
+          test -f mcn072-logging-route-audit.json || printf '%s\n' '{"schema":"musitu.mcn072.cloudflare_worker_observability_routes_getonly.v1","read_complete":false,"mcn072_qualified":false}' > mcn072-logging-route-audit.json
+          sha256sum mcn072-logging-route-audit.json | cut -d' ' -f1 > mcn072-logging-route-audit.json.sha256
+      - name: Preserve sanitized audit artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: musitu-mcn072-observability-route-getonly-20261115
+          path: |
+            mcn072-logging-route-audit.json
+            mcn072-logging-route-audit.json.sha256
+          retention-days: 7
