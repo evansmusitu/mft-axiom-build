@@ -1,0 +1,75 @@
+/** RED: original R2 head-only readback accepted a forged predecessor.
+ * Keep the negative proof; current hash alone is not a continuity proof.
+ */
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import {wormReadback,wormKey} from './authority2-r2-worm.mjs';
+
+const pin={account_id:'67469478aa9349fa0a57fe3a72da200a',
+  ledger_id:'synthetic',namespace:'ax-security-authority2',key_id:'key-synthetic'};
+const h=s=>s.repeat(64);
+const records=new Map();
+records.set(wormKey(pin,0),{schema:'musitu.axiom.external-highwater.v1',...pin,sequence:0,head:h('0')});
+records.set(wormKey(pin,1),{schema:'musitu.axiom.external-highwater.v1',...pin,
+  sequence:1,previous_sequence:0,previous_head:h('0'),head:h('1'),
+  event_digest:h('a'),artifact_sha256:h('b'),action_sha256:h('c'),
+  challenge:h('d'),decision:'ALLOW_ONCE'});
+const bucket={
+  head:async k=>records.has(k)?{key:k}:null,
+  get:async k=>records.has(k)?{size:JSON.stringify(records.get(k)).length,
+    text:async()=>JSON.stringify(records.get(k))}:null,
+  put:async()=>{throw Error('read-only fixture')},
+};
+test('baseline legitimate predecessor link accepted',async()=>{
+  assert.equal(await wormReadback(bucket,pin,{sequence:1,head:h('1')}),true);
+});
+test('B27 detects corrupted R2 predecessor hash even if current head matches',async()=>{
+  const key=wormKey(pin,1),original=records.get(key);
+  records.set(key,{...original,previous_head:h('f')});
+  try{await assert.rejects(wormReadback(bucket,pin,{sequence:1,head:h('1')}),
+    /HIGHWATER_WORM_PREDECESSOR_HASH_MISMATCH_HOLD/);}
+  finally{records.set(key,original);}
+});
+test('B27 detects corrupted R2 predecessor sequence even if current head matches',async()=>{
+  const key=wormKey(pin,1),original=records.get(key);
+  records.set(key,{...original,previous_sequence:-1});
+  try{await assert.rejects(wormReadback(bucket,pin,{sequence:1,head:h('1')}),
+    /HIGHWATER_WORM_PREDECESSOR_SEQUENCE_MISMATCH_HOLD/);}
+  finally{records.set(key,original);}
+});
+
+test('B27 refuses R2 event proof missing action/artifact/challenge despite matching tip head',async()=>{
+  const key=wormKey(pin,1),original=records.get(key);
+  for(const field of ['event_digest','artifact_sha256','action_sha256','challenge','decision']){
+    const altered={...original};
+    if(field==='decision')altered.decision='ALLOW_TWICE';
+    else delete altered[field];
+    records.set(key,altered);
+    try{
+      await assert.rejects(wormReadback(bucket,pin,{sequence:1,head:h('1')}),
+        /HIGHWATER_WORM_EVENT_PROOF_INVALID_HOLD/,
+        'missing or changed '+field+' must deny signed highwater readback');
+    }finally{records.set(key,original);}
+  }
+});
+
+test('B27 rejects a substituted R2 record schema despite valid head and predecessor',async()=>{
+  const key=wormKey(pin,1),original=records.get(key);
+  records.set(key,{...original,schema:'attacker-controlled.other-ledger.v1'});
+  try{
+    await assert.rejects(wormReadback(bucket,pin,{sequence:1,head:h('1')}),
+      /HIGHWATER_WORM_SCHEMA_MISMATCH_HOLD/);
+  }finally{records.set(key,original);}
+});
+test('B27 rejects a substituted genesis record schema when no next checkpoint exists',async()=>{
+  const key=wormKey(pin,0),original=records.get(key);
+  const nextKey=wormKey(pin,1),next=records.get(nextKey);
+  // An existing sequence-1 barrier would reject this much earlier as rollback;
+  // isolate the genesis-schema check by exercising an actual sequence-0 tip.
+  records.delete(nextKey);
+  records.set(key,{...original,schema:'attacker-controlled.genesis.v1'});
+  try{
+    await assert.rejects(wormReadback(bucket,pin,{sequence:0,head:h('0')}),
+      /HIGHWATER_WORM_SCHEMA_MISMATCH_HOLD/);
+  }finally{records.set(key,original);records.set(nextKey,next);}
+});

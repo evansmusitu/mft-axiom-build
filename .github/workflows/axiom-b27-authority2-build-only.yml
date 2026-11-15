@@ -1,0 +1,265 @@
+name: AXIOM B27 Security Authority 2 pinned Worker build-only acceptance (NOT RELEASE)
+on:
+  pull_request:
+    paths:
+      - 'integrations/security-authority2/**'
+      - '.github/workflows/axiom-b27-authority2-build-only.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  wrangler-dryrun:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - name: Checkout without persistent credentials
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          persist-credentials: false
+      - name: Node 24 locked
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: '24.12.0'
+      - name: Enforce no secrets and no authenticated API route
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -z "${CLOUDFLARE_API_TOKEN:-}"
+          test -z "${CLOUDFLARE_API_KEY:-}"
+          test -z "${CLOUDFLARE_EMAIL:-}"
+          node --test integrations/security-authority2/authority2-wrangler-config.test.mjs integrations/security-authority2/b27-provider-pin-consistency.test.mjs
+      - name: Reproducibly build Worker candidate with pinned Wrangler DRY RUN only
+        shell: bash
+        env:
+          WRANGLER_SEND_METRICS: 'false'
+          CI: 'true'
+          A2_SOURCE_COMMIT: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/axiom-a2-build"
+          python3 - <<'PY'
+          import hashlib,pathlib
+          expected={
+            'integrations/security-authority2/authority2-highwater-worker.mjs':'7e29a46bb0924c5a7eb0d60d79885f36a0b6945e022fb37a56898bce3aec6df1',
+            'integrations/security-authority2/authority2-r2-worm.mjs':'ce080ac8b5a6e190cf22e0bf9a5cf34251174822020b3b6da3e349fe4f5e17f7',
+            'integrations/security-authority2/wrangler.example.toml':'d8db8f065d8bdad9a219f994352bf0920e8e7e96d734dd2ebab5b2532c3464fd'}
+          for name,digest in expected.items():
+            if hashlib.sha256(pathlib.Path(name).read_bytes()).hexdigest()!=digest:
+              raise SystemExit('A2_REVIEWED_SOURCE_PIN_MISMATCH_HOLD')
+          print('A2_REVIEWED_SOURCE_PINS_PASS')
+          PY
+          # NO AUTH OR REMOTE DEPLOY. This command bundles the Worker only.
+          npm_config_ignore_scripts=true npx --yes wrangler@4.150.0 deploy \
+            --dry-run --config integrations/security-authority2/wrangler.example.toml \
+            --outdir "$RUNNER_TEMP/axiom-a2-build"
+          python3 - <<'PY'
+          import hashlib,os,pathlib,json,shutil
+          root=pathlib.Path(os.environ['RUNNER_TEMP'])/'axiom-a2-build'
+          outputs=[p for p in root.rglob('*.js') if p.is_file()]
+          if len(outputs)!=1:raise SystemExit('B27_WRANGLER_OUTPUT_MISSING_OR_AMBIGUOUS_HOLD')
+          bundle=outputs[0].read_bytes()
+          if not bundle or len(bundle)>3_000_000:raise SystemExit('B27_WRANGLER_BUNDLE_SIZE_HOLD')
+          if len(bundle)!=15548 or hashlib.sha256(bundle).hexdigest()!='d1ddd1e944bfa4560cc662f7fd12a9b22b3f6493175e4a38b2b3db7e1aed4210':
+            raise SystemExit('A2_PRIOR_REVIEWED_BUNDLE_HASH_MISMATCH_HOLD')
+          sources=['integrations/security-authority2/authority2-highwater-worker.mjs',
+                   'integrations/security-authority2/authority2-r2-worm.mjs',
+                   'integrations/security-authority2/wrangler.example.toml']
+          manifest={'schema':'musitu.axiom.authority2.worker.dryrun.v1',
+             'source_commit':os.environ['A2_SOURCE_COMMIT'],
+             'reviewed_runtime_source_commit':'14b5c520bd7cd53ccd4978f575dfcbe9b250ed0c',
+             'wrangler_version':'4.150.0','deployment':'NONE',
+             'origin':'UNASSIGNED','worker_uploaded':False,
+             'customer_traffic_enabled':False,'secrets_used':False,
+             'independent_custody_qualified':False,'release_eligible':False,
+             'bundle_sha256':hashlib.sha256(bundle).hexdigest(),'bundle_size':len(bundle),
+             'bundle_file':str(outputs[0].relative_to(root)),
+             'sources':{p:hashlib.sha256(pathlib.Path(p).read_bytes()).hexdigest() for p in sources}}
+          for source in sources:
+            target=root/'reviewed-source'/source
+            target.parent.mkdir(parents=True,exist_ok=True)
+            shutil.copyfile(source,target)
+          verifier=pathlib.Path('integrations/security-authority2/verify-owner-review-packet.ps1')
+          manifest['verifier_sha256']=hashlib.sha256(verifier.read_bytes()).hexdigest()
+          shutil.copyfile(verifier,root/'Verify_Authority2_Review_Packet.ps1')
+          (root/'A2_BUILD_MANIFEST.json').write_text(json.dumps(manifest,indent=2))
+          print(json.dumps(manifest,sort_keys=True,separators=(',',':')))
+          print('B27_WRANGLER_DRY_RUN_PASS_NOT_RELEASE')
+          PY
+      - name: Retain exact reviewed sources and compiled bytes for owner review
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: axiom-a2-owner-review-build-${{ github.event.pull_request.head.sha || github.sha }}
+          path: ${{ runner.temp }}/axiom-a2-build/
+          if-no-files-found: error
+          retention-days: 30
+  private-initializer-build-only:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - name: Checkout without persistent credentials
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          persist-credentials: false
+      - name: Pinned Node runtime
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: '24.12.0'
+      - name: Build private initializer review candidate without provider credentials or deployment
+        shell: bash
+        env:
+          WRANGLER_SEND_METRICS: 'false'
+          CI: 'true'
+          A2_SOURCE_COMMIT: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          set -euo pipefail
+          test -z "${CLOUDFLARE_API_TOKEN:-}"
+          test -z "${CLOUDFLARE_API_KEY:-}"
+          test -z "${CLOUDFLARE_EMAIL:-}"
+          node --check integrations/security-authority2/authority2-private-genesis-controller.mjs
+          npm_config_ignore_scripts=true npx --yes wrangler@4.150.0 deploy --dry-run \
+            --config integrations/security-authority2/wrangler.private-genesis-review.toml \
+            --outdir "$RUNNER_TEMP/axiom-a2-private-initializer-build"
+          python3 - <<'PY'
+          import hashlib,json,os,pathlib,shutil,tomllib
+          config_path=pathlib.Path('integrations/security-authority2/wrangler.private-genesis-review.toml')
+          config=tomllib.loads(config_path.read_text())
+          assert config['account_id']=='67469478aa9349fa0a57fe3a72da200a'
+          assert config['workers_dev'] is False and config['preview_urls'] is False
+          assert config['triggers']['crons']==[] and 'route' not in config and 'routes' not in config
+          root=pathlib.Path(os.environ['RUNNER_TEMP'])/'axiom-a2-private-initializer-build'
+          outputs=list(root.glob('*.js'));assert len(outputs)==1
+          sources=[str(config_path),'integrations/security-authority2/authority2-private-genesis-controller.mjs',
+            'integrations/security-authority2/authority2-genesis-candidate.mjs',
+            'integrations/security-authority2/authority2-r2-worm.mjs',
+            'integrations/independent-ledger/github-anchor.mjs','integrations/independent-ledger/protocol.mjs',
+            'axiom_interface/vnext/execution_integrity.mjs','axiom_interface/vnext/analytical_workflows.mjs',
+            'axiom_interface/vnext/decision_analysis.mjs']
+          for name in sources:
+            dst=root/'reviewed-source'/name;dst.parent.mkdir(parents=True,exist_ok=True);shutil.copyfile(name,dst)
+          manifest={'schema':'musitu.axiom.authority2.private-initializer-build.v1',
+            'source_commit':os.environ['A2_SOURCE_COMMIT'],'wrangler_version':'4.150.0',
+            'bundle_file':outputs[0].name,'bundle_bytes':outputs[0].stat().st_size,
+            'bundle_sha256':hashlib.sha256(outputs[0].read_bytes()).hexdigest(),
+            'source_sha256':{name:hashlib.sha256(pathlib.Path(name).read_bytes()).hexdigest() for name in sources},
+            'deployment':'NONE','secrets_used':False,'cron_triggers_configured':False,
+            'public_routes_configured':False,'hosted_genesis_initialized':False,
+            'independent_operator_or_review_qualified':False,'release_status':'NOT_RELEASE'}
+          (root/'PRIVATE_INITIALIZER_BUILD_MANIFEST.json').write_text(json.dumps(manifest,indent=2))
+          print(json.dumps(manifest,sort_keys=True))
+          PY
+      - name: Retain private initializer build for separate review only
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: axiom-a2-private-initializer-review-build-${{ github.event.pull_request.head.sha || github.sha }}
+          path: ${{ runner.temp }}/axiom-a2-private-initializer-build/
+          if-no-files-found: error
+          retention-days: 30
+
+  windows-review-verifier:
+    needs: wrangler-dryrun
+    runs-on: windows-2022
+    timeout-minutes: 10
+    env:
+      VERIFY_SOURCE_COMMIT: ${{ github.event.pull_request.head.sha || github.sha }}
+    steps:
+      - name: Checkout reviewed verifier without persistent credentials
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          persist-credentials: false
+      - name: Download this run's exact credential-free build
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+        with:
+          name: axiom-a2-owner-review-build-${{ github.event.pull_request.head.sha || github.sha }}
+          path: ${{ runner.temp }}/a2-owner-review-input
+      - name: Bind verifier to exact Git blob and retain checkout byte diagnostics
+        shell: powershell
+        run: |
+          $ErrorActionPreference='Stop'
+          $materializeCode=@'
+          import pathlib,os,subprocess,hashlib,json
+          workspace=pathlib.Path(os.environ['GITHUB_WORKSPACE'])
+          relative='integrations/security-authority2/verify-owner-review-packet.ps1'
+          source=workspace/relative
+          before=source.read_bytes()
+          raw=subprocess.check_output(['git','cat-file','blob','HEAD:'+relative],cwd=workspace)
+          expected='86c59f3097e4a46c71904585b37cd6bd9da08889b1b8a34171c7b8623299e165'
+          if hashlib.sha256(raw).hexdigest()!=expected:
+            raise SystemExit('A2_VERIFIER_GIT_BLOB_HASH_MISMATCH_HOLD')
+          downloaded=pathlib.Path(os.environ['RUNNER_TEMP'])/'a2-owner-review-input'/'Verify_Authority2_Review_Packet.ps1'
+          if downloaded.read_bytes()!=raw:
+            raise SystemExit('A2_DOWNLOADED_VERIFIER_GIT_BLOB_MISMATCH_HOLD')
+          crlf_changed=before!=raw and before.replace(bytes([13,10]),bytes([10]))==raw
+          if before!=raw and not crlf_changed:
+            raise SystemExit('A2_UNEXPECTED_CHECKOUT_BYTE_DRIFT_HOLD')
+          source.write_bytes(raw)
+          evidence=pathlib.Path(os.environ['RUNNER_TEMP'])/'a2-windows-review-proof'
+          evidence.mkdir(exist_ok=True)
+          receipt={'schema':'musitu.axiom.authority2.verifier-source-materialization.v1','source_commit':os.environ['VERIFY_SOURCE_COMMIT'],'checkout_sha256':hashlib.sha256(before).hexdigest(),'git_blob_sha256':hashlib.sha256(raw).hexdigest(),'downloaded_sha256':hashlib.sha256(downloaded.read_bytes()).hexdigest(),'checkout_crlf_conversion_observed':crlf_changed,'exact_git_bytes_materialized':True,'provider_operations':0,'release_status':'NOT_RELEASE'}
+          (evidence/'verifier_source_materialization.json').write_text(json.dumps(receipt,indent=2))
+          print(json.dumps(receipt,sort_keys=True))
+          '@
+          $materializeCode | python -
+          if ($LASTEXITCODE -ne 0) { throw 'A2_VERIFIER_EXACT_GIT_MATERIALIZATION_FAILED_HOLD' }
+      - name: Verify actual review packet under Windows PowerShell 5.1
+        shell: powershell
+        run: |
+          $ErrorActionPreference='Stop'
+          $root=Join-Path $env:RUNNER_TEMP 'a2-owner-review-input'
+          $source=Join-Path $env:GITHUB_WORKSPACE 'integrations/security-authority2/verify-owner-review-packet.ps1'
+          $script=Join-Path $root 'Verify_Authority2_Review_Packet.ps1'
+          if ((Get-FileHash $source).Hash -ne (Get-FileHash $script).Hash) { throw 'A2_VERIFIER_SOURCE_MISMATCH_HOLD' }
+          & powershell.exe -NoProfile -ExecutionPolicy Bypass -File $script -PacketRoot $root
+          if ($LASTEXITCODE -ne 0) { throw 'A2_POWERSHELL51_VERIFIER_FAILED_HOLD' }
+          $evidence=Join-Path $env:RUNNER_TEMP 'a2-windows-review-proof'
+          New-Item -ItemType Directory -Force -Path $evidence | Out-Null
+          Copy-Item -LiteralPath (Join-Path $root 'OWNER_AUTHORITY2_REVIEW_PACKET_INTEGRITY_PROOF.json') -Destination (Join-Path $evidence 'powershell51-proof.json')
+      - name: Verify actual review packet under PowerShell 7
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop'
+          $root=Join-Path $env:RUNNER_TEMP 'a2-owner-review-input'
+          $script=Join-Path $root 'Verify_Authority2_Review_Packet.ps1'
+          & pwsh -NoProfile -File $script -PacketRoot $root
+          if ($LASTEXITCODE -ne 0) { throw 'A2_POWERSHELL7_VERIFIER_FAILED_HOLD' }
+          Copy-Item -LiteralPath (Join-Path $root 'OWNER_AUTHORITY2_REVIEW_PACKET_INTEGRITY_PROOF.json') -Destination (Join-Path $env:RUNNER_TEMP 'a2-windows-review-proof/powershell7-proof.json')
+      - name: Reject changed bundle source claims and manifest pin without stale proof
+        shell: powershell
+        run: |
+          $ErrorActionPreference='Stop'
+          $inputRoot=Join-Path $env:RUNNER_TEMP 'a2-owner-review-input'
+          $results=@()
+          foreach ($label in @('bundle','source','claim','manifest-pin')) {
+            $caseRoot=Join-Path $env:RUNNER_TEMP ('a2-review-negative-'+$label)
+            New-Item -ItemType Directory -Path $caseRoot | Out-Null
+            Copy-Item -Path (Join-Path $inputRoot '*') -Destination $caseRoot -Recurse
+            $script=Join-Path $caseRoot 'Verify_Authority2_Review_Packet.ps1'
+            if ($label -eq 'bundle') { [IO.File]::AppendAllText((Join-Path $caseRoot 'authority2-highwater-worker.js'),'// synthetic tamper') }
+            if ($label -eq 'source') { [IO.File]::AppendAllText((Join-Path $caseRoot 'reviewed-source/integrations/security-authority2/authority2-r2-worm.mjs'),'// synthetic tamper') }
+            if ($label -eq 'claim') {
+              $mfile=Join-Path $caseRoot 'A2_BUILD_MANIFEST.json'
+              $m=Get-Content -LiteralPath $mfile -Raw | ConvertFrom-Json
+              $m.worker_uploaded=$true
+              [IO.File]::WriteAllText($mfile,($m | ConvertTo-Json -Depth 10))
+            }
+            $invokeArgs=@('-NoProfile','-ExecutionPolicy','Bypass','-File',$script,'-PacketRoot',$caseRoot)
+            if ($label -eq 'manifest-pin') { $invokeArgs+=@('-ExpectedManifestSha256',('0'*64)) }
+            & powershell.exe @invokeArgs
+            $exitCode=$LASTEXITCODE
+            if ($exitCode -eq 0) { throw ('A2_NEGATIVE_ACCEPTED_'+$label) }
+            if (Test-Path -LiteralPath (Join-Path $caseRoot 'OWNER_AUTHORITY2_REVIEW_PACKET_INTEGRITY_PROOF.json')) { throw ('A2_STALE_PROOF_RETAINED_'+$label) }
+            $results+=@{case=$label;exit_code=$exitCode;stale_proof_present=$false}
+          }
+          $evidence=Join-Path $env:RUNNER_TEMP 'a2-windows-review-proof'
+          $p51=Get-Content (Join-Path $evidence 'powershell51-proof.json') -Raw | ConvertFrom-Json
+          $p7=Get-Content (Join-Path $evidence 'powershell7-proof.json') -Raw | ConvertFrom-Json
+          if (-not $p51.powershell_version.StartsWith('5.1.') -or -not $p7.powershell_version.StartsWith('7.')) { throw 'A2_NATIVE_SHELL_VERSION_MISMATCH_HOLD' }
+          $receipt=@{schema='musitu.axiom.authority2.review-packet-native-windows-verifier.v1';source_commit=$env:VERIFY_SOURCE_COMMIT;status='POWERSHELL51_AND7_REVIEW_PACKET_VERIFIER_QUALIFIED_NOT_DEPLOYED';checks_passed=6;powershell51_version=$p51.powershell_version;powershell7_version=$p7.powershell_version;negative_cases=$results;provider_operations=0;secrets_used=$false;worker_uploaded=$false;gate3_closed=$false;release_status='NOT_RELEASE'}
+          [IO.File]::WriteAllText((Join-Path $evidence 'NATIVE_WINDOWS_VERIFIER_PROOF.json'),($receipt | ConvertTo-Json -Depth 10))
+          exit 0
+      - name: Retain native Windows verifier qualification evidence
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: axiom-a2-native-windows-review-verifier-${{ github.event.pull_request.head.sha || github.sha }}
+          path: ${{ runner.temp }}/a2-windows-review-proof/
+          if-no-files-found: error
+          retention-days: 30

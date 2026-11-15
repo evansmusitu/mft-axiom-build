@@ -11,7 +11,7 @@ export function anchorPin(value){
   return Object.freeze(structuredClone(value));
 }
 export function checkpointTag(pin,payload){integer(payload.ledger_sequence??payload.sequence);return pin.namespace+'-'+String(payload.ledger_sequence??payload.sequence).padStart(12,'0');}
-function content(pin,payload){const {anchor,...unanchored}=payload;return canonicalJson({schema:SCHEMA,pin,payload:unanchored});}
+function content(pin,payload){const {anchor,highwater,...unanchored}=payload;return canonicalJson({schema:SCHEMA,pin,payload:unanchored});}
 async function contentDigest(pin,payload){return 'sha256:'+await sha256Json(JSON.parse(content(pin,payload)));}
 function transport(pin,token,fetchImpl){
   anchorCredential(token);
@@ -31,7 +31,10 @@ function transport(pin,token,fetchImpl){
   };
 }
 function successful(reply,status){if(reply.status!==status)deny('ANCHOR_WRITE_UNCONFIRMED_HOLD',503);return reply.data;}
-async function identity(api,pin){const repo=successful(await api('GET','/repos/'+pin.repository),200);if(repo.id!==pin.repository_id||repo.full_name!==pin.repository||repo.archived===true)deny('ANCHOR_REPOSITORY_IDENTITY_CHANGED_HOLD',503);}
+async function identity(api,pin){const repo=successful(await api('GET','/repos/'+pin.repository),200);if(repo.id!==pin.repository_id||repo.full_name!==pin.repository||repo.archived===true)deny('ANCHOR_REPOSITORY_IDENTITY_CHANGED_HOLD',503);
+  // Checkpoint payloads can contain tenant/action evidence. Never publish
+  // or accept them through a public or visibility-unknown repository.
+  if(repo.private!==true)deny('ANCHOR_REPOSITORY_PRIVACY_HOLD',503);}
 async function verify(api,pin,payload,proof){
   exact(proof,['schema','repository_id','namespace','tag','release_id','asset_digest'],'ANCHOR_PROOF');
   const tag=checkpointTag(pin,payload),digest=await contentDigest(pin,payload);
@@ -52,9 +55,14 @@ export async function publishGithubCheckpoint({pin,token,payload,fetchImpl=fetch
   successful(await api('POST',root+'/releases/'+draft.id+'/assets?name=checkpoint.json',bytes,true),201);
   successful(await api('PATCH',root+'/releases/'+draft.id,{draft:false,prerelease:true,make_latest:'false'}),200);
   const proof={schema:SCHEMA,repository_id:pin.repository_id,namespace:pin.namespace,tag,release_id:draft.id,asset_digest:await contentDigest(pin,payload)};
-  await verify(api,pin,payload,proof);return proof;
+  await verify(api,pin,payload,proof);
+  // Close same-name repository replacement between initial pin check and proof.
+  await identity(api,pin);return proof;
 }
 export async function verifyGithubCheckpoint({pin,token,payload,fetchImpl=fetch}){
   pin=anchorPin(pin);const api=transport(pin,token,fetchImpl);await identity(api,pin);
-  return verify(api,pin,payload,payload.anchor);
+  await verify(api,pin,payload,payload.anchor);
+  // A valid release proof from a newly replaced same-name repository cannot
+  // inherit the original repository's trusted identity.
+  await identity(api,pin);return true;
 }

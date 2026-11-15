@@ -1,0 +1,103 @@
+import assert from 'node:assert/strict';
+import test from 'node:test';
+import {webcrypto} from 'node:crypto';
+import {externalHighwaterFence,highwaterPin,HighwaterHold} from './external-highwater-fence.mjs';
+if(!globalThis.crypto)globalThis.crypto=webcrypto;
+const encoder=new TextEncoder();
+const canon=x=>JSON.stringify(x,Object.keys(x).sort());
+function canonical(obj){if(Array.isArray(obj))return '['+obj.map(canonical).join(',')+']';if(obj&&typeof obj==='object')return '{'+Object.keys(obj).sort().map(k=>JSON.stringify(k)+':'+canonical(obj[k])).join(',')+'}';return JSON.stringify(obj);}
+const tok=ch=>ch.repeat(40);
+const sha=i=>i.repeat(64);
+async function scenario(){
+ const kp=await crypto.subtle.generateKey('Ed25519',true,['sign','verify']);const jwk=await crypto.subtle.exportKey('jwk',kp.publicKey);
+ const pin={account_id:'67469478aa9349fa0a57fe3a72da200a',ledger_id:'ledger',namespace:'ax-authority2',key_id:'authority2-key',origin:'https://custody.example.com',public_key_jwk:{kty:'OKP',crv:'Ed25519',x:jwk.x}};
+ const event={ledger_id:'ledger',namespace:'ax-authority2',sequence:1,previous_sequence:0,previous_head:sha('0'),head:sha('1'),event_digest:sha('2'),artifact_sha256:sha('3'),action_sha256:sha('4')};
+ let state={sequence:0,head:sha('0')};let calls=0;let mutate=e=>e;
+ async function signed(payload){const sig=await crypto.subtle.sign('Ed25519',kp.privateKey,encoder.encode(canonical(payload)));return {payload,signature:Buffer.from(sig).toString('base64url')};}
+ const fetchImpl=async(url,opts)=>{
+    calls++;const body=JSON.parse(opts.body);const common={schema:'musitu.axiom.external-highwater.v1',account_id:pin.account_id,ledger_id:pin.ledger_id,namespace:pin.namespace,key_id:pin.key_id,challenge:body.challenge};
+    let envelope;
+    if(url.endsWith('/append')){
+      if(body.previous_sequence!==state.sequence||body.previous_head!==state.head||body.sequence!==state.sequence+1)return {status:409,text:async()=>JSON.stringify({error:'CAS_DENIED'})};
+      state={sequence:body.sequence,head:body.head};
+      envelope=await signed({...common,kind:'commit',decision:'ALLOW_ONCE',...event});
+    }else if(url.endsWith('/readback'))envelope=await signed({...common,kind:'readback',...state});
+    else throw Error('not expected');
+    envelope=mutate(envelope,url);return {status:200,text:async()=>JSON.stringify(envelope)};
+ };
+ const args={pin,event,write_token:tok('w'),read_token:tok('r'),fetchImpl};
+ return {args,peek:()=>state,reset:s=>state=s,mutate:f=>mutate=f,calls:()=>calls};
+}
+test('serialized external commit + fresh independent readback',async()=>{const x=await scenario();const p=await externalHighwaterFence(x.args);assert.equal(p.sequence,1);assert.equal(x.calls(),2)});
+test('restored local authority cannot replay an already consumed event',async()=>{const x=await scenario();await externalHighwaterFence(x.args);await assert.rejects(externalHighwaterFence(x.args),/HIGHWATER_REMOTE_DENIAL_HOLD/);assert.equal(x.peek().sequence,1)});
+test('future sequence skips are rejected before remote dispatch',async()=>{const x=await scenario();await assert.rejects(externalHighwaterFence({...x.args,event:{...x.args.event,sequence:3,previous_sequence:0}}),/HIGHWATER_EVENT_SEQUENCE_DENIED_HOLD/)});
+test('tampered signed proof is denied',async()=>{const x=await scenario();x.mutate(e=>({...e,payload:{...e.payload,head:sha('f')}}));await assert.rejects(externalHighwaterFence(x.args),/HIGHWATER_SIGNATURE_INVALID_HOLD/)});
+test('incorrect signer or administrator account pin denies',async()=>{const x=await scenario();await assert.rejects(externalHighwaterFence({...x.args,pin:{...x.args.pin,account_id:'e'.repeat(32)}}),/HIGHWATER_ACCOUNT_PIN_MISMATCH_HOLD/)});
+test('independent readback mismatched tip denies permit',async()=>{const x=await scenario();x.mutate((e,url)=>url.endsWith('readback')?{...e,payload:{...e.payload,head:sha('c')}}:e);await assert.rejects(externalHighwaterFence(x.args),/HIGHWATER_SIGNATURE_INVALID_HOLD/)});
+test('network/timeout ambiguity never issues a permit',async()=>{const x=await scenario();await assert.rejects(externalHighwaterFence({...x.args,fetchImpl:async()=>{throw Error('disconnect')}}),/HIGHWATER_TRANSPORT_AMBIGUOUS_HOLD/)});
+
+test('B27 bounded high-water request rejects provider ignoring AbortSignal rather than hanging',async()=>{
+ const x=await scenario();
+ const result=await Promise.race([
+   externalHighwaterFence({...x.args,timeoutMs:100,fetchImpl:()=>new Promise(()=>{})})
+     .then(()=>({kind:'accepted'}),e=>({kind:'denied',reason:e.message})),
+   new Promise(resolve=>setTimeout(()=>resolve({kind:'unbounded'}),550))
+ ]);
+ assert.deepEqual(result,{kind:'denied',reason:'HIGHWATER_TRANSPORT_AMBIGUOUS_HOLD'});
+});
+test('B27 bounded high-water readbody rejects provider that never finishes body',async()=>{
+ const x=await scenario();
+ const result=await Promise.race([
+   externalHighwaterFence({...x.args,timeoutMs:100,fetchImpl:async()=>({
+     status:200,text:()=>new Promise(()=>{})
+   })}).then(()=>({kind:'accepted'}),e=>({kind:'denied',reason:e.message})),
+   new Promise(resolve=>setTimeout(()=>resolve({kind:'unbounded'}),550))
+ ]);
+ assert.deepEqual(result,{kind:'denied',reason:'HIGHWATER_TRANSPORT_AMBIGUOUS_HOLD'});
+});
+
+test('shared read-write credential is rejected',async()=>{const x=await scenario();await assert.rejects(externalHighwaterFence({...x.args,read_token:x.args.write_token}),/HIGHWATER_READ_WRITE_ROLES_NOT_SEPARATED_HOLD/)});
+test('concurrent duplicate admissions allow at most one',async()=>{const x=await scenario();const rs=await Promise.allSettled(Array.from({length:8},()=>externalHighwaterFence(x.args)));assert.equal(rs.filter(r=>r.status==='fulfilled').length,1)});
+test('negative counterexample: if independently held witness is also reset, an old admission can be reissued',async()=>{
+  const x=await scenario();
+  await externalHighwaterFence(x.args);
+  x.reset({sequence:0,head:sha('0')});
+  const replay=await externalHighwaterFence(x.args);
+  assert.equal(replay.sequence,1,'REPRODUCED: restorable witness cannot satisfy global nonrollback');
+});
+test('rejects substitution of a different valid account even with valid signer/origin',async()=>{const x=await scenario();assert.throws(()=>highwaterPin({...x.args.pin,account_id:'e'.repeat(32)}),/HIGHWATER_ACCOUNT_PIN_MISMATCH_HOLD/);});
+
+test('B27: uncooperative external fetch cannot hold authorization indefinitely',async()=>{
+ const x=await scenario();
+ const pending=new Promise(()=>{}); // ignores AbortSignal: model broken provider
+ const result=externalHighwaterFence({...x.args,fetchImpl:async()=>pending,timeoutMs:100});
+ await assert.rejects(Promise.race([result,new Promise((_,reject)=>setTimeout(()=>reject(Error('B27_REMOTE_FETCH_DEADLINE_NOT_ENFORCED')),450))]),/HIGHWATER_TRANSPORT_AMBIGUOUS_HOLD/);
+});
+test('B27: uncooperative response body cannot hold authorization indefinitely',async()=>{
+ const x=await scenario();
+ const fetchImpl=async()=>({status:200,text:async()=>new Promise(()=>{})});
+ const result=externalHighwaterFence({...x.args,fetchImpl,timeoutMs:100});
+ await assert.rejects(Promise.race([result,new Promise((_,reject)=>setTimeout(()=>reject(Error('B27_REMOTE_BODY_DEADLINE_NOT_ENFORCED')),450))]),/HIGHWATER_TRANSPORT_AMBIGUOUS_HOLD/);
+});
+test('B27: ambiguous readback after committed append must deny consumer permission',async()=>{
+ const x=await scenario(), real=x.args.fetchImpl;
+ const fetchImpl=async(url,opts)=>url.endsWith('/readback')?new Promise(()=>{}):real(url,opts);
+ const result=externalHighwaterFence({...x.args,fetchImpl,timeoutMs:100});
+ await assert.rejects(Promise.race([result,new Promise((_,reject)=>setTimeout(()=>reject(Error('B27_READBACK_DEADLINE_NOT_ENFORCED')),450))]),/HIGHWATER_TRANSPORT_AMBIGUOUS_HOLD/);
+ assert.equal(x.peek().sequence,1,'external CAS may have advanced; caller must HOLD and never retry automatically');
+});
+
+test('B27: streamed response reader ignoring abort cannot stall admission',async()=>{
+  const x=await scenario();
+  const stream=new ReadableStream({start(){}});
+  const result=externalHighwaterFence({...x.args,
+    fetchImpl:async()=>new Response(stream,{status:200}),timeoutMs:100});
+  await assert.rejects(Promise.race([result,new Promise((_,reject)=>setTimeout(()=>reject(Error('B27_STREAM_READER_DEADLINE_NOT_ENFORCED')),450))]),/HIGHWATER_TRANSPORT_AMBIGUOUS_HOLD/);
+});
+test('B27: oversized streaming provider response rejected before JSON parse or permit',async()=>{
+ const x=await scenario();
+ const response=()=>new Response(new ReadableStream({start(controller){
+  controller.enqueue(new Uint8Array(18000));controller.close();
+ }}),{status:200,headers:{'content-type':'application/json'}});
+ await assert.rejects(externalHighwaterFence({...x.args,fetchImpl:async()=>response(),timeoutMs:500}),/HIGHWATER_RESPONSE_OVERSIZE_HOLD/);
+});

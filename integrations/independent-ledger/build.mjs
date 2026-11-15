@@ -7,7 +7,7 @@ const {build,version}=await import(process.env.AXIOM_ESBUILD_MODULE||'esbuild');
 const args=process.argv.slice(2);
 if(args.length!==4||args[0]!=='--output-dir'||args[2]!=='--execution-artifact-sha256'||!/^[0-9a-f]{64}$/.test(args[3]))throw Error('usage: node integrations/independent-ledger/build.mjs --output-dir PATH --execution-artifact-sha256 OPERATOR_APPROVED_RUNTIME_SHA256');
 const root=fileURLToPath(new URL('../../',import.meta.url)),output=resolve(args[1]),hash=bytes=>createHash('sha256').update(bytes).digest('hex');
-const sources=['integrations/independent-ledger/worker.mjs','integrations/independent-ledger/protocol.mjs','integrations/independent-ledger/github-anchor.mjs','axiom_interface/vnext/execution_integrity.mjs','axiom_interface/vnext/analytical_workflows.mjs','axiom_interface/vnext/decision_analysis.mjs'];
+const sources=['integrations/independent-ledger/worker.mjs','integrations/independent-ledger/protocol.mjs','integrations/independent-ledger/github-anchor.mjs','integrations/security-authority2/external-highwater-fence.mjs','axiom_interface/vnext/execution_integrity.mjs','axiom_interface/vnext/analytical_workflows.mjs','axiom_interface/vnext/decision_analysis.mjs'];
 const result=await build({absWorkingDir:root,entryPoints:[sources[0]],bundle:true,write:false,format:'esm',platform:'browser',target:'es2022',logLevel:'silent',metafile:true});
 if(JSON.stringify(Object.keys(result.metafile.inputs).sort())!==JSON.stringify([...sources].sort()))throw Error('review source set changed; explicitly review the build manifest inputs');
 const bundle=result.outputFiles[0].contents;
