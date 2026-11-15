@@ -1,0 +1,76 @@
+name: AXIOM Frontier isolated staging bridge candidate (NOT RELEASE)
+on:
+  pull_request:
+    paths:
+      - 'integrations/frontier-staging/**'
+      - '.github/workflows/axiom-frontier-isolated-staging-candidate.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  isolated-d1-contract:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 8
+    steps:
+      - name: Checkout without persistent credentials
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          persist-credentials: false
+      - name: Pinned Node runtime
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: '24.12.0'
+      - name: Install isolated pinned workerd and bundler
+        run: npm install --no-save --no-package-lock --ignore-scripts --no-audit --no-fund miniflare@4.20260730.0 esbuild@0.25.9
+      - name: Run actual local D1 and typed-contract checks without provider credentials
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -z "${CLOUDFLARE_API_TOKEN:-}"
+          test -z "${CLOUDFLARE_API_KEY:-}"
+          test -z "${CLOUDFLARE_EMAIL:-}"
+          mkdir -p "$RUNNER_TEMP/frontier-staging-review"
+          node --test --test-reporter=tap integrations/frontier-staging/worker.test.mjs \
+            | tee "$RUNNER_TEMP/frontier-staging-review/actual-local-d1-tests.log"
+      - name: Build review bundle and retain exact source/evidence without deployment
+        shell: bash
+        env:
+          FRONTIER_STAGE_SOURCE_COMMIT: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          set -euo pipefail
+          node --input-type=module - <<'JS'
+          import {build} from 'esbuild';
+          import {join} from 'node:path';
+          for(const name of ['worker','client'])await build({
+            entryPoints:['integrations/frontier-staging/'+name+'.mjs'],bundle:true,format:'esm',
+            platform:'browser',target:'es2022',outfile:join(process.env.RUNNER_TEMP,'frontier-staging-review',name+'.js')});
+          JS
+          python3 - <<'PY'
+          import pathlib,os,json,re,hashlib,shutil
+          root=pathlib.Path(os.environ['RUNNER_TEMP'])/'frontier-staging-review'
+          log=(root/'actual-local-d1-tests.log').read_text()
+          for name,count in [('tests',20),('pass',20),('fail',0),('cancelled',0),('skipped',0)]:
+            assert re.search(r'^# '+name+r' '+str(count)+r'\s*$',log,re.M),(name,count)
+          sources=sorted(pathlib.Path('integrations/frontier-staging').glob('*'))
+          for p in sources:
+            if p.is_file():
+              dst=root/'reviewed-source'/p;dst.parent.mkdir(parents=True,exist_ok=True);shutil.copyfile(p,dst)
+          obj={'schema':'musitu.axiom.frontier.isolated-staging-local-ci.v1',
+            'source_commit':os.environ['FRONTIER_STAGE_SOURCE_COMMIT'],
+            'status':'LOCAL_D1_AND_TYPED_CONTRACT_PASS_NOT_RELEASE','checks_passed':20,
+            'actual_local_workerd_d1_checks':15,'contract_static_checks':5,
+            'source_sha256':{str(p):hashlib.sha256(p.read_bytes()).hexdigest() for p in sources if p.is_file()},
+            'bundle_sha256':{p.name:hashlib.sha256(p.read_bytes()).hexdigest() for p in root.glob('*.js')},
+            'cloudflare_operations':0,'hosted_provider_qualified':False,'independent_review_approved':False,
+            'legacy_adapter_or_fullstack_veto_changed':False,'production_customer_data_modified':False,
+            'gate3_closed':False,'release_status':'NOT_RELEASE'}
+          (root/'STAGING_CANDIDATE_CI_PROOF.json').write_text(json.dumps(obj,indent=2))
+          print(json.dumps(obj,sort_keys=True))
+          PY
+      - name: Retain standalone non-release review artifact
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: axiom-frontier-staging-candidate-not-release-${{ github.event.pull_request.head.sha || github.sha }}
+          path: ${{ runner.temp }}/frontier-staging-review/
+          if-no-files-found: error
+          retention-days: 30
