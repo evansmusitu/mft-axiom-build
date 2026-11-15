@@ -308,3 +308,23 @@ See `gate3_private_controller_and_staging_progress_20261115.json` and
 next inputs. Gate 2 remains CLOSED; Gate 3 remains OPEN/HOLD and NOT_RELEASE.
 No Cloudflare mutation, actual authority deployment/genesis, production change,
 paid upgrade, merge, publication or private operator key transfer occurred.
+
+
+## 15 November — owner names the Gate 3 reviewer
+
+Evans Musitu instructed: "Reviewer is Me". Record Evans as the assigned human
+reviewer for the Gate 3 candidates, PR192 `68799a41a367865649b833de649edcb26f77c0d3` and PR242
+`f6d34d3663e3140665fdc740a529211019a0f46a`. The reviewer-identity question is resolved; do not ask the owner
+to identify another reviewer merely because the earlier record lacked a name.
+
+This is a reviewer-role assignment. It does not express a review disposition
+on either candidate, qualify private signer custody or attest to hosted
+provider/destructive/full-stack acceptance. Capture the actual human review
+decision and its scope separately when supplied. The existing independent
+custody/provider requirements and runtime vetoes remain unchanged.
+
+The Authority 2 Ed25519 public JWK and matching ledger/namespace/key identity
+have not been supplied. The backup X25519 decryption proof, R2 readback,
+controller/recovery declarations and native Windows/file-integrity checks
+remain accepted at their existing scopes and must not be repeated. No private
+key or token is requested. Gate 3 remains OPEN/HOLD and NOT_RELEASE.

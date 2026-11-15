@@ -1,7 +1,7 @@
 {
   "schema": "musitu.axiom.gate3.external-acceptance-inputs.v1",
-  "recorded_at_utc": "2026-11-15T15:23:41.244061+00:00",
-  "status": "REQUIRED_EXTERNAL_INPUTS_NOT_YET_PROVIDED",
+  "recorded_at_utc": "2026-11-15T19:27:19.110Z",
+  "status": "REVIEWER_IDENTIFIED_SIGNER_REVIEW_DECISION_AND_HOSTED_ACCEPTANCE_PENDING",
   "controller": "Evans Musitu",
   "already_completed_owner_steps": [
     "controller declaration",
@@ -27,7 +27,10 @@
     "pr192_submitted_reviews": 0,
     "pr242_submitted_reviews": 0,
     "record_provided_in_chat": false,
-    "author_self_approval_satisfies_independent_review": false
+    "author_self_approval_satisfies_independent_review": false,
+    "reviewer_name": "Evans Musitu",
+    "reviewer_assignment_provided_in_chat": true,
+    "review_decision_provided_in_chat": false
   },
   "actual_provider_acceptance_required": [
     "separate administrator/credential custody qualification",
@@ -46,5 +49,13 @@
   },
   "operator_private_actions_cannot_be_performed_under_builder_custody_and_count_as_independent": true,
   "gate3_closed": false,
-  "release_status": "NOT_RELEASE"
+  "release_status": "NOT_RELEASE",
+  "reviewer_assignment": {
+    "name": "Evans Musitu",
+    "evidence_origin": "DIRECT_USER_INSTRUCTION",
+    "statement_exact": "Reviewer is Me",
+    "assignment_path": "gate3_owner_named_reviewer_declaration_20261115.json",
+    "identity_resolved": true,
+    "review_decision_pending": true
+  }
 }

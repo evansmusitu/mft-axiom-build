@@ -1,0 +1,21 @@
+{
+  "schema": "musitu.axiom.gate3.owner-named-reviewer-declaration.v1",
+  "recorded_at_utc": "2026-11-15T19:27:19.110Z",
+  "evidence_origin": "DIRECT_USER_INSTRUCTION",
+  "statement_exact": "Reviewer is Me",
+  "reviewer_name": "Evans Musitu",
+  "reviewer_role": "OWNER_NAMED_HUMAN_GATE3_REVIEWER",
+  "reviewer_identity_resolved_from_existing_owner_controller_record": true,
+  "reviewer_assignment_resolved": true,
+  "candidates_presented_for_review": {
+    "pr192": "68799a41a367865649b833de649edcb26f77c0d3",
+    "pr242": "f6d34d3663e3140665fdc740a529211019a0f46a"
+  },
+  "review_decision": "PENDING_NOT_EXPRESSED_BY_ROLE_ASSIGNMENT",
+  "source_approval_or_hosted_acceptance_inferred": false,
+  "independent_custody_or_provider_acceptance_qualified": false,
+  "production_governance_policy_activated": false,
+  "provider_operations": 0,
+  "gate3_closed": false,
+  "release_status": "NOT_RELEASE"
+}
