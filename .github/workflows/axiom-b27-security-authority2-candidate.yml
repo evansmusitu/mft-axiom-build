@@ -5,6 +5,7 @@ on:
     paths:
       - 'integrations/security-authority2/**'
       - 'integrations/independent-ledger/**'
+      - 'qualification/whole-system-20261029/authority2-genesis-workerd.test.mjs'
       - '.github/workflows/axiom-b27-security-authority2-candidate.yml'
   workflow_dispatch:
 
@@ -30,6 +31,7 @@ jobs:
         run: |
           set -euo pipefail
           node --check integrations/security-authority2/authority2-highwater-worker.mjs
+          node --check integrations/security-authority2/authority2-genesis-candidate.mjs
           node --check integrations/security-authority2/external-highwater-fence.mjs
           node --check integrations/independent-ledger/worker.mjs
           node --check integrations/independent-ledger/client.mjs
@@ -40,7 +42,7 @@ jobs:
       - name: Install isolated workerd and esbuild regression dependencies
         run: npm install --no-save --no-package-lock --ignore-scripts --no-audit --no-fund miniflare@4.20260730.0 esbuild@0.25.9
       - name: Run existing real workerd SQLite + immutable-checkpoint restoration tests
-        run: node --test qualification/whole-system-20261029/github-anchor.test.mjs qualification/whole-system-20261029/highwater-authority2-workerd.test.mjs
+        run: node --test qualification/whole-system-20261029/github-anchor.test.mjs qualification/whole-system-20261029/highwater-authority2-workerd.test.mjs qualification/whole-system-20261029/authority2-genesis-workerd.test.mjs
       - name: Record safety veto (no host-custody certification)
         run: |
           echo 'AXIOM_AUTHORITY2_LOCAL_SYNTHETIC_TESTS_ONLY_NOT_RELEASE'
