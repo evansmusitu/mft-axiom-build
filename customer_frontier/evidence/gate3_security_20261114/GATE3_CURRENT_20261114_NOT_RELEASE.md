@@ -354,3 +354,26 @@ remain unqualified. The named human review decision and disposable hosted
 destructive/full-stack acceptance remain pending. No runtime trust root,
 private key or Cloudflare resource was changed. Gate 2 stays CLOSED;
 Gate 3 stays OPEN/HOLD and NOT_RELEASE.
+
+
+## 16 November — owner confirms a separate Authority 2 signer
+
+Evans replied exactly: "separate key created specifically for Security Authority 2".
+This declaration binds the already downloaded public Ed25519 key to its intended
+Authority 2 role. The key-purpose question is resolved; do not ask for a new key,
+repeat public upload or repeat completed controller/recovery/Windows steps.
+The original download receipt is preserved at its historical observation scope.
+
+`authority2_public_role_20261116/` retains the attributed declaration, a complete proposed disposable
+public Worker/consumer identity and a pinned review request. Original source-byte
+checks, serving config parsing and R2 path construction pass with the actual
+public key. These are offline checks with synthetic dispatch, not provider or
+custody acceptance. The initial newline materialization failure and exact Git
+blob correction remain recorded without weakening the byte guard.
+
+The new qualification IDs are proposed, not installed or discovered production
+identity. The owner's scoped source/config review disposition is still pending.
+The freshly queried private operator service remains UNAVAILABLE with no external
+or production authority. Actual key correspondence, custody, private hosted
+genesis/retirement, destructive recovery and full-stack acceptance remain open.
+Gate 2 stays CLOSED; Gate 3 remains OPEN/HOLD and NOT_RELEASE.

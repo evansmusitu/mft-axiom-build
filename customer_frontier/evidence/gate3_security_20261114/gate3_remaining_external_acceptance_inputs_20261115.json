@@ -1,7 +1,7 @@
 {
   "schema": "musitu.axiom.gate3.external-acceptance-inputs.v1",
-  "recorded_at_utc": "2026-11-15T21:35:56.475Z",
-  "status": "PUBLIC_ED25519_RECEIVED_ROLE_BINDING_REVIEW_AND_HOSTED_ACCEPTANCE_PENDING",
+  "recorded_at_utc": "2026-11-15T22:37:10.299Z",
+  "status": "SEPARATE_AUTHORITY2_PUBLIC_ROLE_OWNER_CONFIRMED_CONFIG_REVIEW_AND_HOSTED_ACCEPTANCE_PENDING",
   "controller": "Evans Musitu",
   "already_completed_owner_steps": [
     "controller declaration",
@@ -20,7 +20,7 @@
       "crv": "Ed25519",
       "x": "9G3Dzw62h9a094zdQFLO5AfoI637Su8Y9mMT-k0ynrs"
     },
-    "state": "PUBLIC_KEY_RECEIVED_AUTHORITY2_ROLE_AND_IDENTITY_BINDING_PENDING",
+    "state": "DEDICATED_AUTHORITY2_SIGNER_OWNER_CONFIRMED_FULL_PUBLIC_IDENTITY_AND_CUSTODY_PENDING",
     "candidate_public_key": {
       "source_receipt": "owner_public_key_20261115/OWNER_ED25519_PUBLIC_DOWNLOAD_RECEIPT.json",
       "original_der": "owner_public_key_20261115/owner_ed25519_spki.der",
@@ -32,19 +32,58 @@
         "x": "9G3Dzw62h9a094zdQFLO5AfoI637Su8Y9mMT-k0ynrs"
       },
       "canonical_der_roundtrip_verified": true,
-      "authority2_role_binding_approved": false,
+      "authority2_role_binding_approved": true,
       "separate_private_signer_custody_qualified": false,
-      "runtime_trust_pin_changed": false
+      "runtime_trust_pin_changed": false,
+      "authority2_role_declaration_path": "authority2_public_role_20261116/authority2_owner_separate_signer_declaration_20261116.json",
+      "full_identity_binding_approved": false
+    },
+    "proposed_qualification_public_identity": {
+      "config_path": "authority2_public_role_20261116/AUTHORITY2_PUBLIC_QUALIFICATION_CONFIG_PROPOSED_20261116.json",
+      "validation_path": "authority2_public_role_20261116/AUTHORITY2_PUBLIC_QUALIFICATION_CONFIG_CHECK_20261116.json",
+      "review_request_path": "authority2_public_role_20261116/GATE3_AUTHORITY2_REVIEW_REQUEST_20261116_NOT_RELEASE.md",
+      "config_sha256": "bc09d63349f611a71f0eef6c1ad1d00bd861454aeab7c41f9565056758f2f8e3",
+      "scope": "PROPOSED_DISPOSABLE_AUTHORITY_QUALIFICATION_ONLY",
+      "public_config": {
+        "account_id": "67469478aa9349fa0a57fe3a72da200a",
+        "ledger_id": "axiom-b27-a2-qualification-20261116-6792c82b245cd450",
+        "namespace": "ax-a2-qualification-20261116-6792c82b245cd450",
+        "key_id": "a2-ed25519-6792c82b245cd450",
+        "public_key_jwk": {
+          "kty": "OKP",
+          "crv": "Ed25519",
+          "x": "9G3Dzw62h9a094zdQFLO5AfoI637Su8Y9mMT-k0ynrs"
+        }
+      },
+      "matching_consumer_pin": {
+        "account_id": "67469478aa9349fa0a57fe3a72da200a",
+        "ledger_id": "axiom-b27-a2-qualification-20261116-6792c82b245cd450",
+        "namespace": "ax-a2-qualification-20261116-6792c82b245cd450",
+        "key_id": "a2-ed25519-6792c82b245cd450",
+        "public_key_jwk": {
+          "kty": "OKP",
+          "crv": "Ed25519",
+          "x": "9G3Dzw62h9a094zdQFLO5AfoI637Su8Y9mMT-k0ynrs"
+        }
+      },
+      "owner_approved_identity_binding": false,
+      "namespace_unused_verified": false,
+      "deployed": false,
+      "production_identity_binding": false
     }
   },
   "signer_question_answer": {
     "asked_about_existing_separate_Ed25519_signer": true,
     "answer_received": true,
     "no_private_material_requested": true,
-    "response_kind": "OWNER_SUPPLIED_EXACT_ORIGINAL_PUBLIC_DER_DRIVE_LINK",
+    "response_kind": "OWNER_CONFIRMS_THIS_IS_A_SEPARATE_KEY_CREATED_SPECIFICALLY_FOR_AUTHORITY2",
     "public_key_received_and_validated": true,
     "separate_private_signer_existence_or_custody_verified": false,
-    "owner_governance_key_vs_separate_authority2_key_not_established": true
+    "owner_governance_key_vs_separate_authority2_key_not_established": false,
+    "owner_confirms_separate_authority2_key": true,
+    "purpose_question_resolved": true,
+    "private_key_or_repeat_public_file_request_required": false,
+    "declaration_path": "authority2_public_role_20261116/authority2_owner_separate_signer_declaration_20261116.json"
   },
   "independent_review": {
     "pr192_submitted_reviews": 0,
@@ -68,7 +107,8 @@
     "external_provider_execution_authority": false,
     "provider_admission_required": true,
     "production_authority": false,
-    "evidence_origin": "ACTUAL_CONNECTED_OPERATOR_PROVIDER_STATUS_RESPONSE_EARLIER_THIS_TURN"
+    "recorded_at_utc": "2026-11-15T22:37:10.299Z",
+    "evidence_origin": "FRESH_ACTUAL_CONNECTED_READONLY_PROVIDER_STATUS_RESPONSE_THIS_TURN"
   },
   "operator_private_actions_cannot_be_performed_under_builder_custody_and_count_as_independent": true,
   "gate3_closed": false,

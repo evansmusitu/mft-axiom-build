@@ -1,0 +1,29 @@
+{
+  "schema": "musitu.axiom.authority2.owner-separate-signer-declaration.v1",
+  "recorded_at_utc": "2026-11-15T22:37:10.299Z",
+  "controller": "Evans Musitu",
+  "evidence_origin": "DIRECT_USER_STATEMENT_IN_RESPONSE_TO_KEY_ROLE_QUESTION",
+  "statement_exact": "separate key created specifically for Security Authority 2",
+  "source_file_id": "1X7AM5RrOg5s1X-zziRVTT9YHEUkZ004q",
+  "source_der_path": "owner_public_key_20261115/owner_ed25519_spki.der",
+  "source_der_bytes": 44,
+  "spki_sha256": "6792c82b245cd45051052cc1b00eb5f99a99489829c3f0567c7c15f741389d8a",
+  "public_key_jwk": {
+    "kty": "OKP",
+    "crv": "Ed25519",
+    "x": "9G3Dzw62h9a094zdQFLO5AfoI637Su8Y9mMT-k0ynrs"
+  },
+  "owner_declares_unique_key_created_for_security_authority2": true,
+  "owner_governance_key_vs_authority2_purpose_question_resolved": true,
+  "authority2_public_role_binding_approved_by_owner": true,
+  "new_private_key_generation_or_recovery_requested": false,
+  "private_key_possession_independently_verified": false,
+  "private_key_custody_qualified": false,
+  "source_review_approval_inferred": false,
+  "public_identity_proposal_approved": false,
+  "runtime_trust_pin_changed": false,
+  "cloudflare_provider_operations": 0,
+  "deployment_performed": false,
+  "gate3_closed": false,
+  "release_status": "NOT_RELEASE"
+}

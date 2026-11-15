@@ -1,0 +1,25 @@
+{
+  "initial_source_check": "FAIL_BEFORE_CONFIG_EXECUTION",
+  "first_failure": "PINNED_SOURCE_BYTE_MISMATCH",
+  "assertion_retained": true,
+  "runtime_source_logic_changed": false,
+  "original_git_blobs_restored_before_validation": true,
+  "files": [
+    {
+      "file": "authority2-highwater-worker.mjs",
+      "initial_bytes": 10757,
+      "exact_git_bytes": 10756,
+      "initial_matches_exact": false,
+      "difference_is_only_trailing_newlines": true,
+      "git_blob_verified": true
+    },
+    {
+      "file": "authority2-r2-worm.mjs",
+      "initial_bytes": 4547,
+      "exact_git_bytes": 4546,
+      "initial_matches_exact": false,
+      "difference_is_only_trailing_newlines": true,
+      "git_blob_verified": true
+    }
+  ]
+}
