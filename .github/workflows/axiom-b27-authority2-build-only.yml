@@ -33,30 +33,59 @@ jobs:
         env:
           WRANGLER_SEND_METRICS: 'false'
           CI: 'true'
+          A2_SOURCE_COMMIT: ${{ github.event.pull_request.head.sha || github.sha }}
         run: |
           set -euo pipefail
           mkdir -p "$RUNNER_TEMP/axiom-a2-build"
+          python3 - <<'PY'
+          import hashlib,pathlib
+          expected={
+            'integrations/security-authority2/authority2-highwater-worker.mjs':'7e29a46bb0924c5a7eb0d60d79885f36a0b6945e022fb37a56898bce3aec6df1',
+            'integrations/security-authority2/authority2-r2-worm.mjs':'ce080ac8b5a6e190cf22e0bf9a5cf34251174822020b3b6da3e349fe4f5e17f7',
+            'integrations/security-authority2/wrangler.example.toml':'d8db8f065d8bdad9a219f994352bf0920e8e7e96d734dd2ebab5b2532c3464fd'}
+          for name,digest in expected.items():
+            if hashlib.sha256(pathlib.Path(name).read_bytes()).hexdigest()!=digest:
+              raise SystemExit('A2_REVIEWED_SOURCE_PIN_MISMATCH_HOLD')
+          print('A2_REVIEWED_SOURCE_PINS_PASS')
+          PY
           # NO AUTH OR REMOTE DEPLOY. This command bundles the Worker only.
           npm_config_ignore_scripts=true npx --yes wrangler@4.150.0 deploy \
             --dry-run --config integrations/security-authority2/wrangler.example.toml \
             --outdir "$RUNNER_TEMP/axiom-a2-build"
           python3 - <<'PY'
-          import hashlib,os,pathlib,json
+          import hashlib,os,pathlib,json,shutil
           root=pathlib.Path(os.environ['RUNNER_TEMP'])/'axiom-a2-build'
           outputs=[p for p in root.rglob('*.js') if p.is_file()]
           if len(outputs)!=1:raise SystemExit('B27_WRANGLER_OUTPUT_MISSING_OR_AMBIGUOUS_HOLD')
           bundle=outputs[0].read_bytes()
           if not bundle or len(bundle)>3_000_000:raise SystemExit('B27_WRANGLER_BUNDLE_SIZE_HOLD')
+          if len(bundle)!=15548 or hashlib.sha256(bundle).hexdigest()!='d1ddd1e944bfa4560cc662f7fd12a9b22b3f6493175e4a38b2b3db7e1aed4210':
+            raise SystemExit('A2_PRIOR_REVIEWED_BUNDLE_HASH_MISMATCH_HOLD')
           sources=['integrations/security-authority2/authority2-highwater-worker.mjs',
                    'integrations/security-authority2/authority2-r2-worm.mjs',
                    'integrations/security-authority2/wrangler.example.toml']
           manifest={'schema':'musitu.axiom.authority2.worker.dryrun.v1',
+             'source_commit':os.environ['A2_SOURCE_COMMIT'],
+             'reviewed_runtime_source_commit':'14b5c520bd7cd53ccd4978f575dfcbe9b250ed0c',
              'wrangler_version':'4.150.0','deployment':'NONE',
              'origin':'UNASSIGNED','worker_uploaded':False,
              'customer_traffic_enabled':False,'secrets_used':False,
              'independent_custody_qualified':False,'release_eligible':False,
              'bundle_sha256':hashlib.sha256(bundle).hexdigest(),'bundle_size':len(bundle),
+             'bundle_file':str(outputs[0].relative_to(root)),
              'sources':{p:hashlib.sha256(pathlib.Path(p).read_bytes()).hexdigest() for p in sources}}
+          for source in sources:
+            target=root/'reviewed-source'/source
+            target.parent.mkdir(parents=True,exist_ok=True)
+            shutil.copyfile(source,target)
+          (root/'A2_BUILD_MANIFEST.json').write_text(json.dumps(manifest,indent=2))
           print(json.dumps(manifest,sort_keys=True,separators=(',',':')))
           print('B27_WRANGLER_DRY_RUN_PASS_NOT_RELEASE')
           PY
+      - name: Retain exact reviewed sources and compiled bytes for owner review
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: axiom-a2-owner-review-build-${{ github.event.pull_request.head.sha || github.sha }}
+          path: ${{ runner.temp }}/axiom-a2-build/
+          if-no-files-found: error
+          retention-days: 30
