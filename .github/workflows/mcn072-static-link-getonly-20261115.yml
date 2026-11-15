@@ -1,0 +1,49 @@
+name: MUSITU MCN-072 two deployed Workers static-link GET-only (NO RELEASE)
+
+on:
+  push:
+    branches:
+      - audit/mcn072-static-bridge-getonly-20261115
+    paths:
+      - .github/workflows/mcn072-static-link-getonly-20261115.yml
+
+permissions:
+  contents: read
+
+concurrency:
+  group: mcn072-static-link-getonly-20261115
+  cancel-in-progress: false
+
+jobs:
+  inspect:
+    runs-on: ubuntu-latest
+    timeout-minutes: 7
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Pin exact audited source and test and execute adverse tests before secret injection
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git hash-object qualification/mcn072_static_link_getonly.py)" = '8596f6e985fed77f43f30dd9ee18ec462182bb11'
+          test "$(git hash-object tests/test_mcn072_static_link_getonly.py)" = '82484f05ac2ab7a374e53fe1ed4a95b7abef1bfd'
+          PYTHONDONTWRITEBYTECODE=1 python3 -B -m unittest discover -s tests -p 'test_mcn072_static_link_getonly.py' -v
+      - name: Authenticated GET-only active Worker handlers and current-content static links
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          umask 077
+          mkdir -p /tmp/mcn072_static_link_report
+          PYTHONDONTWRITEBYTECODE=1 python3 -B -m qualification.mcn072_static_link_getonly > /tmp/mcn072_static_link_report/mcn072-static-link-sanitized.json
+          (cd /tmp/mcn072_static_link_report && sha256sum mcn072-static-link-sanitized.json > mcn072-static-link-sanitized.json.sha256)
+      - name: Publish only sanitized NO-GO hash and report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: musitu-mcn072-static-link-getonly-20261115
+          path: /tmp/mcn072_static_link_report/mcn072-static-link-sanitized.json*
+          retention-days: 7
+          if-no-files-found: ignore
