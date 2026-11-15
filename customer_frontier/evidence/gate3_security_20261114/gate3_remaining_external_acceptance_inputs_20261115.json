@@ -1,7 +1,7 @@
 {
   "schema": "musitu.axiom.gate3.external-acceptance-inputs.v1",
-  "recorded_at_utc": "2026-11-15T19:27:19.110Z",
-  "status": "REVIEWER_IDENTIFIED_SIGNER_REVIEW_DECISION_AND_HOSTED_ACCEPTANCE_PENDING",
+  "recorded_at_utc": "2026-11-15T21:35:56.475Z",
+  "status": "PUBLIC_ED25519_RECEIVED_ROLE_BINDING_REVIEW_AND_HOSTED_ACCEPTANCE_PENDING",
   "controller": "Evans Musitu",
   "already_completed_owner_steps": [
     "controller declaration",
@@ -15,13 +15,36 @@
     "ledger_id": null,
     "namespace": null,
     "key_id": null,
-    "ed25519_public_key_jwk": null,
-    "state": "NOT_SUPPLIED_NO_SIGNER_EXISTENCE_INFERRED"
+    "ed25519_public_key_jwk": {
+      "kty": "OKP",
+      "crv": "Ed25519",
+      "x": "9G3Dzw62h9a094zdQFLO5AfoI637Su8Y9mMT-k0ynrs"
+    },
+    "state": "PUBLIC_KEY_RECEIVED_AUTHORITY2_ROLE_AND_IDENTITY_BINDING_PENDING",
+    "candidate_public_key": {
+      "source_receipt": "owner_public_key_20261115/OWNER_ED25519_PUBLIC_DOWNLOAD_RECEIPT.json",
+      "original_der": "owner_public_key_20261115/owner_ed25519_spki.der",
+      "public_jwk_path": "owner_public_key_20261115/owner_ed25519_public.jwk.json",
+      "spki_sha256": "6792c82b245cd45051052cc1b00eb5f99a99489829c3f0567c7c15f741389d8a",
+      "public_key_jwk": {
+        "kty": "OKP",
+        "crv": "Ed25519",
+        "x": "9G3Dzw62h9a094zdQFLO5AfoI637Su8Y9mMT-k0ynrs"
+      },
+      "canonical_der_roundtrip_verified": true,
+      "authority2_role_binding_approved": false,
+      "separate_private_signer_custody_qualified": false,
+      "runtime_trust_pin_changed": false
+    }
   },
   "signer_question_answer": {
     "asked_about_existing_separate_Ed25519_signer": true,
-    "answer_received": false,
-    "no_private_material_requested": true
+    "answer_received": true,
+    "no_private_material_requested": true,
+    "response_kind": "OWNER_SUPPLIED_EXACT_ORIGINAL_PUBLIC_DER_DRIVE_LINK",
+    "public_key_received_and_validated": true,
+    "separate_private_signer_existence_or_custody_verified": false,
+    "owner_governance_key_vs_separate_authority2_key_not_established": true
   },
   "independent_review": {
     "pr192_submitted_reviews": 0,

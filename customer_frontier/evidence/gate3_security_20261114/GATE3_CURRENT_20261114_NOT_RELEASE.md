@@ -328,3 +328,29 @@ have not been supplied. The backup X25519 decryption proof, R2 readback,
 controller/recovery declarations and native Windows/file-integrity checks
 remain accepted at their existing scopes and must not be repeated. No private
 key or token is requested. Gate 3 remains OPEN/HOLD and NOT_RELEASE.
+
+
+## 15 November — exact Drive original public signing key received
+
+The owner supplied the exact Google Drive file ID `1X7AM5RrOg5s1X-zziRVTT9YHEUkZ004q`.
+The authenticated original `owner_ed25519_spki.der` was downloaded without export
+or byte changes. Its 44 bytes parse as a public Ed25519 SubjectPublicKeyInfo,
+round-trip to identical canonical DER, and yield a public-only OKP/Ed25519 JWK.
+The SPKI SHA-256 is `6792c82b245cd45051052cc1b00eb5f99a99489829c3f0567c7c15f741389d8a`.
+The Drive response supplied the size but no provider checksum; this SHA-256
+was computed from the actual downloaded bytes.
+
+The byte-original DER, derived public JWK and validation receipt are retained in
+`owner_public_key_20261115/`. The public-file/JWK acquisition step is complete; do not ask for
+this same public file again. This updates earlier statements that public
+material had not been supplied.
+
+The Authority 2 role is not inferred from the filename or format. The inspected
+Step1 key tools accept separately reviewed external owner pins; those source
+files provide no prior literal pin establishing this candidate's relationship
+to the owner-governance key or a separate Authority 2 signer. Actual ledger,
+namespace and key binding, matching private possession and separate custody
+remain unqualified. The named human review decision and disposable hosted
+destructive/full-stack acceptance remain pending. No runtime trust root,
+private key or Cloudflare resource was changed. Gate 2 stays CLOSED;
+Gate 3 stays OPEN/HOLD and NOT_RELEASE.

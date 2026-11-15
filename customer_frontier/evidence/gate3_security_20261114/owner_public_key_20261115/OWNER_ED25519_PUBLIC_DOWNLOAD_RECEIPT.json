@@ -1,0 +1,40 @@
+{
+  "schema": "musitu.axiom.owner-supplied-ed25519-public-file.v1",
+  "observed_at_utc": "2026-11-15T20:43:28.474Z",
+  "source": "EXACT_USER_SUPPLIED_GOOGLE_DRIVE_FILE",
+  "source_file_id": "1X7AM5RrOg5s1X-zziRVTT9YHEUkZ004q",
+  "source_url": "https://drive.google.com/file/d/1X7AM5RrOg5s1X-zziRVTT9YHEUkZ004q/view?usp=drivesdk",
+  "original_filename": "owner_ed25519_spki.der",
+  "bytes": 44,
+  "spki_sha256": "6792c82b245cd45051052cc1b00eb5f99a99489829c3f0567c7c15f741389d8a",
+  "algorithm": "Ed25519",
+  "format": "DER_SUBJECT_PUBLIC_KEY_INFO",
+  "canonical_der_roundtrip_verified": true,
+  "public_key_jwk": {
+    "kty": "OKP",
+    "crv": "Ed25519",
+    "x": "9G3Dzw62h9a094zdQFLO5AfoI637Su8Y9mMT-k0ynrs"
+  },
+  "private_key_requested_or_obtained": false,
+  "private_key_custody_or_correspondence_proven": false,
+  "authority2_ledger_namespace_key_id_binding_approved": false,
+  "provider_operations": 0,
+  "deployment_performed": false,
+  "gate3_closed": false,
+  "release_status": "NOT_RELEASE",
+  "recorded_at_utc": "2026-11-15T21:35:56.475Z",
+  "source_metadata": {
+    "file_id": "1X7AM5RrOg5s1X-zziRVTT9YHEUkZ004q",
+    "name": "owner_ed25519_spki.der",
+    "mime_type": "application/octet-stream",
+    "size_bytes": 44,
+    "created_at": "2026-11-15T20:37:07.541Z",
+    "modified_at": "2026-11-15T20:37:07.541Z",
+    "provider_checksum_returned": false
+  },
+  "original_bytes_preserved": true,
+  "public_key_jwk_derived_locally": true,
+  "public_key_role": "OWNER_SUPPLIED_CANDIDATE_AUTHORITY2_ROLE_AND_BINDING_UNCONFIRMED",
+  "provider_operations_scope": "Cloudflare account/resource operations; exact Google Drive original download and Git evidence writes are separately recorded.",
+  "runtime_public_pin_changed": false
+}
