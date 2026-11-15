@@ -7,7 +7,7 @@ after matching the complete owner-terminal production backup proof. Its candidat
 CI [43636844294](https://github.com/evansmusitu/mft-axiom-build/actions/runs/43636844294)
 passed. No backup, import, migration or owner-key ceremony was repeated here.
 
-## Current source and actual observations
+## Historical 14 November source inspection
 
 | Surface | Exact inspected head | Observation |
 | --- | --- | --- |
@@ -186,15 +186,70 @@ that distinction without repeating Gate 1 or requesting another owner key.
 - [Existing independent operator ceremony](https://github.com/evansmusitu/mft-axiom-build/blob/14b5c520bd7cd53ccd4978f575dfcbe9b250ed0c/integrations/security-authority2/B27_INDEPENDENT_OPERATOR_CEREMONY_20261113.md).
 - Live PR discussion/review timelines for PR192, PR83 and PR190 were read. No independent review submission was returned; all discussion entries with authors were from the repository owner.
 
-**Next required action:** in the owner's browser, open the existing R2 bucket
-`musitu-axiom-b27-highwater-a2`, then Settings > Bucket lock rules. Read enabled
-status, prefix and retention without changing the bucket or rules. The expected
-retained protection covers `b27/` indefinitely. Then qualify the remaining
-custody/source/signer requirements before controlled private staging and safe
-once-only genesis. The owner/controller and recovery readbacks are already
-recorded. Gate 3 remains HOLD; the prepared review packet is not a deployment or
-an independent security approval.
+**Current next dependency:** the owner has supplied the required R2 readback.
+The public review archive was verified in the assistant environment, and fresh
+native Windows CI passed without using the owner's laptop. Do not request the
+same R2 readback, controller identification, recovery confirmation or Windows
+packet-integrity execution again. Obtain the actual operator-approved public
+signer/client pins, independently qualify custody, and independently review the
+concrete genesis candidate and a temporary private initializer/removal procedure
+before hosted destructive acceptance. No private key is requested in chat.
+
 
 Main `c3c5aaab90e94f1ca84ac9903f9d481c23c4f350` and separate draft/unmerged PR1
 `8fc1fbb7c5ebbcc1604ecf24c5f4594f2d5667e3` remain preserved. PR192, PR83 and PR190
 remain draft/unmerged. No deployment, customer mutation, charge, merge or release.
+
+## 15 November — environment continuation without an owner laptop
+
+The owner instructed the assistant to perform verification in its environment.
+The exact saved 68,098-byte review ZIP matched its original SHA-256; archive CRC,
+25 members, all 24 manifest-listed file hashes, original build/source pins and
+both nested original CI archives passed. This is attributed to actual Linux
+archive inspection, not execution on the owner's Windows PC. The original
+owner-facing packet and its manifest were not rewritten.
+
+The owner-pasted R2 settings show enabled rule `b27-indefinite`, prefix `b27/`,
+indefinite duration, no custom domain and a disabled public development URL in
+the exact Authority 2 account/bucket. This is retained as owner-dashboard
+readback, not fresh independent provider or administrator-isolation evidence.
+No setting was changed and the paid event-notification offer was not enabled.
+
+Draft PR192 candidate `96319259bbca599420c6648d41cfb5c991c58d05` adds a separate
+one-shot pre-genesis function, adversarial tests and an in-memory qualification
+harness. It does not change the serving Worker, R2 module, Wrangler configuration
+or pinned compiled runtime bytes, and is not imported by the serving Worker.
+It requires an independently approved commitment hash and immutable GitHub
+readback; persists a durable pending record before one conditional R2 barrier
+write; and requires exact readback and unchanged pending before a sequence -1
+tip. Ambiguous results, late completion, prior history and retries HOLD. There
+is no production initializer/reset endpoint or deployment command.
+
+Fresh hosted [candidate run 43722237949](https://github.com/evansmusitu/mft-axiom-build/actions/runs/43722237949)
+passed **135 synthetic checks** and **30 local workerd/SQLite integration checks**.
+The additional genesis coverage is 40 synthetic and eight genuine local
+workerd/SQLite/R2 cases; the GitHub boundary and custody in these tests remain
+synthetic. The independent-custody/global rollback veto still FAILED as required.
+The two-host run 43722237955 passed synthetically.
+
+Fresh [build/native Windows run 43722237957](https://github.com/evansmusitu/mft-axiom-build/actions/runs/43722237957)
+passed the unchanged runtime build, PowerShell 5.1.20348.5773 and 7.6.10 verification,
+and four hostile cases, for six checks total. Original CI artifact archives
+14165170225 and 14164689083 were downloaded and matched GitHub SHA-256 digests;
+archive CRC, sources, compiled bytes and proof/manifest cross-bindings passed.
+These are actual hosted Windows runner receipts, not owner-PC or custody proofs.
+The new CI manifest binds the new candidate commit; it does not replace the
+original owner ZIP's distinct manifest pin.
+
+The first local genesis workerd harness attempt failed because two original
+import dependencies were absent in the partial workspace. Its failure log is
+retained. Exact Git blob-verified dependencies were restored, without modifying
+runtime logic or weakening assertions; subsequent local and hosted checks pass.
+The all-state rollback counterexample remains explicitly reproducible.
+
+Current receipts: `authority2_owner_r2_retention_readback_20261115.json`,
+`authority2_environment_packet_integrity_20261115.json`,
+`authority2_genesis_candidate_local_qualification_20261115.json`, and
+`authority2_environment_hosted_ci_qualification_20261115.json`. The
+`environment_ci_20261115/` receipts retain their original runner attribution.
+Gate 3 remains OPEN/HOLD, Gate 2 remains CLOSED, and overall status NOT_RELEASE.

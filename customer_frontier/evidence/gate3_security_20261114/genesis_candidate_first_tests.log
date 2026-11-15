@@ -1,0 +1,53 @@
+✔ candidate creates one externally bound pre-genesis, then serving runtime appends real sequence zero (42.422369ms)
+▶ candidate rejects modified commitment, hash, key, runtime or identity before storage writes
+  ✔ approved-hash (3.871577ms)
+  ✔ nonce (5.590623ms)
+  ✔ private-key (3.516636ms)
+  ✔ bundle (4.235076ms)
+  ✔ account (3.15449ms)
+  ✔ namespace (4.362671ms)
+  ✔ extra-field (4.727201ms)
+✔ candidate rejects modified commitment, hash, key, runtime or identity before storage writes (30.941795ms)
+▶ candidate requires live immutable proof, original private repo and valid read credential
+  ✔ mutable (6.223088ms)
+  ✔ deleted (5.095382ms)
+  ✔ recreated (2.581477ms)
+  ✔ wrong-target (2.78922ms)
+  ✔ wrong-proof (7.240313ms)
+  ✔ missing-token (3.664052ms)
+✔ candidate requires live immutable proof, original private repo and valid read credential (29.050399ms)
+▶ candidate refuses any prior DO state or alarm instead of resetting it
+  ✔ tip (6.96313ms)
+  ✔ pending (3.028542ms)
+  ✔ unknown (3.90513ms)
+  ✔ alarm (3.727484ms)
+✔ candidate refuses any prior DO state or alarm instead of resetting it (18.256075ms)
+▶ candidate refuses any existing R2 namespace history and keeps pending
+  ✔ barrier (5.504079ms)
+  ✔ sequence-zero (5.943963ms)
+  ✔ orphan-later (3.644965ms)
+  ✔ other (3.717383ms)
+✔ candidate refuses any existing R2 namespace history and keeps pending (19.681396ms)
+✔ candidate serializes twelve concurrent initializers into exactly one conditional write (17.477973ms)
+✔ candidate rejects second invocation and restored empty DO when R2 barrier survives (6.945051ms)
+✔ candidate retains pending forever after lost R2 acknowledgement, even with readable barrier (3.657117ms)
+✔ candidate times out ambiguous PUT and late completion cannot promote DO state (3007.725492ms)
+▶ candidate holds on unconfirmed or changed R2 readback and new history
+  ✔ unconfirmed (4.051499ms)
+  ✔ readback (4.10015ms)
+  ✔ new-history (2.994172ms)
+  ✔ truncated (2.332212ms)
+✔ candidate holds on unconfirmed or changed R2 readback and new history (14.400464ms)
+✔ candidate rechecks immutable provider identity after R2 commit before promoting tip (3.227386ms)
+✔ candidate does not write R2 if durable pending synchronization fails (4.248838ms)
+✔ candidate detects modified pending before promotion and never retries R2 (3.409589ms)
+✔ serving Worker still exposes neither genesis nor reset routes (6.262847ms)
+✔ negative candidate: restoring BOTH DO and R2 can re-provision; global custody veto remains necessary (9.620482ms)
+ℹ tests 40
+ℹ suites 0
+ℹ pass 40
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 3376.753155

@@ -1,0 +1,162 @@
+✘ [ERROR] Could not resolve "./analytical_workflows.mjs"
+
+    axiom_interface/vnext/execution_integrity.mjs:50:52:
+      50 │ ...ateAnalyticalWorkflow}=await import('./analytical_workflows.mjs');
+         ╵                                        ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+✘ [ERROR] Could not resolve "./decision_analysis.mjs"
+
+    axiom_interface/vnext/execution_integrity.mjs:56:42:
+      56 │     const {evaluateDecision}=await import('./decision_analysis.mjs');
+         ╵                                           ~~~~~~~~~~~~~~~~~~~~~~~~~
+
+✖ real workerd: empty state HOLD, reviewed pre-genesis, sequence-zero signed append and replay denial (57.45012ms)
+✖ real workerd: eight concurrent initializers commit one R2 barrier and one DO tip (12.870349ms)
+✖ real workerd: erased SQLite DO cannot reinitialize while genuine local R2 barrier survives (7.75815ms)
+✖ real workerd: lost ACK after actual R2 write preserves pending across process restart (8.075278ms)
+✖ real workerd: post-R2 immutable-checkpoint identity failure keeps DO pending (6.065404ms)
+✖ real workerd: committed pre-genesis survives process restart without a new initializer (2.572364ms)
+✖ real workerd: orphan later R2 checkpoint prevents provisioning a new pre-genesis (3.121996ms)
+ℹ tests 7
+ℹ suites 0
+ℹ pass 0
+ℹ fail 7
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 656.133345
+
+✖ failing tests:
+
+test at qualification/whole-system-20261029/authority2-genesis-workerd.test.mjs:104:1
+✖ real workerd: empty state HOLD, reviewed pre-genesis, sequence-zero signed append and replay denial (57.45012ms)
+  Error: Build failed with 2 errors:
+  axiom_interface/vnext/execution_integrity.mjs:50:52: ERROR: Could not resolve "./analytical_workflows.mjs"
+  axiom_interface/vnext/execution_integrity.mjs:56:42: ERROR: Could not resolve "./decision_analysis.mjs"
+      at failureErrorWithLog (/workspace/scratch/a71c6a7400ff/gate3-environment-20261115/source/node_modules/esbuild/lib/main.js:1467:15)
+      at /workspace/scratch/a71c6a7400ff/gate3-environment-20261115/source/node_modules/esbuild/lib/main.js:926:25
+      at /workspace/scratch/a71c6a7400ff/gate3-environment-20261115/source/node_modules/esbuild/lib/main.js:878:52
+      at buildResponseToResult (/workspace/scratch/a71c6a7400ff/gate3-environment-20261115/source/node_modules/esbuild/lib/main.js:924:7)
+      at /workspace/scratch/a71c6a7400ff/gate3-environment-20261115/source/node_modules/esbuild/lib/main.js:951:16
+      at responseCallbacks.<computed> (/workspace/scratch/a71c6a7400ff/gate3-environment-20261115/source/node_modules/esbuild/lib/main.js:603:9)
+      at handleIncomingPacket (/workspace/scratch/a71c6a7400ff/gate3-environment-20261115/source/node_modules/esbuild/lib/main.js:658:12)
+      at Socket.readFromStdout (/workspace/scratch/a71c6a7400ff/gate3-environment-20261115/source/node_modules/esbuild/lib/main.js:581:7)
+      at Socket.emit (node:events:514:28)
+      at addChunk (node:internal/streams/readable:569:12) {
+    errors: [ { detail: undefined, id: '', location: [Object], notes: [], pluginName: '', text: 'Could not resolve "./analytical_workflows.mjs"' }, { detail: undefined, id: '', location: [Object], notes: [], pluginName: '', text: 'Could not resolve "./decision_analysis.mjs"' } ],
+    warnings: []
+  }
+
+test at qualification/whole-system-20261029/authority2-genesis-workerd.test.mjs:114:1
+✖ real workerd: eight concurrent initializers commit one R2 barrier and one DO tip (12.870349ms)
+  Error: Build failed with 2 errors:
+  axiom_interface/vnext/execution_integrity.mjs:50:52: ERROR: Could not resolve "./analytical_workflows.mjs"
+  axiom_interface/vnext/execution_integrity.mjs:56:42: ERROR: Could not resolve "./decision_analysis.mjs"
+      at failureErrorWithLog (/workspace/scratch/a71c6a7400ff/gate3-environment-20261115/source/node_modules/esbuild/lib/main.js:1467:15)
+      at /workspace/scratch/a71c6a7400ff/gate3-environment-20261115/source/node_modules/esbuild/lib/main.js:926:25
+      at /workspace/scratch/a71c6a7400ff/gate3-environment-20261115/source/node_modules/esbuild/lib/main.js:878:52
+      at buildResponseToResult (/workspace/scratch/a71c6a7400ff/gate3-environment-20261115/source/node_modules/esbuild/lib/main.js:924:7)
+      at /workspace/scratch/a71c6a7400ff/gate3-environment-20261115/source/node_modules/esbuild/lib/main.js:951:16
+      at responseCallbacks.<computed> (/workspace/scratch/a71c6a7400ff/gate3-environment-20261115/source/node_modules/esbuild/lib/main.js:603:9)
+      at handleIncomingPacket (/workspace/scratch/a71c6a7400ff/gate3-environment-20261115/source/node_modules/esbuild/lib/main.js:658:12)
+      at Socket.readFromStdout (/workspace/scratch/a71c6a7400ff/gate3-environment-20261115/source/node_modules/esbuild/lib/main.js:581:7)
+      at Socket.emit (node:events:514:28)
+      at addChunk (node:internal/streams/readable:569:12) {
+    errors: [ { detail: undefined, id: '', location: [Object], notes: [], pluginName: '', text: 'Could not resolve "./analytical_workflows.mjs"' }, { detail: undefined, id: '', location: [Object], notes: [], pluginName: '', text: 'Could not resolve "./decision_analysis.mjs"' } ],
+    warnings: []
+  }
+
+test at qualification/whole-system-20261029/authority2-genesis-workerd.test.mjs:121:1
+✖ real workerd: erased SQLite DO cannot reinitialize while genuine local R2 barrier survives (7.75815ms)
+  Error: Build failed with 2 errors:
+  axiom_interface/vnext/execution_integrity.mjs:50:52: ERROR: Could not resolve "./analytical_workflows.mjs"
+  axiom_interface/vnext/execution_integrity.mjs:56:42: ERROR: Could not resolve "./decision_analysis.mjs"
+      at failureErrorWithLog (/workspace/scratch/a71c6a7400ff/gate3-environment-20261115/source/node_modules/esbuild/lib/main.js:1467:15)
+      at /workspace/scratch/a71c6a7400ff/gate3-environment-20261115/source/node_modules/esbuild/lib/main.js:926:25
+      at /workspace/scratch/a71c6a7400ff/gate3-environment-20261115/source/node_modules/esbuild/lib/main.js:878:52
+      at buildResponseToResult (/workspace/scratch/a71c6a7400ff/gate3-environment-20261115/source/node_modules/esbuild/lib/main.js:924:7)
+      at /workspace/scratch/a71c6a7400ff/gate3-environment-20261115/source/node_modules/esbuild/lib/main.js:951:16
+      at responseCallbacks.<computed> (/workspace/scratch/a71c6a7400ff/gate3-environment-20261115/source/node_modules/esbuild/lib/main.js:603:9)
+      at handleIncomingPacket (/workspace/scratch/a71c6a7400ff/gate3-environment-20261115/source/node_modules/esbuild/lib/main.js:658:12)
+      at Socket.readFromStdout (/workspace/scratch/a71c6a7400ff/gate3-environment-20261115/source/node_modules/esbuild/lib/main.js:581:7)
+      at Socket.emit (node:events:514:28)
+      at addChunk (node:internal/streams/readable:569:12) {
+    errors: [ { detail: undefined, id: '', location: [Object], notes: [], pluginName: '', text: 'Could not resolve "./analytical_workflows.mjs"' }, { detail: undefined, id: '', location: [Object], notes: [], pluginName: '', text: 'Could not resolve "./decision_analysis.mjs"' } ],
+    warnings: []
+  }
+
+test at qualification/whole-system-20261029/authority2-genesis-workerd.test.mjs:130:1
+✖ real workerd: lost ACK after actual R2 write preserves pending across process restart (8.075278ms)
+  Error: Build failed with 2 errors:
+  axiom_interface/vnext/execution_integrity.mjs:50:52: ERROR: Could not resolve "./analytical_workflows.mjs"
+  axiom_interface/vnext/execution_integrity.mjs:56:42: ERROR: Could not resolve "./decision_analysis.mjs"
+      at failureErrorWithLog (/workspace/scratch/a71c6a7400ff/gate3-environment-20261115/source/node_modules/esbuild/lib/main.js:1467:15)
+      at /workspace/scratch/a71c6a7400ff/gate3-environment-20261115/source/node_modules/esbuild/lib/main.js:926:25
+      at /workspace/scratch/a71c6a7400ff/gate3-environment-20261115/source/node_modules/esbuild/lib/main.js:878:52
+      at buildResponseToResult (/workspace/scratch/a71c6a7400ff/gate3-environment-20261115/source/node_modules/esbuild/lib/main.js:924:7)
+      at /workspace/scratch/a71c6a7400ff/gate3-environment-20261115/source/node_modules/esbuild/lib/main.js:951:16
+      at responseCallbacks.<computed> (/workspace/scratch/a71c6a7400ff/gate3-environment-20261115/source/node_modules/esbuild/lib/main.js:603:9)
+      at handleIncomingPacket (/workspace/scratch/a71c6a7400ff/gate3-environment-20261115/source/node_modules/esbuild/lib/main.js:658:12)
+      at Socket.readFromStdout (/workspace/scratch/a71c6a7400ff/gate3-environment-20261115/source/node_modules/esbuild/lib/main.js:581:7)
+      at Socket.emit (node:events:514:28)
+      at addChunk (node:internal/streams/readable:569:12) {
+    errors: [ { detail: undefined, id: '', location: [Object], notes: [], pluginName: '', text: 'Could not resolve "./analytical_workflows.mjs"' }, { detail: undefined, id: '', location: [Object], notes: [], pluginName: '', text: 'Could not resolve "./decision_analysis.mjs"' } ],
+    warnings: []
+  }
+
+test at qualification/whole-system-20261029/authority2-genesis-workerd.test.mjs:139:1
+✖ real workerd: post-R2 immutable-checkpoint identity failure keeps DO pending (6.065404ms)
+  Error: Build failed with 2 errors:
+  axiom_interface/vnext/execution_integrity.mjs:50:52: ERROR: Could not resolve "./analytical_workflows.mjs"
+  axiom_interface/vnext/execution_integrity.mjs:56:42: ERROR: Could not resolve "./decision_analysis.mjs"
+      at failureErrorWithLog (/workspace/scratch/a71c6a7400ff/gate3-environment-20261115/source/node_modules/esbuild/lib/main.js:1467:15)
+      at /workspace/scratch/a71c6a7400ff/gate3-environment-20261115/source/node_modules/esbuild/lib/main.js:926:25
+      at /workspace/scratch/a71c6a7400ff/gate3-environment-20261115/source/node_modules/esbuild/lib/main.js:878:52
+      at buildResponseToResult (/workspace/scratch/a71c6a7400ff/gate3-environment-20261115/source/node_modules/esbuild/lib/main.js:924:7)
+      at /workspace/scratch/a71c6a7400ff/gate3-environment-20261115/source/node_modules/esbuild/lib/main.js:951:16
+      at responseCallbacks.<computed> (/workspace/scratch/a71c6a7400ff/gate3-environment-20261115/source/node_modules/esbuild/lib/main.js:603:9)
+      at handleIncomingPacket (/workspace/scratch/a71c6a7400ff/gate3-environment-20261115/source/node_modules/esbuild/lib/main.js:658:12)
+      at Socket.readFromStdout (/workspace/scratch/a71c6a7400ff/gate3-environment-20261115/source/node_modules/esbuild/lib/main.js:581:7)
+      at Socket.emit (node:events:514:28)
+      at addChunk (node:internal/streams/readable:569:12) {
+    errors: [ { detail: undefined, id: '', location: [Object], notes: [], pluginName: '', text: 'Could not resolve "./analytical_workflows.mjs"' }, { detail: undefined, id: '', location: [Object], notes: [], pluginName: '', text: 'Could not resolve "./decision_analysis.mjs"' } ],
+    warnings: []
+  }
+
+test at qualification/whole-system-20261029/authority2-genesis-workerd.test.mjs:147:1
+✖ real workerd: committed pre-genesis survives process restart without a new initializer (2.572364ms)
+  Error: Build failed with 2 errors:
+  axiom_interface/vnext/execution_integrity.mjs:50:52: ERROR: Could not resolve "./analytical_workflows.mjs"
+  axiom_interface/vnext/execution_integrity.mjs:56:42: ERROR: Could not resolve "./decision_analysis.mjs"
+      at failureErrorWithLog (/workspace/scratch/a71c6a7400ff/gate3-environment-20261115/source/node_modules/esbuild/lib/main.js:1467:15)
+      at /workspace/scratch/a71c6a7400ff/gate3-environment-20261115/source/node_modules/esbuild/lib/main.js:926:25
+      at /workspace/scratch/a71c6a7400ff/gate3-environment-20261115/source/node_modules/esbuild/lib/main.js:878:52
+      at buildResponseToResult (/workspace/scratch/a71c6a7400ff/gate3-environment-20261115/source/node_modules/esbuild/lib/main.js:924:7)
+      at /workspace/scratch/a71c6a7400ff/gate3-environment-20261115/source/node_modules/esbuild/lib/main.js:951:16
+      at responseCallbacks.<computed> (/workspace/scratch/a71c6a7400ff/gate3-environment-20261115/source/node_modules/esbuild/lib/main.js:603:9)
+      at handleIncomingPacket (/workspace/scratch/a71c6a7400ff/gate3-environment-20261115/source/node_modules/esbuild/lib/main.js:658:12)
+      at Socket.readFromStdout (/workspace/scratch/a71c6a7400ff/gate3-environment-20261115/source/node_modules/esbuild/lib/main.js:581:7)
+      at Socket.emit (node:events:514:28)
+      at addChunk (node:internal/streams/readable:569:12) {
+    errors: [ { detail: undefined, id: '', location: [Object], notes: [], pluginName: '', text: 'Could not resolve "./analytical_workflows.mjs"' }, { detail: undefined, id: '', location: [Object], notes: [], pluginName: '', text: 'Could not resolve "./decision_analysis.mjs"' } ],
+    warnings: []
+  }
+
+test at qualification/whole-system-20261029/authority2-genesis-workerd.test.mjs:154:1
+✖ real workerd: orphan later R2 checkpoint prevents provisioning a new pre-genesis (3.121996ms)
+  Error: Build failed with 2 errors:
+  axiom_interface/vnext/execution_integrity.mjs:50:52: ERROR: Could not resolve "./analytical_workflows.mjs"
+  axiom_interface/vnext/execution_integrity.mjs:56:42: ERROR: Could not resolve "./decision_analysis.mjs"
+      at failureErrorWithLog (/workspace/scratch/a71c6a7400ff/gate3-environment-20261115/source/node_modules/esbuild/lib/main.js:1467:15)
+      at /workspace/scratch/a71c6a7400ff/gate3-environment-20261115/source/node_modules/esbuild/lib/main.js:926:25
+      at /workspace/scratch/a71c6a7400ff/gate3-environment-20261115/source/node_modules/esbuild/lib/main.js:878:52
+      at buildResponseToResult (/workspace/scratch/a71c6a7400ff/gate3-environment-20261115/source/node_modules/esbuild/lib/main.js:924:7)
+      at /workspace/scratch/a71c6a7400ff/gate3-environment-20261115/source/node_modules/esbuild/lib/main.js:951:16
+      at responseCallbacks.<computed> (/workspace/scratch/a71c6a7400ff/gate3-environment-20261115/source/node_modules/esbuild/lib/main.js:603:9)
+      at handleIncomingPacket (/workspace/scratch/a71c6a7400ff/gate3-environment-20261115/source/node_modules/esbuild/lib/main.js:658:12)
+      at Socket.readFromStdout (/workspace/scratch/a71c6a7400ff/gate3-environment-20261115/source/node_modules/esbuild/lib/main.js:581:7)
+      at Socket.emit (node:events:514:28)
+      at addChunk (node:internal/streams/readable:569:12) {
+    errors: [ { detail: undefined, id: '', location: [Object], notes: [], pluginName: '', text: 'Could not resolve "./analytical_workflows.mjs"' }, { detail: undefined, id: '', location: [Object], notes: [], pluginName: '', text: 'Could not resolve "./decision_analysis.mjs"' } ],
+    warnings: []
+  }

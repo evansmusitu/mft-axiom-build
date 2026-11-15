@@ -1,0 +1,29 @@
+{
+  "schema": "musitu.axiom.authority2.owner-r2-settings-readback.v1",
+  "recorded_at_utc": "2026-11-15T14:03:18.695367+00:00",
+  "evidence_origin": "OWNER_PASTED_CLOUDFLARE_DASHBOARD_TEXT",
+  "owner": "Evans Musitu",
+  "account_id": "67469478aa9349fa0a57fe3a72da200a",
+  "bucket_name": "musitu-axiom-b27-highwater-a2",
+  "owner_reported_bucket_created": "Nov 9, 2026",
+  "owner_reported_location": "ENAM",
+  "owner_reported_rule": {
+    "name": "b27-indefinite",
+    "prefix": "b27/",
+    "retention": "Indefinite",
+    "enabled": true
+  },
+  "owner_reported_public_development_url_enabled": false,
+  "owner_reported_custom_domains": [],
+  "owner_reported_cors_policy_defined": false,
+  "owner_reported_default_storage_class": "Standard",
+  "owner_reported_paid_event_notifications_enabled": false,
+  "settings_changed_by_assistant": false,
+  "provider_operations": 0,
+  "independent_fresh_provider_readback_performed": false,
+  "immutable_against_administrator_policy_removal_qualified": false,
+  "signer_custody_qualified": false,
+  "gate3_closed": false,
+  "release_status": "NOT_RELEASE",
+  "accepted_scope": "The owner-pasted settings match the required private-bucket and b27/ indefinite-retention configuration. No owner repetition of this readback is pending."
+}
