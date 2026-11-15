@@ -1,0 +1,21 @@
+✔ real workerd: empty state HOLD, reviewed pre-genesis, sequence-zero signed append and replay denial (584.300177ms)
+✔ real workerd: eight concurrent initializers commit one R2 barrier and one DO tip (554.056734ms)
+✔ real workerd: erased SQLite DO cannot reinitialize while genuine local R2 barrier survives (212.472917ms)
+✔ real workerd: lost ACK after actual R2 write preserves pending across process restart (476.927957ms)
+✔ real workerd: post-R2 immutable-checkpoint identity failure keeps DO pending (283.054071ms)
+✔ real workerd: committed pre-genesis survives process restart without a new initializer (220.667584ms)
+✔ real workerd: orphan later R2 checkpoint prevents provisioning a new pre-genesis (323.11367ms)
+✔ real workerd: actual conditional PUT cannot overwrite a barrier created after empty listing (262.900129ms)
+✔ actual private controller has no public ingress and initializes only through its approved scheduled event (788.402735ms)
+✔ actual private scheduled initializer is one-shot even when the same event is delivered again (378.998473ms)
+✔ actual controller rejects expired or mismatched scheduled contexts without any R2 write (521.828417ms)
+✔ actual controller retirement preserves SQLite/R2 state and enables first ordinary signed append (543.194714ms)
+✔ actual immutable-checkpoint denial leaves the private authority empty and never signs after retirement (368.059884ms)
+ℹ tests 13
+ℹ suites 0
+ℹ pass 13
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 3499.692669

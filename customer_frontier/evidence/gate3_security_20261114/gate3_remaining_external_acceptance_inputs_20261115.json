@@ -1,0 +1,50 @@
+{
+  "schema": "musitu.axiom.gate3.external-acceptance-inputs.v1",
+  "recorded_at_utc": "2026-11-15T15:23:41.244061+00:00",
+  "status": "REQUIRED_EXTERNAL_INPUTS_NOT_YET_PROVIDED",
+  "controller": "Evans Musitu",
+  "already_completed_owner_steps": [
+    "controller declaration",
+    "direct independent account recovery confirmation",
+    "backup decryption proofs",
+    "R2 bucket-rule dashboard readback",
+    "public review-packet file integrity including native Windows CI"
+  ],
+  "authority2_public_inputs": {
+    "account_id": "67469478aa9349fa0a57fe3a72da200a",
+    "ledger_id": null,
+    "namespace": null,
+    "key_id": null,
+    "ed25519_public_key_jwk": null,
+    "state": "NOT_SUPPLIED_NO_SIGNER_EXISTENCE_INFERRED"
+  },
+  "signer_question_answer": {
+    "asked_about_existing_separate_Ed25519_signer": true,
+    "answer_received": false,
+    "no_private_material_requested": true
+  },
+  "independent_review": {
+    "pr192_submitted_reviews": 0,
+    "pr242_submitted_reviews": 0,
+    "record_provided_in_chat": false,
+    "author_self_approval_satisfies_independent_review": false
+  },
+  "actual_provider_acceptance_required": [
+    "separate administrator/credential custody qualification",
+    "operator-owned signer and matching consumer public pin",
+    "independent source/genesis/retirement approval",
+    "private operator-controlled staging and actual disposable hosted destructive acceptance",
+    "isolated full-stack staging/OAuth/MCP acceptance before PR83 veto change"
+  ],
+  "connected_operator_provider_status": {
+    "schema": "musitu.axiom.operator-provider-status.v1",
+    "status": "UNAVAILABLE",
+    "external_provider_execution_authority": false,
+    "provider_admission_required": true,
+    "production_authority": false,
+    "evidence_origin": "ACTUAL_CONNECTED_OPERATOR_PROVIDER_STATUS_RESPONSE_EARLIER_THIS_TURN"
+  },
+  "operator_private_actions_cannot_be_performed_under_builder_custody_and_count_as_independent": true,
+  "gate3_closed": false,
+  "release_status": "NOT_RELEASE"
+}

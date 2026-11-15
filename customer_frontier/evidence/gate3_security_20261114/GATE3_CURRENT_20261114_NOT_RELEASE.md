@@ -253,3 +253,58 @@ Current receipts: `authority2_owner_r2_retention_readback_20261115.json`,
 `authority2_environment_hosted_ci_qualification_20261115.json`. The
 `environment_ci_20261115/` receipts retain their original runner attribution.
 Gate 3 remains OPEN/HOLD, Gate 2 remains CLOSED, and overall status NOT_RELEASE.
+
+## 15 November — private initializer and isolated persistence bridge candidates
+
+The next authority implementation gap now has a concrete separately reviewable
+controller and retirement checker at PR192 commit
+`68799a41a367865649b833de649edcb26f77c0d3`. HTTP ingress always returns 404; the
+review config enables no cron, route or preview. The private scheduled path
+requires an approved short window, private control capability, an actual
+Ed25519 key/public-pin match and the exact commitment. Deadline checks retain
+pending after expiry or ambiguity. Actual local workerd tests retire the
+controller/private settings, restart on the unchanged serving code and prove
+an ordinary signed append plus replay denial. The six-GET retirement checker
+rejects leftover temporary bindings/handlers/cron, preview exposure, version/ETag
+drift and deployment changes; its tests use synthetic metadata and it makes
+no source-byte or independent-custody claim.
+
+[Fresh B27 CI 43726748255](https://github.com/evansmusitu/mft-axiom-build/actions/runs/43726748255)
+passed **190 synthetic + 35 local workerd/SQLite checks**. Its mandatory
+independent-custody/global rollback veto remains FAILURE. Build run
+43726748283 passed the unchanged serving bundle, new dormant initializer build
+and native Windows 5.1/7 verification (six checks). Two-host run 43726748267
+passed synthetically. Original CI archives, member hashes and manifest/source
+cross-bindings were independently checked after download.
+
+[Draft PR242](https://github.com/evansmusitu/mft-axiom-build/pull/242), source
+`f6d34d3663e3140665fdc740a529211019a0f46a`, is stacked on unchanged PR190. It adds
+only an isolated typed fixture D1 bridge/client/schema and standalone review CI.
+It is not a silent integration into PR83, PR190 or production. The bridge has no
+SQL/provision/migration/customer/OAuth route or administrator credential. It
+requires a pre-existing matching disposable identity marker, fixture-only tenant
+IDs, distinct tenant/role credentials and atomic identity/revocation predicates.
+Known source, production and accepted recovery-copy UUIDs are rejected.
+
+[Staging CI 43728658569](https://github.com/evansmusitu/mft-axiom-build/actions/runs/43728658569)
+passed **20 checks: 15 actual local workerd/D1 and five client/static checks**.
+These include identity and revocation races after preflight, concurrent CAS,
+restart, tenant separation, corruption, and a genuine local D1 commit with a
+lost acknowledgement and no automatic retry. They do not qualify hosted D1,
+OAuth/MCP, the whole product or independent security acceptance. The legacy
+adapter/scripts and PR83 full-stack veto remain unchanged.
+
+The owner-held Authority 2 Ed25519 public pin and ledger/namespace/key identities
+have not been supplied. A question about an existing separate signer received
+no answer, so neither key existence nor new authority is inferred. Current
+GitHub review lists for PR192 and PR242 are empty, and no independent acceptance
+record was supplied in chat. The connected operator router reports UNAVAILABLE
+and no external/production authority. It cannot supply independent custody or
+review acceptance. These are genuine remaining external dependencies, not a
+Windows/laptop verification task. No private key or token is requested.
+
+See `gate3_private_controller_and_staging_progress_20261115.json` and
+`gate3_remaining_external_acceptance_inputs_20261115.json` for exact evidence and
+next inputs. Gate 2 remains CLOSED; Gate 3 remains OPEN/HOLD and NOT_RELEASE.
+No Cloudflare mutation, actual authority deployment/genesis, production change,
+paid upgrade, merge, publication or private operator key transfer occurred.

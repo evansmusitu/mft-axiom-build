@@ -1,0 +1,11 @@
+{
+  "schema": "musitu.axiom.authority2.verifier-source-materialization.v1",
+  "source_commit": "68799a41a367865649b833de649edcb26f77c0d3",
+  "checkout_sha256": "1042d396f21b66d925b19661202a94e932bfaf361c4614d6300bb975158f4ea9",
+  "git_blob_sha256": "86c59f3097e4a46c71904585b37cd6bd9da08889b1b8a34171c7b8623299e165",
+  "downloaded_sha256": "86c59f3097e4a46c71904585b37cd6bd9da08889b1b8a34171c7b8623299e165",
+  "checkout_crlf_conversion_observed": true,
+  "exact_git_bytes_materialized": true,
+  "provider_operations": 0,
+  "release_status": "NOT_RELEASE"
+}

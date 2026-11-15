@@ -1,0 +1,13 @@
+✔ actual private controller has no public ingress and initializes only through its approved scheduled event (751.015051ms)
+✔ actual private scheduled initializer is one-shot even when the same event is delivered again (431.614241ms)
+✔ actual controller rejects expired or mismatched scheduled contexts without any R2 write (468.820779ms)
+✔ actual controller retirement preserves SQLite/R2 state and enables first ordinary signed append (491.521687ms)
+✔ actual immutable-checkpoint denial leaves the private authority empty and never signs after retirement (461.121635ms)
+ℹ tests 5
+ℹ suites 0
+ℹ pass 5
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 3224.773216
