@@ -11,7 +11,7 @@ passed. No backup, import, migration or owner-key ceremony was repeated here.
 
 | Surface | Exact inspected head | Observation |
 | --- | --- | --- |
-| B27 PR192 | `14b5c520bd7cd53ccd4978f575dfcbe9b250ed0c` | 95/95 fresh local candidate checks pass; full-authority rollback still reissues a permit in two explicit counterexamples |
+| B27 runtime baseline PR192 | `14b5c520bd7cd53ccd4978f575dfcbe9b250ed0c` | 95/95 fresh local candidate checks pass; full-authority rollback still reissues a permit in two explicit counterexamples |
 | Frontier PR83 | `fdc89d48f7aa888c67afc4ece3465328cc2a77f6` | Latest hosted full-stack run fails at its retained live-adapter security veto |
 | Sandbox and direct-invocation repairs PR190 | `c22bf1930b8576bc6b3bcc25ffcd40bd08c93ddb` | Five fresh direct adapter-denial checks and static workflow security contract pass; hosted full-stack still fails at the veto |
 | Owner proposal/local nonce candidate PR241 | `5c03cf457fa0e2bdee7103e2d9f0e4bfd32d9e50` | Nine Node and 18 Python checks pass; local snapshot rollback is explicitly reproducible and remains unqualified globally |
@@ -98,6 +98,56 @@ credential to review; the secret name is not proof of its current privileges.
 Continue manual browser guidance. Do not retry agent browser authentication or
 repeat the completed recovery-token readback.
 
+## 15 November — remaining owner reports and compiled review packet
+
+The owner reports that the separate token saved as
+`MUSITU_CLOUDFLARE_ADMIN_TOKEN` does not grant Authority 2 write access. He reports
+that `CLOUDFLARE_API_TOKEN` has Account Resources limited to another specific
+account, excluding Authority 2; that account ID was not supplied or inferred.
+These are owner statements, not independently obtained full provider policies.
+In particular, all user-level, zone-level and alternate credentials have not
+been exhaustively qualified.
+
+The pasted account dashboard identifies account
+`67469478aa9349fa0a57fe3a72da200a`, subdomain
+`axiom-recovery-704a7351.workers.dev`, and "No projects found" / "You have not
+created any projects yet". Record the Authority 2 Worker as absent in the owner
+readback. No Worker was uploaded for this inspection. The attributed details are
+retained in `authority2_owner_remaining_scopes_and_empty_projects_20261115.json`.
+
+A real downloadable review build is now retained from unchanged runtime source
+`14b5c520bd7cd53ccd4978f575dfcbe9b250ed0c`, with build/verification-only child
+`a2ebd98bef2be6ea61ffe3b37bee2aeb4bf7633e`. Its 15,548-byte bundle SHA-256 is
+`d1ddd1e944bfa4560cc662f7fd12a9b22b3f6493175e4a38b2b3db7e1aed4210`, exactly
+matching the separately recorded 13 November build. The original module files,
+SQLite Durable Object configuration and existing R2 binding remain unchanged.
+No public route, credential, authority state or deployment was created.
+
+[Build and native Windows run 43676166219](https://github.com/evansmusitu/mft-axiom-build/actions/runs/43676166219)
+passed the exact build, PowerShell 5.1.20348.5773 and PowerShell 7.6.10 verification,
+and four hostile packet cases, for six checks total. Changed bundle/source,
+altered deployment claim, wrong expected manifest hash and stale PASS-proof
+retention are rejected. The first Windows run 43675820102 stopped before verifier
+execution on a source/artifact byte mismatch. That failure remains retained.
+The following controlled run observed CRLF conversion in the Windows checkout,
+verified the exact pinned Git object against the downloaded file, and restored
+only exact Git bytes before execution; the equality guard was preserved.
+
+[Current B27 candidate run 43676166225](https://github.com/evansmusitu/mft-axiom-build/actions/runs/43676166225)
+passed 95 synthetic and 22 genuine workerd/SQLite regressions, with its mandatory
+independent-custody/global rollback veto still FAILURE. The synthetic two-host
+run 43676166257 also passed without earning real provider destructive acceptance.
+No passing test has relabelled the global counterexample or security veto.
+
+The owner review ZIP is 68,098 bytes, SHA-256
+`c9dee791478ba5927f4636ce50eaee59b52d032f4d1438a111d5f17a28e4df08`. It includes
+the exact compiled code, original sources, optional offline Windows verifier,
+original CI archives, native verifier receipts and the existing operator
+ceremony. It includes no private keys or tokens and performs no deployment or
+initialization. Its integrity check is separate from provider/security approval.
+See `authority2_private_review_build_receipt_20261115.json` and the byte-preserved
+build/native Windows receipts. Gate 2 remains complete.
+
 ## What genuinely remains
 
 1. **Authority and recovery control:** qualify independent administration,
@@ -136,14 +186,14 @@ that distinction without repeating Gate 1 or requesting another owner key.
 - [Existing independent operator ceremony](https://github.com/evansmusitu/mft-axiom-build/blob/14b5c520bd7cd53ccd4978f575dfcbe9b250ed0c/integrations/security-authority2/B27_INDEPENDENT_OPERATOR_CEREMONY_20261113.md).
 - Live PR discussion/review timelines for PR192, PR83 and PR190 were read. No independent review submission was returned; all discussion entries with authors were from the repository owner.
 
-**Next required action:** in the owner's browser, read the actual Cloudflare
-display name, complete saved permission list and account scope for the token
-saved as `MUSITU_CLOUDFLARE_ADMIN_TOKEN`. The owner/controller, direct recovery
-access and recovery-token saved Read-only dashboard report are already recorded.
-Review this next credential before changing it, then account for all remaining
-build access. Independently qualified administrator separation, safe
-initialization, real destructive recovery and security approval remain OPEN;
-Gate 3 stays in HOLD before real-customer identity acceptance or cutover.
+**Next required action:** in the owner's browser, open the existing R2 bucket
+`musitu-axiom-b27-highwater-a2`, then Settings > Bucket lock rules. Read enabled
+status, prefix and retention without changing the bucket or rules. The expected
+retained protection covers `b27/` indefinitely. Then qualify the remaining
+custody/source/signer requirements before controlled private staging and safe
+once-only genesis. The owner/controller and recovery readbacks are already
+recorded. Gate 3 remains HOLD; the prepared review packet is not a deployment or
+an independent security approval.
 
 Main `c3c5aaab90e94f1ca84ac9903f9d481c23c4f350` and separate draft/unmerged PR1
 `8fc1fbb7c5ebbcc1604ecf24c5f4594f2d5667e3` remain preserved. PR192, PR83 and PR190

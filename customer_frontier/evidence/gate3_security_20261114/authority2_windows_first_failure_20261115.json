@@ -1,0 +1,20 @@
+{
+  "schema": "musitu.axiom.authority2.review-packet-windows-prior-failure.v1",
+  "head": "6d2a32f2f5790ad22355ebed5833df587564e4a8",
+  "run_id": 43675820102,
+  "job_id": 132695709604,
+  "status": "FAILED_BEFORE_VERIFIER_EXECUTION",
+  "cause_observed": "Checkout verifier bytes did not match the downloaded Linux-built artifact; exact byte-drift diagnosis pending the new controlled run.",
+  "verifier_was_invoked": false,
+  "original_failure_retained": true,
+  "provider_operations": 0,
+  "release_status": "NOT_RELEASE",
+  "selected_log_lines": [
+    "2026-11-15T04:14:12.0964121Z \u001b[36;1mif ((Get-FileHash $source).Hash -ne (Get-FileHash $script).Hash) { throw 'A2_VERIFIER_SOURCE_MISMATCH_HOLD' }\u001b[0m\r",
+    "2026-11-15T04:14:17.0860716Z A2_VERIFIER_SOURCE_MISMATCH_HOLD\r",
+    "2026-11-15T04:14:17.0862486Z + ... -FileHash $script).Hash) { throw 'A2_VERIFIER_SOURCE_MISMATCH_HOLD' }\r",
+    "2026-11-15T04:14:17.0863493Z     + CategoryInfo          : OperationStopped: (A2_VERIFIER_SOURCE_MISMATCH_HOLD:String) [], RuntimeException\r",
+    "2026-11-15T04:14:17.0864091Z     + FullyQualifiedErrorId : A2_VERIFIER_SOURCE_MISMATCH_HOLD\r",
+    "2026-11-15T04:14:17.1251202Z ##[error]Process completed with exit code 1.\r"
+  ]
+}
