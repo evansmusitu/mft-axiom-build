@@ -1,0 +1,97 @@
+name: AXIOM Step1 owner Windows path SYNTHETIC ONLY (NOT RELEASE)
+on:
+  push:
+    branches:
+      - review/axiom-step1-owner-sole-authority-policy-20261112-not-release
+    paths:
+      - .github/workflows/axiom-step1-owner-windows-ceremony-20261113.yml
+      - customer_frontier/qualification/step1_owner_windows_public_receipt.mjs
+      - customer_frontier/qualification/step1_owner_windows_key_ceremony.ps1
+      - customer_frontier/qualification/step1_owner_windows_signed_proposal.ps1
+      - customer_frontier/tests/step1_owner_windows_public_receipt.test.mjs
+permissions: {contents: read}
+jobs:
+  synthetic-public-receipt:
+    if: >-
+      github.repository == 'evansmusitu/mft-axiom-build' &&
+      github.ref == 'refs/heads/review/axiom-step1-owner-sole-authority-policy-20261112-not-release' &&
+      github.run_attempt == 1
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with: {persist-credentials: false}
+      - name: Verify public-only receipt compatibility (no owner keys)
+        run: node --test customer_frontier/tests/step1_owner_windows_public_receipt.test.mjs
+      - name: Package exact public Windows offline-source dependencies only
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import pathlib,hashlib,json,zipfile
+          paths=[
+            'customer_frontier/qualification/step1_owner_windows_key_ceremony.ps1',
+            'customer_frontier/qualification/step1_owner_windows_signed_proposal.ps1',
+            'customer_frontier/qualification/step1_owner_windows_public_receipt.mjs',
+            'customer_frontier/qualification/step1_owner_device_signed_proposal.mjs',
+            'customer_frontier/qualification/step1_owner_control_policy_candidate.mjs',
+            'customer_frontier/qualification/step1_owner_public_pin_preflight.mjs',
+            'customer_frontier/qualification/STEP1_OWNER_WINDOWS_OFFLINE_CEREMONY_20261113_NOT_RELEASE.md',
+            'customer_frontier/tests/step1_owner_windows_public_receipt.test.mjs',
+          ]
+          checked={}
+          for p in paths:
+            file=pathlib.Path(p)
+            assert file.is_file() and not file.is_symlink(),p
+            raw=file.read_bytes()
+            assert raw and b'PRIVATE KEY-----' not in raw, p
+            checked[p]=hashlib.sha256(raw).hexdigest()
+          output=pathlib.Path('AXIOM_STEP1_WINDOWS_OFFLINE_SOURCE_20261113_NOT_RELEASE.zip')
+          manifest=json.dumps({'schema':'musitu.axiom.step1.windows-offline-source.v1',
+            'status':'NOT_RELEASE','step1_closed':False,'step2_authorized':False,
+            'files_sha256':checked},sort_keys=True,indent=2).encode()+b'\n'
+          with zipfile.ZipFile(output,'w',zipfile.ZIP_DEFLATED,compresslevel=8) as z:
+            for p in paths:z.write(p,p)
+            z.writestr('MANIFEST_SHA256.json',manifest)
+          assert zipfile.ZipFile(output).testzip() is None
+          print('AXIOM_WINDOWS_OFFLINE_SOURCE_PUBLIC_ONLY_ZIP_PASS_NOT_RELEASE',
+            'size',output.stat().st_size,'sha256',hashlib.sha256(output.read_bytes()).hexdigest())
+          PY
+      - name: Retain verified public-only source ZIP for owner device
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: axiom-step1-windows-offline-source-20261113
+          retention-days: 14
+          if-no-files-found: error
+          path: AXIOM_STEP1_WINDOWS_OFFLINE_SOURCE_20261113_NOT_RELEASE.zip
+  windows-deny-and-parse:
+    if: >-
+      github.repository == 'evansmusitu/mft-axiom-build' &&
+      github.ref == 'refs/heads/review/axiom-step1-owner-sole-authority-policy-20261112-not-release' &&
+      github.run_attempt == 1
+    runs-on: windows-latest
+    timeout-minutes: 7
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with: {persist-credentials: false}
+      - name: Parse PowerShell scripts and prove CI cannot execute owner ceremony
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $root = (Get-Location).Path
+          $dir = Join-Path $root 'customer_frontier/qualification'
+          $targets = @('step1_owner_windows_key_ceremony.ps1','step1_owner_windows_signed_proposal.ps1')
+          foreach($name in $targets){
+            $errors = $null; $tokens = $null
+            [void][System.Management.Automation.Language.Parser]::ParseFile((Join-Path $dir $name),[ref]$tokens,[ref]$errors)
+            if($errors.Count -gt 0){throw ('SYNTAX_FAILURE:' + $name + ':' + ($errors | Out-String))}
+          }
+          $env:CI = 'true'
+          $probe = Join-Path $env:RUNNER_TEMP 'axiom-owner-key-must-not-exist'
+          if(Test-Path -LiteralPath $probe){throw 'COLLISION'}
+          $first = Start-Process -FilePath 'pwsh' -ArgumentList @('-NoProfile','-NonInteractive','-File',('"' + (Join-Path $dir $targets[0]) + '"'),'-KeysRoot',('"' + $probe + '"')) -PassThru -Wait -WindowStyle Hidden
+          if($first.ExitCode -eq 0 -or (Test-Path -LiteralPath $probe)){throw 'CI_OWNER_KEY_CREATION_NOT_BLOCKED'}
+          $output = Join-Path $env:RUNNER_TEMP 'axiom-owner-sign-must-not-exist'
+          $second = Start-Process -FilePath 'pwsh' -ArgumentList @('-NoProfile','-NonInteractive','-File',('"' + (Join-Path $dir $targets[1]) + '"'),'-KeysRoot',('"' + $probe + '"'),'-NewProposalRoot',('"' + $output + '"')) -PassThru -Wait -WindowStyle Hidden
+          if($second.ExitCode -eq 0 -or (Test-Path -LiteralPath $output)){throw 'CI_OWNER_SIGNATURE_NOT_BLOCKED'}
+          Write-Output 'AXIOM_WINDOWS_OWNER_SCRIPTS_PARSE_AND_DENY_CI_NO_GO_NOT_RELEASE'

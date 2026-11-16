@@ -1,0 +1,26 @@
+{
+  "schema": "musitu.axiom.authority2.private-initializer-build.v1",
+  "source_commit": "68799a41a367865649b833de649edcb26f77c0d3",
+  "wrangler_version": "4.150.0",
+  "bundle_file": "authority2-private-genesis-controller.js",
+  "bundle_bytes": 27153,
+  "bundle_sha256": "ec884e4117e3ba392c59ae33b029722cb23bba03889a6dd23facd52a9a5aa3c4",
+  "source_sha256": {
+    "integrations/security-authority2/wrangler.private-genesis-review.toml": "05e89237a2d9157192cbf7e1da2d0642d8b24393aca35d5c62676bdd5e7c6cef",
+    "integrations/security-authority2/authority2-private-genesis-controller.mjs": "49f2fefceb7ec0e72e60473e4e482cb051eaf856fcf07536c6c515c4281ea0c4",
+    "integrations/security-authority2/authority2-genesis-candidate.mjs": "2da94e6aa3afeee08e6b95302da3e735ac0f5bf34a722fbfd143b4ff9e7150db",
+    "integrations/security-authority2/authority2-r2-worm.mjs": "ce080ac8b5a6e190cf22e0bf9a5cf34251174822020b3b6da3e349fe4f5e17f7",
+    "integrations/independent-ledger/github-anchor.mjs": "56adbfd251a1dcf77d09ac4f28aebf88d75500ee1ea02dc02733bd86e42f3a01",
+    "integrations/independent-ledger/protocol.mjs": "6783a69358851a5f95595e85c5504282f33bcc407bd9225c7e36a95576c5ac93",
+    "axiom_interface/vnext/execution_integrity.mjs": "d7cdfd215de86fd44b6e25e8adc014ce3314e11e2529f616a5d6f066dd4884d6",
+    "axiom_interface/vnext/analytical_workflows.mjs": "568ebb3d629065d12825f322b9a2465a538fd548a72a6516488d685f5d233520",
+    "axiom_interface/vnext/decision_analysis.mjs": "e8477d71f61627c231fb31e236767cdc37485f317cc16c38f5dd24a304005d35"
+  },
+  "deployment": "NONE",
+  "secrets_used": false,
+  "cron_triggers_configured": false,
+  "public_routes_configured": false,
+  "hosted_genesis_initialized": false,
+  "independent_operator_or_review_qualified": false,
+  "release_status": "NOT_RELEASE"
+}

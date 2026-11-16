@@ -1,0 +1,333 @@
+{
+  "schema": "musitu.axiom.gate3-security-current.v1",
+  "observed_at_utc": "2026-11-16T06:32:21.121Z",
+  "status": "HOLD_OWNER_WINDOWS_AUTHORITY2_POSSESSION_PROOF_AND_HOSTED_ACCEPTANCE_REQUIRED",
+  "gate3_closed": false,
+  "release_status": "NOT_RELEASE",
+  "gate2_closed": true,
+  "gate2_acceptance_commit": "5c03cf457fa0e2bdee7103e2d9f0e4bfd32d9e50",
+  "gate2_candidate_ci": {
+    "run_id": 43636844294,
+    "conclusion": "success"
+  },
+  "product_source_modified": true,
+  "provider_operations": 0,
+  "credentials_or_private_keys_obtained": false,
+  "reviewed_heads": {
+    "pr192": "14b5c520bd7cd53ccd4978f575dfcbe9b250ed0c",
+    "pr83": "fdc89d48f7aa888c67afc4ece3465328cc2a77f6",
+    "pr190": "c22bf1930b8576bc6b3bcc25ffcd40bd08c93ddb",
+    "pr241": "5c03cf457fa0e2bdee7103e2d9f0e4bfd32d9e50"
+  },
+  "local_checks": {
+    "b27_candidate_passes": 190,
+    "legacy_direct_adapter_denial_passes": 5,
+    "workflow_security_contract_passed": true,
+    "owner_proposal_nonce_node_passes": 9,
+    "local_nonce_python_passes": 18,
+    "global_rollback_counterexamples_reproduced": true,
+    "new_genesis_synthetic_checks_passed": 40,
+    "new_genesis_real_local_workerd_checks_passed": 8
+  },
+  "b27_global_nonrollback_verified": false,
+  "hosted_authority_nonce_recovery_qualified": false,
+  "independent_administrator_separation_qualified": false,
+  "builder_admin_credential_revocation_verified": false,
+  "authority2_signer_custody_qualified": false,
+  "authority2_once_only_genesis_qualified": false,
+  "authority2_real_destructive_recovery_qualified": false,
+  "independent_security_review_approved": false,
+  "pr83_fullstack_veto_retained": true,
+  "latest_hosted_ci": {
+    "b27": {
+      "run_id": 43726748255,
+      "head": "68799a41a367865649b833de649edcb26f77c0d3",
+      "candidate": "success",
+      "synthetic_tests_passed": 190,
+      "workerd_sqlite_tests_passed": 35,
+      "release_veto": "failure"
+    },
+    "pr83": {
+      "run_id": 42292436148,
+      "full_stack": "failure",
+      "browser": "success"
+    },
+    "pr190": {
+      "run_id": 42702983241,
+      "full_stack": "failure",
+      "oci": "success",
+      "browser": "success"
+    }
+  },
+  "next_required_input": "The owner confirmed access to the Windows PC. Run the separate offline single-key Authority 2 possession check with the existing encrypted Ed25519 signer and return only OWNER_A2_SIGNER_POSSESSION_PROOF.json. The public signature will be checked against the exact issued domain-separated challenge and trusted public pin before any possession claim. No backup recovery, X25519 operation, private upload, runtime change or provider operation is requested. Pinned Authority 2 source/config approval remains valid; hosted custody and destructive/full-stack acceptance remain open.",
+  "next_gate_blocked": "GATE4_REAL_CUSTOMER_IDENTITY",
+  "source_manifest_sha256": "0e9b2de4e9f3b5982246ed443251563f6489092bd339007538bc01df7552cad5",
+  "local_regression_results_sha256": "bd28f12146727875ac707dd705d0f24f6e1c07ba22b684bc2fb65f0edabd22b9",
+  "main_preserved_sha": "c3c5aaab90e94f1ca84ac9903f9d481c23c4f350",
+  "pr1_preserved_sha": "8fc1fbb7c5ebbcc1604ecf24c5f4594f2d5667e3",
+  "pr1_separate_draft_unmerged": true,
+  "production_oauth_migrated": false,
+  "production_sole_owner_policy_activated": false,
+  "paid_upgrade_or_payment": false,
+  "release_or_merge_performed": false,
+  "authority2_controller": {
+    "name": "Evans Musitu",
+    "role": "OWNER_OPERATOR_SECURITY_AUTHORITY_2",
+    "evidence_origin": "DIRECT_USER_DECLARATION",
+    "declaration_path": "authority2_owner_controller_declaration_20261114.json",
+    "declaration_sha256": "39cd12389215354d0173214a438cadf834424746498af97162c5e1c0e5243360",
+    "provider_qualification_separate": true
+  },
+  "next_engineering_step": "Resume the already approved private operator ceremony when the owner-controlled Windows PC signer session is available. Use the exact approved source/configuration and existing keys; retain prior owner recovery/backup evidence without repeating it. Qualify actual private custody and provider execution, then initialize/retire and exercise disposable hosted destructive recovery before full-stack acceptance. Do not copy the signer into this assistant environment or builder CI.",
+  "known_builder_authority_write_observation": {
+    "evidence_run_id": 43630591859,
+    "scope": "Recovery account 67469478aa9349fa0a57fe3a72da200a, also the pinned Authority 2 account",
+    "github_actions_secret_name": "AXIOM_D1_RECOVERY_CF_API_TOKEN",
+    "capability_observed": "Worker preview upload for the native D1 migration rehearsal",
+    "observation_is_historical_not_fresh_token_probe": true,
+    "subsequent_revocation_not_verified": true,
+    "private_token_value_not_obtained": true
+  },
+  "authority2_owner_direct_access": {
+    "owner_confirmed": true,
+    "administration_and_recovery_outside_github_actions": true,
+    "evidence_origin": "DIRECT_USER_RESPONSE",
+    "evidence_path": "authority2_owner_direct_access_confirmation_20261114.json",
+    "evidence_sha256": "b0713cbfc086e81bd0da9bd38f49232ba95968a5034b25cc1d0a6410e3e70474",
+    "provider_or_custody_independent_qualification_earned": false
+  },
+  "current_operational_block": "OWNER_PC_ACCESS_CONFIRMED_AWAITING_PUBLIC_ONLY_AUTHORITY2_POSSESSION_PROOF",
+  "credential_restrictions_prepared_path": "AUTHORITY2_BUILD_CREDENTIAL_RESTRICTIONS_20261114_NOT_RELEASE.md",
+  "credential_restrictions_applied": false,
+  "owner_confirmation_updated_at_utc": "2026-11-14T21:33:40.634Z",
+  "recovery_token_owner_saved_permission_readback": {
+    "path": "authority2_recovery_token_owner_saved_readback_20261115.json",
+    "sha256": "a990988d325d501f360e8eb8e4cc788f9295ce85f59ff3d66f91d98735707039",
+    "owner_reports_saved": true,
+    "pages_d1_workers_scripts_read_only_owner_reported": true,
+    "evidence_origin": "OWNER_DASHBOARD_READBACK",
+    "independent_provider_policy_verification": false,
+    "other_builder_tokens_still_require_review": true
+  },
+  "credential_restriction_progress": "KNOWN_CREDENTIALS_OWNER_READBACK_RECORDED_INDEPENDENT_POLICY_AND_EFFECTIVE_DENIAL_NOT_QUALIFIED",
+  "credential_restrictions_owner_reported_partially_applied": true,
+  "interaction_mode": "ASSISTANT_ENVIRONMENT_CODE_AND_CI_OWNER_OWN_BROWSER_FOR_PRIVATE_ACCOUNT_OPERATIONS_NO_AGENT_BROWSER_RETRY",
+  "next_credential_source_evidence": {
+    "github_secret_name": "MUSITU_CLOUDFLARE_ADMIN_TOKEN",
+    "run_id": 43374326568,
+    "workflow_path": ".github/workflows/axiom-a2-worker-inventory-20261113.yml",
+    "source_head": "92764fa5768b4a1fa6d8ac176ec6fc4dfec1d7bf",
+    "source_blob": "475f03865e4bd3821e031f2d58ef2d4e7e9f78b8",
+    "observation": "Historical successful GET-only Authority 2 Worker inventory used this separate secret; current policy is not inferred from the secret name."
+  },
+  "known_credentials_owner_reported_review": {
+    "evidence_path": "authority2_owner_remaining_scopes_and_empty_projects_20261115.json",
+    "recovery_token_saved_readonly_owner_readback_previously_recorded": true,
+    "musitu_admin_secret_authority2_write_owner_reports_absent": true,
+    "source_cf_token_account_scope_owner_reports_another_account_only": true,
+    "source_cf_token_other_account_id_not_inferred": true,
+    "all_user_zone_or_alternate_credentials_exhaustively_qualified": false,
+    "independent_provider_policy_or_denial_verification": false
+  },
+  "authority2_current_owner_dashboard": {
+    "account_id": "67469478aa9349fa0a57fe3a72da200a",
+    "status": "NO_PROJECTS_FOUND_OWNER_PASTED_DASHBOARD",
+    "worker_present_owner_reports": false,
+    "projects_visible": 0,
+    "provider_origin_independently_queried_for_this_update": false,
+    "evidence_path": "authority2_owner_remaining_scopes_and_empty_projects_20261115.json"
+  },
+  "prepared_review_packet": {
+    "filename": "MUSITU_AXIOM_AUTHORITY2_PRIVATE_REVIEW_WINDOWS_20261115_NOT_RELEASE.zip",
+    "library_file_id": "libfile_3fcf3e9436608191871865a801a6bd29",
+    "bytes": 68098,
+    "sha256": "c9dee791478ba5927f4636ce50eaee59b52d032f4d1438a111d5f17a28e4df08",
+    "zip_crc_and_member_hashes_verified": true,
+    "build_source_commit": "a2ebd98bef2be6ea61ffe3b37bee2aeb4bf7633e",
+    "runtime_source_unchanged_from": "14b5c520bd7cd53ccd4978f575dfcbe9b250ed0c",
+    "bundle_sha256": "d1ddd1e944bfa4560cc662f7fd12a9b22b3f6493175e4a38b2b3db7e1aed4210",
+    "build_manifest_sha256": "3e34dfed171f8874e08351d0b57a8a9dea93b39774983ee69d5e54943d4904ea",
+    "build_and_windows_run_id": 43676166219,
+    "windows_checks_passed": 6,
+    "bundle_matches_previous_13_nov_ci": true,
+    "includes_private_keys_or_api_tokens": false,
+    "deployment_performed": false,
+    "genesis_initialized": false,
+    "independent_security_approval_earned": false
+  },
+  "current_review_update_utc": "2026-11-16T06:32:21.121Z",
+  "serving_worker_r2_module_or_wrangler_config_modified": false,
+  "source_change_is_review_only_genesis_candidate": true,
+  "current_review_heads": {
+    "pr192": "68799a41a367865649b833de649edcb26f77c0d3",
+    "pr242": "f6d34d3663e3140665fdc740a529211019a0f46a",
+    "pr190": "c22bf1930b8576bc6b3bcc25ffcd40bd08c93ddb",
+    "pr83": "fdc89d48f7aa888c67afc4ece3465328cc2a77f6",
+    "pr241_evidence_parent": "1a2d99febdc4687536a591f361e89dfaced269ec"
+  },
+  "authority2_current_r2_owner_readback": {
+    "path": "authority2_owner_r2_retention_readback_20261115.json",
+    "required_retention_reported_enabled": true,
+    "prefix": "b27/",
+    "duration": "Indefinite",
+    "public_development_url_reported_disabled": true,
+    "independently_queried_for_this_update": false,
+    "further_owner_readback_pending": false
+  },
+  "environment_packet_verification": {
+    "path": "authority2_environment_packet_integrity_20261115.json",
+    "original_zip_sha256": "c9dee791478ba5927f4636ce50eaee59b52d032f4d1438a111d5f17a28e4df08",
+    "original_zip_members_verified": 25,
+    "owner_pc_execution_claimed": false,
+    "native_windows_reverification_run_id": 43722237957,
+    "native_windows_checks_passed": 6,
+    "no_owner_laptop_task_pending_for_this_step": true,
+    "latest_native_windows_ci_run_id": 43726748283
+  },
+  "genesis_candidate_engineering": {
+    "source_commit": "68799a41a367865649b833de649edcb26f77c0d3",
+    "proposal_path": "integrations/security-authority2/authority2-genesis-candidate.mjs",
+    "local_qualification_path": "authority2_genesis_candidate_local_qualification_20261115.json",
+    "hosted_ci_path": "authority2_environment_hosted_ci_qualification_20261115.json",
+    "synthetic_checks_added": 40,
+    "genuine_local_workerd_sqlite_r2_checks_added": 8,
+    "imported_by_serving_worker": false,
+    "temporary_initializer_controller_separately_reviewed": false,
+    "hosted_genesis_initialized": false,
+    "independent_security_approval": false,
+    "temporary_private_controller_implemented_as_review_candidate": true
+  },
+  "historical_local_checks_20261114": {
+    "b27_candidate_passes": 95,
+    "legacy_direct_adapter_denial_passes": 5,
+    "workflow_security_contract_passed": true,
+    "owner_proposal_nonce_node_passes": 9,
+    "local_nonce_python_passes": 18,
+    "global_rollback_counterexamples_reproduced": true
+  },
+  "provider_operations_scope": "Cloudflare account/resource operations; draft GitHub code/evidence commits and credential-free CI are separately recorded.",
+  "latest_staging_bridge_ci": {
+    "run_id": 43728658569,
+    "job_id": 132856022539,
+    "conclusion": "success",
+    "checks_passed": 20,
+    "actual_local_d1_checks": 15,
+    "contract_static_checks": 5,
+    "hosted_provider_qualified": false
+  },
+  "private_controller_and_retirement_candidate": {
+    "source_commit": "68799a41a367865649b833de649edcb26f77c0d3",
+    "proposal_path": "integrations/security-authority2/authority2-private-genesis-controller.mjs",
+    "retirement_checker_path": "integrations/security-authority2/authority2-initializer-retirement.mjs",
+    "build_run_id": 43726748283,
+    "private_bundle_sha256": "ec884e4117e3ba392c59ae33b029722cb23bba03889a6dd23facd52a9a5aa3c4",
+    "synthetic_controller_and_retirement_tests_qualified": true,
+    "actual_private_controller_workerd_tests_passed": 5,
+    "dormant_cron_and_public_routes": true,
+    "operator_execution_or_independent_review_qualified": false
+  },
+  "frontier_isolated_staging_candidate": {
+    "draft_pr": 242,
+    "base_pr": 190,
+    "source_commit": "f6d34d3663e3140665fdc740a529211019a0f46a",
+    "review_only_not_imported_by_product": true,
+    "legacy_adapter_and_fullstack_veto_unchanged": true,
+    "checks_passed": 20,
+    "actual_local_d1_checks": 15,
+    "hosted_or_fullstack_acceptance_qualified": false
+  },
+  "remaining_external_inputs_path": "gate3_remaining_external_acceptance_inputs_20261115.json",
+  "latest_engineering_progress_path": "gate3_private_controller_and_staging_progress_20261115.json",
+  "gate3_reviewer": {
+    "name": "Evans Musitu",
+    "assignment_origin": "DIRECT_USER_INSTRUCTION",
+    "assignment_path": "gate3_owner_named_reviewer_declaration_20261115.json",
+    "role_assignment_resolved": true,
+    "source_review_decision": "APPROVE_AUTHORITY2_SOURCE_AND_DISPOSABLE_CONFIG_ONLY",
+    "reviewer_identity_question_resolved": true,
+    "source_review_approval_path": "authority2_owner_source_config_approval_20261116.json"
+  },
+  "authority2_public_signer_candidate": {
+    "source_receipt": "owner_public_key_20261115/OWNER_ED25519_PUBLIC_DOWNLOAD_RECEIPT.json",
+    "original_der": "owner_public_key_20261115/owner_ed25519_spki.der",
+    "public_jwk_path": "owner_public_key_20261115/owner_ed25519_public.jwk.json",
+    "spki_sha256": "6792c82b245cd45051052cc1b00eb5f99a99489829c3f0567c7c15f741389d8a",
+    "public_key_jwk": {
+      "kty": "OKP",
+      "crv": "Ed25519",
+      "x": "9G3Dzw62h9a094zdQFLO5AfoI637Su8Y9mMT-k0ynrs"
+    },
+    "canonical_der_roundtrip_verified": true,
+    "authority2_role_binding_approved": true,
+    "separate_private_signer_custody_qualified": false,
+    "runtime_trust_pin_changed": false,
+    "authority2_role_declaration_path": "authority2_public_role_20261116/authority2_owner_separate_signer_declaration_20261116.json",
+    "full_identity_binding_approved": true,
+    "full_identity_binding_approval_scope": "DISPOSABLE_AUTHORITY_QUALIFICATION_ONLY",
+    "source_config_approval_path": "authority2_owner_source_config_approval_20261116.json"
+  },
+  "authority2_qualification_public_identity_proposal": {
+    "config_path": "authority2_public_role_20261116/AUTHORITY2_PUBLIC_QUALIFICATION_CONFIG_PROPOSED_20261116.json",
+    "validation_path": "authority2_public_role_20261116/AUTHORITY2_PUBLIC_QUALIFICATION_CONFIG_CHECK_20261116.json",
+    "review_request_path": "authority2_public_role_20261116/GATE3_AUTHORITY2_REVIEW_REQUEST_20261116_NOT_RELEASE.md",
+    "config_sha256": "bc09d63349f611a71f0eef6c1ad1d00bd861454aeab7c41f9565056758f2f8e3",
+    "scope": "PROPOSED_DISPOSABLE_AUTHORITY_QUALIFICATION_ONLY",
+    "public_config": {
+      "account_id": "67469478aa9349fa0a57fe3a72da200a",
+      "ledger_id": "axiom-b27-a2-qualification-20261116-6792c82b245cd450",
+      "namespace": "ax-a2-qualification-20261116-6792c82b245cd450",
+      "key_id": "a2-ed25519-6792c82b245cd450",
+      "public_key_jwk": {
+        "kty": "OKP",
+        "crv": "Ed25519",
+        "x": "9G3Dzw62h9a094zdQFLO5AfoI637Su8Y9mMT-k0ynrs"
+      }
+    },
+    "matching_consumer_pin": {
+      "account_id": "67469478aa9349fa0a57fe3a72da200a",
+      "ledger_id": "axiom-b27-a2-qualification-20261116-6792c82b245cd450",
+      "namespace": "ax-a2-qualification-20261116-6792c82b245cd450",
+      "key_id": "a2-ed25519-6792c82b245cd450",
+      "public_key_jwk": {
+        "kty": "OKP",
+        "crv": "Ed25519",
+        "x": "9G3Dzw62h9a094zdQFLO5AfoI637Su8Y9mMT-k0ynrs"
+      }
+    },
+    "owner_approved_identity_binding": true,
+    "namespace_unused_verified": false,
+    "deployed": false,
+    "production_identity_binding": false,
+    "approval_path": "authority2_owner_source_config_approval_20261116.json",
+    "proposal_state": "OWNER_APPROVED_FOR_DISPOSABLE_QUALIFICATION_NOT_INSTALLED"
+  },
+  "authority2_source_config_review": {
+    "decision": "APPROVE",
+    "reviewer": "Evans Musitu",
+    "approval_path": "authority2_owner_source_config_approval_20261116.json",
+    "source_commit": "68799a41a367865649b833de649edcb26f77c0d3",
+    "public_config_sha256": "bc09d63349f611a71f0eef6c1ad1d00bd861454aeab7c41f9565056758f2f8e3",
+    "scope": "DISPOSABLE_AUTHORITY_QUALIFICATION_ONLY"
+  },
+  "independent_security_review_pending_scope": "Whole Gate 3 provider/custody/destructive and full-stack staging acceptance; the pinned Authority 2 source/configuration review is separately APPROVED.",
+  "operator_next_step_path": "AUTHORITY2_APPROVED_OPERATOR_NEXT_STEP_20261116_NOT_RELEASE.md",
+  "authority2_signer_location": {
+    "receipt_path": "authority2_owner_signer_location_20261116.json",
+    "owner_reported_locations": [
+      "Windows PC",
+      "recovery USB drive"
+    ],
+    "evidence_scope": "OWNER_REPORT_ONLY",
+    "location_question_resolved": true,
+    "live_operator_session_established": false
+  },
+  "authority2_owner_pc_access_confirmed": true,
+  "authority2_offline_possession_check": {
+    "preparation_path": "authority2_signer_possession_20261116/helper_preparation.json",
+    "challenge_sha256": "60cd2f0ceec35106bc90beb7bfdb00326223d0a871a893f455e9dc0350a57878",
+    "challenge_id": "afd56cb00b41969342398146ac99b2f2cb434d96b4268d519f17183905b1a2c7",
+    "expires_at_utc": "2026-11-17T06:17:47.524Z",
+    "actual_owner_proof_verified": false,
+    "native_windows_status": "PENDING_FRESH_CI_RESULT"
+  }
+}

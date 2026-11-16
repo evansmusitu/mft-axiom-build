@@ -1,0 +1,21 @@
+{
+  "schema": "musitu.axiom.authority2-controller-declaration.v1",
+  "recorded_at_utc": "2026-11-14T20:59:11.851Z",
+  "controller_name": "Evans Musitu",
+  "role": "OWNER_OPERATOR_SECURITY_AUTHORITY_2",
+  "authority2_account": "67469478aa9349fa0a57fe3a72da200a",
+  "source": "DIRECT_USER_DECLARATION_IN_THIS_CONVERSATION",
+  "user_statement": "i am controller of **Security Authority 2**",
+  "controller_identified_by_owner_declaration": true,
+  "provider_control_verified_by_this_declaration": false,
+  "independent_administrator_separation_verified": false,
+  "signer_custody_verified": false,
+  "global_anti_rollback_verified": false,
+  "independent_security_review_approved": false,
+  "production_governance_transition_activated": false,
+  "gate2_closed": true,
+  "gate3_closed": false,
+  "provider_operations": 0,
+  "new_key_ceremony_required_by_this_record": false,
+  "release_status": "NOT_RELEASE"
+}

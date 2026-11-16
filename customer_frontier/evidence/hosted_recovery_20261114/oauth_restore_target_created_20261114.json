@@ -1,0 +1,21 @@
+{
+  "schema": "musitu.axiom.production-oauth-restore-target.v1",
+  "observed_at_utc": "2026-11-14T18:24:06.135Z",
+  "recovery_account": "67469478aa9349fa0a57fe3a72da200a",
+  "production_database": "504029cc-f9a5-495e-818f-63c6144b4ea4",
+  "target_name": "axiom-oauth-step2-disposable-restore-20261114-704a7351",
+  "owner_recipient_spki_sha256": "704a7351da66a21e0b35df4880df194f1cf0e17b161246671288141beae7262c",
+  "existing_idp_recovery_preserved": true,
+  "creation_attempted": true,
+  "creation_outcome": "CREATED",
+  "target_uuid": "5c092b73-d093-483d-adf9-9883a8c2f063",
+  "target_creation_readback_verified": true,
+  "target_empty_schema_verified": true,
+  "production_mutation_routes_available": false,
+  "production_oauth_migrated": false,
+  "gate2_closed": false,
+  "release_status": "NOT_RELEASE",
+  "status": "OAUTH_TARGET_CREATED_EMPTY_CONFIRMED",
+  "workers_paid_subscription_absent": true,
+  "preexisting_r2_subscription_count": 1
+}

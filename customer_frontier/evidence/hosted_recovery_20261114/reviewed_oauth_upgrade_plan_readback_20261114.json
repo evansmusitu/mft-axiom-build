@@ -1,0 +1,17 @@
+{
+  "schema": "musitu.axiom.reviewed-oauth-upgrade-plan-readback.v1",
+  "source_git_sha": "67887fd5b6d5f97bc07326a04e2038db97f7206c",
+  "plan_sha256": "6946e796539e6787033e20f1d0afdcb5259a130ca77be6e3c5afb60b5dc9888a",
+  "statements": 89,
+  "local_original_regression_tests": 21,
+  "local_original_regression_result": "PASS_AFTER_HISTORICAL_FIXTURE_MATERIALIZED",
+  "initial_local_attempt": "MISSING_HISTORICAL_TEST_FIXTURE_NOT_PRODUCT_REGRESSION",
+  "native_D1_batch_qualified": false,
+  "production_database": "504029cc-f9a5-495e-818f-63c6144b4ea4",
+  "production_database_bytes": 3092480,
+  "production_catalog_sha256": "df1ae1ca73513313bb351c50e859f5767a72306eff076ba0283e89b3c019c364",
+  "production_metadata_schema_preflight": true,
+  "production_customer_rows_read": 0,
+  "production_changes": false,
+  "release_status": "NOT_RELEASE"
+}

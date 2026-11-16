@@ -1,0 +1,106 @@
+name: AXIOM Step1 owner-control D1 current metadata GET-only (NOT RELEASE)
+on:
+  push:
+    branches:
+      - review/axiom-step1-owner-sole-authority-policy-20261112-not-release
+    paths:
+      - .github/workflows/axiom-step1-owner-provider-readonly-20261112.yml
+permissions:
+  contents: read
+jobs:
+  owner-step1-readonly:
+    if: >-
+      github.repository == 'evansmusitu/mft-axiom-build' &&
+      github.actor == 'evansmusitu' &&
+      github.ref == 'refs/heads/review/axiom-step1-owner-sole-authority-policy-20261112-not-release' &&
+      github.run_attempt == 1
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - name: Inspect only Cloudflare metadata with GET, never export SQL or log secrets
+        shell: bash
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import hashlib,json,os,urllib.request,urllib.error
+          ACCOUNT='93f395f5121954671f92fffa453d6b61'
+          SOURCE='ccc473f1-fbb5-4b8d-8a24-45f3696ac10f'
+          TOKEN=os.environ.get('CLOUDFLARE_API_TOKEN','')
+          receipt={
+            'schema':'musitu.axiom.step1.owner-d1-provider-metadata.v1',
+            'scope':'READ_ONLY_GET_METADATA_NO_ROWS_NO_SQL',
+            'source_account':ACCOUNT,'source_database':SOURCE,
+            'source_detail_http':'UNREAD','source_db_uuid_matches':False,
+            'database_list_http':'UNREAD','known_database_count':None,
+            'subscriptions_http':'UNREAD','workers_plan':'UNVERIFIED',
+            'authenticated_provider_readback_qualified':False,
+            'zero_additional_spend_qualified':False,
+            'new_disposable_target_approved':False,
+            'source_backup_encrypted_qualified':False,
+            'hosted_restore_parity_qualified':False,
+            'tenant_isolation_qualified':False,
+            'owner_mfa_qualified':False,
+            'step_1_closed':False,'step_2_authorized':False,
+            'b27_synthetic_cas':'FAIL','pr83_fullstack':'FAIL',
+            'release':'NOT_RELEASE','status':'STEP1_PROVIDER_METADATA_PARTIAL_NO_GO'
+          }
+          class NoRedirect(urllib.request.HTTPRedirectHandler):
+            def redirect_request(self,*args,**kwargs): return None
+          opener=urllib.request.build_opener(NoRedirect())
+          def get(path):
+            assert path in ('/d1/database/'+SOURCE,'/d1/database?per_page=100&page=1','/subscriptions')
+            if not TOKEN or any(c in TOKEN for c in '\r\n'):return 'TOKEN_UNAVAILABLE',None
+            req=urllib.request.Request('https://api.cloudflare.com/client/v4/accounts/'+ACCOUNT+path,
+              method='GET',headers={'Authorization':'Bearer '+TOKEN,'Accept':'application/json'})
+            try:
+              with opener.open(req,timeout=15) as res:
+                if res.status!=200:return str(res.status),None
+                raw=res.read(200001)
+                if len(raw)>200000:return 'OVERSIZED_RESPONSE',None
+                try:data=json.loads(raw)
+                except (ValueError,UnicodeError):return 'BAD_JSON',None
+                return 200,data if isinstance(data,dict) and data.get('success') is True else None
+            except urllib.error.HTTPError as e:return e.code,None
+            except (OSError,ValueError,TimeoutError):return 'UNAVAILABLE',None
+          try:
+            code,item=get('/d1/database/'+SOURCE)
+            receipt['source_detail_http']=code
+            if code==200 and isinstance(item,dict) and isinstance(item.get('result'),dict):
+              receipt['source_db_uuid_matches']=item['result'].get('uuid')==SOURCE
+            code,db=get('/d1/database?per_page=100&page=1')
+            receipt['database_list_http']=code
+            if code==200 and isinstance(db,dict):
+              info=db.get('result_info') or {}
+              if isinstance(info,dict) and type(info.get('total_count')) is int:
+                receipt['known_database_count']=info['total_count']
+            code,subs=get('/subscriptions')
+            receipt['subscriptions_http']=code
+            if code==200 and isinstance(subs,dict) and isinstance(subs.get('result'),list):
+              for s in subs['result']:
+                if not isinstance(s,dict):continue
+                rate=s.get('rate_plan') or {}
+                if isinstance(rate,dict) and any('worker' in str(rate.get(f,'')).lower() for f in ('name','id')):
+                  state=s.get('state')
+                  receipt['workers_plan']=state if state in ('Paid','Trial','Provisioned','Cancelled') else 'UNVERIFIED'
+            receipt['authenticated_provider_readback_qualified']=(
+              receipt['source_detail_http']==200 and receipt['source_db_uuid_matches'] and
+              receipt['database_list_http']==200 and receipt['subscriptions_http']==200)
+          finally:
+            raw=(json.dumps(receipt,sort_keys=True,indent=2)+'\n').encode()
+            out='axiom_step1_owner_provider_metadata_readonly_20261112.json'
+            with open(out,'wb') as f:f.write(raw)
+            with open(out+'.sha256','w') as f:f.write(hashlib.sha256(raw).hexdigest()+'  '+out+'\n')
+            print('AXIOM_STEP1_PROVIDER_METADATA_NO_GO_NOT_RELEASE')
+          PY
+      - name: Retain only sanitized evidence and its SHA256, no identity rows
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: axiom-step1-owner-provider-metadata-20261112
+          retention-days: 10
+          if-no-files-found: error
+          path: |
+            axiom_step1_owner_provider_metadata_readonly_20261112.json
+            axiom_step1_owner_provider_metadata_readonly_20261112.json.sha256

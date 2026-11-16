@@ -1,0 +1,50 @@
+{
+  "schema": "musitu.axiom.authority2.public-qualification-config-check.v1",
+  "observed_at_utc": "2026-11-15T22:34:29.747Z",
+  "source_commit": "68799a41a367865649b833de649edcb26f77c0d3",
+  "source_files": [
+    {
+      "source_path": "integrations/security-authority2/authority2-highwater-worker.mjs",
+      "git_blob_sha": "781741dc1ff74b87a853defa04e8762ebf277cef",
+      "blob_verified": true,
+      "sha256": "7e29a46bb0924c5a7eb0d60d79885f36a0b6945e022fb37a56898bce3aec6df1"
+    },
+    {
+      "source_path": "integrations/security-authority2/authority2-r2-worm.mjs",
+      "git_blob_sha": "1f3c0775e237746262adf860cad39403a624214d",
+      "blob_verified": true,
+      "sha256": "ce080ac8b5a6e190cf22e0bf9a5cf34251174822020b3b6da3e349fe4f5e17f7"
+    }
+  ],
+  "config_file": "AUTHORITY2_PUBLIC_QUALIFICATION_CONFIG_PROPOSED_20261116.json",
+  "config_sha256": "bc09d63349f611a71f0eef6c1ad1d00bd861454aeab7c41f9565056758f2f8e3",
+  "spki_sha256": "6792c82b245cd45051052cc1b00eb5f99a99489829c3f0567c7c15f741389d8a",
+  "public_key_matches_downloaded_original": true,
+  "original_serving_config_parser_accepted": true,
+  "original_worm_key_function_accepted": true,
+  "object_name": "highwater/axiom-b27-a2-qualification-20261116-6792c82b245cd450/ax-a2-qualification-20261116-6792c82b245cd450",
+  "proposed_sequence_zero_r2_key": "b27/67469478aa9349fa0a57fe3a72da200a/axiom-b27-a2-qualification-20261116-6792c82b245cd450/ax-a2-qualification-20261116-6792c82b245cd450/000000000000.json",
+  "scope": "OFFLINE_PUBLIC_CONFIGURATION_VALIDATION_WITH_SYNTHETIC_DISPATCH_ONLY",
+  "matching_consumer_pin": {
+    "account_id": "67469478aa9349fa0a57fe3a72da200a",
+    "ledger_id": "axiom-b27-a2-qualification-20261116-6792c82b245cd450",
+    "namespace": "ax-a2-qualification-20261116-6792c82b245cd450",
+    "key_id": "a2-ed25519-6792c82b245cd450",
+    "public_key_jwk": {
+      "kty": "OKP",
+      "crv": "Ed25519",
+      "x": "9G3Dzw62h9a094zdQFLO5AfoI637Su8Y9mMT-k0ynrs"
+    }
+  },
+  "initial_source_materialization_failure": "PUBLIC_CONFIG_SOURCE_MATERIALIZATION_CORRECTION_20261116.json",
+  "namespace_unused_verified": false,
+  "operator_approved_identity_binding": false,
+  "private_key_possession_or_custody_qualified": false,
+  "actual_durable_object_invoked": false,
+  "cloudflare_provider_operations": 0,
+  "network_operations": 0,
+  "deployment_performed": false,
+  "genesis_initialized": false,
+  "gate3_closed": false,
+  "release_status": "NOT_RELEASE"
+}

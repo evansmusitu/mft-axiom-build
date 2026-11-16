@@ -1,0 +1,21 @@
+{
+  "schema": "musitu.axiom.authority2.candidate-ci-summary.v1",
+  "source_commit": "a2ebd98bef2be6ea61ffe3b37bee2aeb4bf7633e",
+  "run_id": 43676166225,
+  "job_id": 132696681219,
+  "synthetic_tests_passed": 95,
+  "workerd_sqlite_tests_passed": 22,
+  "global_rollback_qualified": false,
+  "release_veto_conclusion": "failure",
+  "two_host_synthetic_run_id": 43676166257,
+  "two_host_synthetic_conclusion": "success",
+  "selected_log_lines": [
+    "2026-11-15T04:18:28.9564310Z !9 tests 95",
+    "2026-11-15T04:18:28.9565330Z !9 pass 95",
+    "2026-11-15T04:18:38.4421110Z !9 tests 22",
+    "2026-11-15T04:18:38.4422054Z !9 pass 22",
+    "2026-11-15T04:18:38.4544964Z B27_GLOBAL_NONROLLBACK_NOT_YET_PROVEN"
+  ],
+  "provider_operations": 0,
+  "release_status": "NOT_RELEASE"
+}

@@ -1,0 +1,140 @@
+name: AXIOM Step1 hosted D1 owner candidate exact-target GET only (NOT RELEASE)
+on:
+  push:
+    branches:
+      - review/axiom-step1-owner-sole-authority-policy-20261112-not-release
+    paths:
+      - .github/workflows/axiom-step1-hosted-d1-owner-candidate-preflight-getonly-20261113.yml
+permissions: {contents: read}
+jobs:
+  source-target-readonly:
+    if: >-
+      github.repository == 'evansmusitu/mft-axiom-build' &&
+      github.actor == 'evansmusitu' &&
+      github.ref == 'refs/heads/review/axiom-step1-owner-sole-authority-policy-20261112-not-release' &&
+      github.run_attempt == 1
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - name: Exact-source and signed-candidate metadata-only Cloudflare GET, sanitized evidence
+        shell: bash
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import hashlib,json,os,re,urllib.request,urllib.error
+          from datetime import datetime,timezone
+          from urllib.parse import urlencode
+          ACCOUNT='93f395f5121954671f92fffa453d6b61'
+          SOURCE='ccc473f1-fbb5-4b8d-8a24-45f3696ac10f'
+          RESERVED='c023a0a0-472a-4178-ad07-02f1d6b2e122'
+          TARGET='axiom-idp-step1-disposable-restore-20261113-a39dbdca'
+          TOKEN=os.environ.get('CLOUDFLARE_API_TOKEN','')
+          OUT='axiom_step1_hosted_d1_candidate_readonly_20261113.json'
+          receipt={'schema':'musitu.axiom.step1.hosted-d1-candidate-readonly.v1',
+            'captured_at_utc':datetime.now(timezone.utc).isoformat(),
+            'method':'GET_ONLY_METADATA_NO_SQL_NO_ROWS',
+            'account':ACCOUNT,'source_uuid':SOURCE,
+            'proposed_name_sha256':hashlib.sha256(TARGET.encode()).hexdigest(),
+            'source_detail_http':'UNREAD','source_uuid_verified':False,
+            'catalog_http':'UNREAD','catalog_complete':False,'catalog_count':None,
+            'signed_proposed_target_name_absent':False,
+            'historical_reserved_present':None,'historical_reserved_detail_http':'UNREAD',
+            'workers_subscription_http':'UNREAD','workers_paid_active':False,
+            'current_invoice_verified':False,'current_billing_cycle_verified':False,
+            'provider_hard_zero_additional_spend_guarantee_qualified':False,
+            'new_disposable_creation_authorized':False,
+            'current_sql_backup_qualified':False,'sql_export_authorized':False,
+            'customer_data_restoration_authorized':False,
+            'hosted_restore_parity_qualified':False,'tenant_isolation_qualified':False,
+            'owner_identity_mfa_independently_qualified':False,
+            'owner_local_proposal_is_provider_permission':False,
+            'b27_synthetic_cas':'FAIL','pr83_fullstack':'FAIL',
+            'step1_closed':False,'step2_authorized':False,'release':'NOT_RELEASE',
+            'status':'HOSTED_D1_PREFLIGHT_NO_GO'}
+          class NoRedirect(urllib.request.HTTPRedirectHandler):
+            def redirect_request(self,*args,**kwargs):return None
+          opener=urllib.request.build_opener(NoRedirect())
+          class Stop(Exception):pass
+          def get(path):
+            allowed=path in ('/d1/database/'+SOURCE,'/d1/database/'+RESERVED,'/subscriptions')
+            allowed=allowed or re.fullmatch(r'/d1/database\?page=[1-5]&per_page=100',path) is not None
+            if not allowed:raise Stop('UNAPPROVED_GET_PATH')
+            if not TOKEN or '\r' in TOKEN or '\n' in TOKEN:raise Stop('TOKEN_UNAVAILABLE')
+            request=urllib.request.Request('https://api.cloudflare.com/client/v4/accounts/'+ACCOUNT+path,method='GET',headers={'Authorization':'Bearer '+TOKEN,'Accept':'application/json'})
+            try:
+              with opener.open(request,timeout=16) as response:
+                if response.status!=200:raise Stop('PROVIDER_NON_200')
+                raw=response.read(200001)
+                if len(raw)>200000:raise Stop('OVERSIZED_RESPONSE')
+                value=json.loads(raw)
+                if not isinstance(value,dict) or value.get('success') is not True:raise Stop('INVALID_PROVIDER_ENVELOPE')
+                return value
+            except urllib.error.HTTPError as e:raise Stop('HTTP_'+str(e.code)) from None
+            except (TimeoutError,OSError,ValueError,UnicodeError):raise Stop('PROVIDER_UNAVAILABLE') from None
+          try:
+            source=get('/d1/database/'+SOURCE)
+            receipt['source_detail_http']=200
+            receipt['source_uuid_verified']=(source.get('result') or {}).get('uuid')==SOURCE
+            if not receipt['source_uuid_verified']:raise Stop('SOURCE_UUID_NOT_MATCHED')
+            page=1;seen_names=set();seen_uuids=set();total=None
+            while page<=5:
+              doc=get('/d1/database?'+urlencode({'page':page,'per_page':100}))
+              receipt['catalog_http']=200
+              items=doc.get('result');info=doc.get('result_info')
+              if not isinstance(items,list) or not isinstance(info,dict):raise Stop('BAD_CATALOG')
+              if any(type(info.get(k)) is not int for k in ('page','per_page','count','total_count')):raise Stop('BAD_PAGINATION')
+              if info['page']!=page or info['per_page']!=100 or info['count']!=len(items):raise Stop('PAGE_DRIFT')
+              if total is None:total=info['total_count']
+              if total!=info['total_count'] or total>500:raise Stop('COUNT_DRIFT_OR_UNBOUNDED')
+              if len(items)!=min(100,max(0,total-(page-1)*100)):raise Stop('INCOMPLETE_PAGE')
+              for row in items:
+                if not isinstance(row,dict):raise Stop('BAD_CATALOG_ROW')
+                name=row.get('name');ident=row.get('uuid')
+                if not isinstance(name,str) or not isinstance(ident,str) or name in seen_names or ident in seen_uuids:raise Stop('DUPLICATE_OR_INVALID_ROW')
+                seen_names.add(name);seen_uuids.add(ident)
+              if len(seen_names)>=total:break
+              page+=1
+            if len(seen_names)!=total or SOURCE not in seen_uuids:raise Stop('CATALOG_INCOMPLETE_OR_SOURCE_MISSING')
+            receipt['catalog_complete']=True
+            receipt['catalog_count']=total
+            receipt['signed_proposed_target_name_absent']=TARGET not in seen_names
+            receipt['historical_reserved_present']=RESERVED in seen_uuids
+            try:
+              detail=get('/d1/database/'+RESERVED)
+              receipt['historical_reserved_detail_http']=200
+            except Stop as e:
+              receipt['historical_reserved_detail_http']=str(e)
+            subs=get('/subscriptions')
+            receipt['workers_subscription_http']=200
+            for item in subs.get('result',[]):
+              if not isinstance(item,dict):continue
+              rate=item.get('rate_plan') or {}
+              if isinstance(rate,dict) and any('worker' in str(rate.get(k,'')).lower() for k in ('id','name')):
+                receipt['workers_paid_active']=receipt['workers_paid_active'] or item.get('state')=='Paid'
+            receipt['status']='SOURCE_AND_CATALOG_READBACK_NO_GO' if receipt['catalog_complete'] else 'HOSTED_D1_PREFLIGHT_NO_GO'
+          except Stop as e:
+            receipt['sanitized_error']=str(e)
+          except (TypeError,KeyError,AttributeError):
+            receipt['sanitized_error']='UNEXPECTED_PROVIDER_RESPONSE_SHAPE'
+          raw=(json.dumps(receipt,sort_keys=True,indent=2)+'\n').encode('utf-8')
+          with open(OUT,'wb') as f:f.write(raw)
+          with open(OUT+'.sha256','w') as f:f.write(hashlib.sha256(raw).hexdigest()+'  '+OUT+'\n')
+          print('AXIOM_STEP1_HOSTED_D1_GETONLY_PREFLIGHT_NO_GO_NOT_RELEASE')
+          print('sanitized_status='+receipt['status'])
+          print('catalog_complete='+str(receipt['catalog_complete']))
+          print('source_verified='+str(receipt['source_uuid_verified']))
+          print('candidate_name_absent='+str(receipt['signed_proposed_target_name_absent']))
+          print('workers_paid='+str(receipt['workers_paid_active']))
+          PY
+      - name: Preserve only sanitised metadata receipt and SHA256
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: axiom-step1-hosted-d1-owner-candidate-readonly-20261113
+          retention-days: 10
+          if-no-files-found: error
+          path: |
+            axiom_step1_hosted_d1_candidate_readonly_20261113.json
+            axiom_step1_hosted_d1_candidate_readonly_20261113.json.sha256

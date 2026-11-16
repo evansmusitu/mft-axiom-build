@@ -1,0 +1,29 @@
+name: AXIOM Step1 owner public-pin preflight OFFLINE ONLY (NOT RELEASE)
+on:
+  push:
+    branches:
+      - review/axiom-step1-owner-sole-authority-policy-20261112-not-release
+    paths:
+      - .github/workflows/axiom-step1-owner-public-pin-preflight-20261112.yml
+      - customer_frontier/qualification/step1_owner_public_pin_preflight.mjs
+      - customer_frontier/tests/step1_owner_public_pin_preflight.test.mjs
+permissions: { contents: read }
+jobs:
+  owner-public-pin-offline:
+    if: >-
+      github.repository == 'evansmusitu/mft-axiom-build' &&
+      github.ref == 'refs/heads/review/axiom-step1-owner-sole-authority-policy-20261112-not-release' &&
+      github.run_attempt == 1
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - name: Checkout isolated candidate without stored credentials
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with: { persist-credentials: false }
+      - name: Validate offline public-key preflight syntax
+        run: node --check customer_frontier/qualification/step1_owner_public_pin_preflight.mjs
+      - name: Run negative and synthetic public-key tests (no user keys or secrets)
+        run: node --test customer_frontier/tests/step1_owner_public_pin_preflight.test.mjs
+      - name: Confirm no runtime qualification or D1 mutation was requested
+        run: |
+          node -e "import('./customer_frontier/qualification/step1_owner_public_pin_preflight.mjs').then(m=>{if(m.SOURCE_D1!=='ccc473f1-fbb5-4b8d-8a24-45f3696ac10f')process.exit(2);console.log('OWNER_PIN_OFFLINE_TEST_ONLY_NO_GO_NOT_RELEASE')})"

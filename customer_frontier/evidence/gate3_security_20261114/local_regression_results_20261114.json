@@ -1,0 +1,186 @@
+{
+  "schema": "musitu.axiom.gate3-local-regression-results.v1",
+  "recorded_at_utc": "2026-11-14T20:26:04.398719+00:00",
+  "provider_operations": 0,
+  "real_keys_used": false,
+  "product_source_modified": false,
+  "results": [
+    {
+      "name": "b27_regressions",
+      "argv": [
+        "node",
+        "--test",
+        "integrations/security-authority2/authority2-active-deployment.test.mjs",
+        "integrations/security-authority2/authority2-highwater-worker.test.mjs",
+        "integrations/security-authority2/authority2-lock-policy.test.mjs",
+        "integrations/security-authority2/authority2-provider-readonly-check.test.mjs",
+        "integrations/security-authority2/authority2-worker-bindings.test.mjs",
+        "integrations/security-authority2/authority2-wrangler-config.test.mjs",
+        "integrations/security-authority2/b27-artifact-trust-binding.test.mjs",
+        "integrations/security-authority2/b27-ci-release-veto.test.mjs",
+        "integrations/security-authority2/b27-crosshost-checkpoint.test.mjs",
+        "integrations/security-authority2/b27-provider-pin-consistency.test.mjs",
+        "integrations/security-authority2/b27-record-integrity-regression.test.mjs",
+        "integrations/security-authority2/external-highwater-fence.test.mjs"
+      ],
+      "exit_code": 0,
+      "observed_at_utc": "2026-11-14T20:24:12.806559+00:00",
+      "log_path": "b27_regressions.log",
+      "log_sha256": "a0b695ff15e8a954dc5bcac7e138b53d19c32bce81bc4c59a16ff1186b11e8b6",
+      "tail": [
+        "\u2714 concurrent duplicate admissions allow at most one (2.77754ms)",
+        "\u2714 negative counterexample: if independently held witness is also reset, an old admission can be reissued (2.906679ms)",
+        "\u2714 rejects substitution of a different valid account even with valid signer/origin (0.489937ms)",
+        "\u2714 B27: uncooperative external fetch cannot hold authorization indefinitely (101.671832ms)",
+        "\u2714 B27: uncooperative response body cannot hold authorization indefinitely (102.01488ms)",
+        "\u2714 B27: ambiguous readback after committed append must deny consumer permission (102.541035ms)",
+        "\u2714 B27: streamed response reader ignoring abort cannot stall admission (106.053218ms)",
+        "\u2714 B27: oversized streaming provider response rejected before JSON parse or permit (1.808901ms)",
+        "\u2139 tests 95",
+        "\u2139 suites 0",
+        "\u2139 pass 95",
+        "\u2139 fail 0",
+        "\u2139 cancelled 0",
+        "\u2139 skipped 0",
+        "\u2139 todo 0",
+        "\u2139 duration_ms 6419.678853"
+      ],
+      "source_snapshot": "14b5c520bd7cd53ccd4978f575dfcbe9b250ed0c",
+      "claim_limit": "LOCAL_SYNTHETIC_OR_NO_NETWORK_CHECK_NOT_INDEPENDENT_SECURITY_ACCEPTANCE",
+      "tests_passed": 95,
+      "global_rollback_property_passed": false
+    },
+    {
+      "name": "frontier_legacy_veto",
+      "argv": [
+        "python3",
+        "-m",
+        "unittest",
+        "frontier_v5.tests.test_legacy_live_adapter_veto",
+        "frontier_v5.tests.test_legacy_d1_adapter_veto",
+        "-v"
+      ],
+      "exit_code": 0,
+      "observed_at_utc": "2026-11-14T20:24:06.556844+00:00",
+      "log_path": "frontier_legacy_veto.log",
+      "log_sha256": "a22967454ed1a3a01c6a800b43df704133295aa658d06bb471fb0e27c14b02fd",
+      "tail": [
+        "test_privileged_environment_cannot_enter_legacy_network_or_db_mutation (frontier_v5.tests.test_legacy_live_adapter_veto.LegacyLiveVeto.test_privileged_environment_cannot_enter_legacy_network_or_db_mutation) ... ok",
+        "test_global_key_does_not_bypass_staging_veto (frontier_v5.tests.test_legacy_d1_adapter_veto.LegacyD1AdapterVeto.test_global_key_does_not_bypass_staging_veto) ... ok",
+        "test_nonsealed_target_with_synthetic_credentials_fails_before_any_network (frontier_v5.tests.test_legacy_d1_adapter_veto.LegacyD1AdapterVeto.test_nonsealed_target_with_synthetic_credentials_fails_before_any_network) ... ok",
+        "test_query_and_migration_cannot_bypass_constructor_veto (frontier_v5.tests.test_legacy_d1_adapter_veto.LegacyD1AdapterVeto.test_query_and_migration_cannot_bypass_constructor_veto) ... ok",
+        "test_sealed_d1_still_forbidden (frontier_v5.tests.test_legacy_d1_adapter_veto.LegacyD1AdapterVeto.test_sealed_d1_still_forbidden) ... ok",
+        "",
+        "----------------------------------------------------------------------",
+        "Ran 5 tests in 0.011s",
+        "",
+        "OK"
+      ],
+      "source_snapshot": "c22bf1930b8576bc6b3bcc25ffcd40bd08c93ddb",
+      "claim_limit": "LOCAL_SYNTHETIC_OR_NO_NETWORK_CHECK_NOT_INDEPENDENT_SECURITY_ACCEPTANCE",
+      "tests_passed": 5
+    },
+    {
+      "name": "frontier_workflow_contract",
+      "argv": [
+        "python3",
+        "frontier_v5/tests/test_workflow_security_contract.py"
+      ],
+      "exit_code": 0,
+      "observed_at_utc": "2026-11-14T20:24:06.335527+00:00",
+      "log_path": "frontier_workflow_contract.log",
+      "log_sha256": "caa14c01f3225a7bc00f54de98ade804581a6435d063a11d527eeeab54a34ba7",
+      "tail": [
+        "MUSITU_AXIOM_FRONTIER_WORKFLOW_TRUST_BOUNDARY_PASS_LOCAL_STATIC_ONLY_NOT_RELEASE"
+      ],
+      "source_snapshot": "c22bf1930b8576bc6b3bcc25ffcd40bd08c93ddb",
+      "claim_limit": "LOCAL_SYNTHETIC_OR_NO_NETWORK_CHECK_NOT_INDEPENDENT_SECURITY_ACCEPTANCE",
+      "static_workflow_contract_passed": true
+    },
+    {
+      "name": "owner_nonce_node",
+      "argv": [
+        "node",
+        "--test",
+        "customer_frontier/tests/step1_owner_signed_proposal_nonce_guard.test.mjs"
+      ],
+      "exit_code": 0,
+      "observed_at_utc": "2026-11-14T20:26:47.817186+00:00",
+      "log_path": "owner_nonce_node.log",
+      "log_sha256": "c0a430595aa9071cf6b0f57b928fea01a8b4027fecf9a89c7cbdb12f7a810f5b",
+      "tail": [
+        "\u2714 unreviewed action/side-effects cannot be signed into local replay ledger (0.746023ms)",
+        "\u2714 path symlink and permissive shared directory cannot act as trusted ledger (58.965735ms)",
+        "\u2714 a symlink or reused insecure database file cannot be used (37.493841ms)",
+        "\u2714 direct noninteractive CLI refuses even public signed test input and leaves no ledger (45.717321ms)",
+        "\u2139 tests 9",
+        "\u2139 suites 0",
+        "\u2139 pass 9",
+        "\u2139 fail 0",
+        "\u2139 cancelled 0",
+        "\u2139 skipped 0",
+        "\u2139 todo 0",
+        "\u2139 duration_ms 502.188261"
+      ],
+      "tests_passed": 9,
+      "source_snapshot": "5c03cf457fa0e2bdee7103e2d9f0e4bfd32d9e50",
+      "global_anti_rollback_qualified": false,
+      "claim_limit": "OFFLINE_LOCAL_PROPOSAL_NONCE_ONLY_NO_PROVIDER_AUTHORITY"
+    },
+    {
+      "name": "owner_nonce_python",
+      "argv": [
+        "python3",
+        "-m",
+        "unittest",
+        "discover",
+        "-s",
+        "customer_frontier/tests",
+        "-p",
+        "test_step1_owner_nonce_replay_store.py",
+        "-v"
+      ],
+      "exit_code": 0,
+      "observed_at_utc": "2026-11-14T20:26:47.503014+00:00",
+      "log_path": "owner_nonce_python.log",
+      "log_sha256": "d1814cd011ad6b007c158dad4a7ea5b29f9d1b8873e36f166b2366dc417f7728",
+      "tail": [
+        "test_same_nonce_different_plan_rejected (test_step1_owner_nonce_replay_store.TestReplayStore.test_same_nonce_different_plan_rejected) ... ok",
+        "test_same_plan_hash_new_nonce_rejected (test_step1_owner_nonce_replay_store.TestReplayStore.test_same_plan_hash_new_nonce_rejected) ... ok",
+        "test_schema_tampering_denied_and_no_second_nonce (test_step1_owner_nonce_replay_store.TestReplayStore.test_schema_tampering_denied_and_no_second_nonce) ... ok",
+        "test_source_and_amendment_drift_denied (test_step1_owner_nonce_replay_store.TestReplayStore.test_source_and_amendment_drift_denied) ... ok",
+        "test_success_receipt_never_grants_provider_authority (test_step1_owner_nonce_replay_store.TestReplayStore.test_success_receipt_never_grants_provider_authority) ... ok",
+        "test_symlink_directory_denied (test_step1_owner_nonce_replay_store.TestReplayStore.test_symlink_directory_denied) ... ok",
+        "test_time_window_and_noncanonical_date_denied (test_step1_owner_nonce_replay_store.TestReplayStore.test_time_window_and_noncanonical_date_denied) ... ok",
+        "",
+        "----------------------------------------------------------------------",
+        "Ran 18 tests in 0.101s",
+        "",
+        "OK"
+      ],
+      "tests_passed": 18,
+      "source_snapshot": "5c03cf457fa0e2bdee7103e2d9f0e4bfd32d9e50",
+      "global_anti_rollback_qualified": false,
+      "claim_limit": "OFFLINE_LOCAL_PROPOSAL_NONCE_ONLY_NO_PROVIDER_AUTHORITY"
+    }
+  ],
+  "initial_partial_materialization_failures": [
+    {
+      "suite": "b27_regressions",
+      "exit_code": 1,
+      "reported_tests": 92,
+      "reported_pass": 91,
+      "reported_fail": 1,
+      "cause": "Source preparation omitted axiom_interface/vnext/execution_integrity.mjs from the pinned import graph. Original source was fetched and its blob verified before the complete run. This was a local materialization error, not a product regression."
+    },
+    {
+      "suite": "frontier_legacy_veto",
+      "exit_code": 1,
+      "reported_errors": 2,
+      "cause": "Source preparation omitted frontier_v5.runtime.advanced from the pinned import graph. Required runtime sources were fetched and their blobs verified before the complete run. No product source was changed."
+    }
+  ],
+  "global_b27_nonrollback_verified": false,
+  "pr83_fullstack_approved": false,
+  "release_status": "NOT_RELEASE"
+}

@@ -1,0 +1,169 @@
+{
+  "schema": "musitu.axiom.gate3.external-acceptance-inputs.v1",
+  "recorded_at_utc": "2026-11-16T06:32:21.121Z",
+  "status": "OWNER_PC_AVAILABLE_OFFLINE_AUTHORITY2_PUBLIC_POSSESSION_PROOF_PENDING",
+  "controller": "Evans Musitu",
+  "already_completed_owner_steps": [
+    "controller declaration",
+    "direct independent account recovery confirmation",
+    "backup decryption proofs",
+    "R2 bucket-rule dashboard readback",
+    "public review-packet file integrity including native Windows CI"
+  ],
+  "authority2_public_inputs": {
+    "account_id": "67469478aa9349fa0a57fe3a72da200a",
+    "ledger_id": "axiom-b27-a2-qualification-20261116-6792c82b245cd450",
+    "namespace": "ax-a2-qualification-20261116-6792c82b245cd450",
+    "key_id": "a2-ed25519-6792c82b245cd450",
+    "ed25519_public_key_jwk": {
+      "kty": "OKP",
+      "crv": "Ed25519",
+      "x": "9G3Dzw62h9a094zdQFLO5AfoI637Su8Y9mMT-k0ynrs"
+    },
+    "state": "OWNER_APPROVED_DISPOSABLE_PUBLIC_IDENTITY_NOT_DEPLOYED",
+    "candidate_public_key": {
+      "source_receipt": "owner_public_key_20261115/OWNER_ED25519_PUBLIC_DOWNLOAD_RECEIPT.json",
+      "original_der": "owner_public_key_20261115/owner_ed25519_spki.der",
+      "public_jwk_path": "owner_public_key_20261115/owner_ed25519_public.jwk.json",
+      "spki_sha256": "6792c82b245cd45051052cc1b00eb5f99a99489829c3f0567c7c15f741389d8a",
+      "public_key_jwk": {
+        "kty": "OKP",
+        "crv": "Ed25519",
+        "x": "9G3Dzw62h9a094zdQFLO5AfoI637Su8Y9mMT-k0ynrs"
+      },
+      "canonical_der_roundtrip_verified": true,
+      "authority2_role_binding_approved": true,
+      "separate_private_signer_custody_qualified": false,
+      "runtime_trust_pin_changed": false,
+      "authority2_role_declaration_path": "authority2_public_role_20261116/authority2_owner_separate_signer_declaration_20261116.json",
+      "full_identity_binding_approved": true,
+      "full_identity_binding_approval_scope": "DISPOSABLE_AUTHORITY_QUALIFICATION_ONLY",
+      "source_config_approval_path": "authority2_owner_source_config_approval_20261116.json"
+    },
+    "proposed_qualification_public_identity": {
+      "config_path": "authority2_public_role_20261116/AUTHORITY2_PUBLIC_QUALIFICATION_CONFIG_PROPOSED_20261116.json",
+      "validation_path": "authority2_public_role_20261116/AUTHORITY2_PUBLIC_QUALIFICATION_CONFIG_CHECK_20261116.json",
+      "review_request_path": "authority2_public_role_20261116/GATE3_AUTHORITY2_REVIEW_REQUEST_20261116_NOT_RELEASE.md",
+      "config_sha256": "bc09d63349f611a71f0eef6c1ad1d00bd861454aeab7c41f9565056758f2f8e3",
+      "scope": "PROPOSED_DISPOSABLE_AUTHORITY_QUALIFICATION_ONLY",
+      "public_config": {
+        "account_id": "67469478aa9349fa0a57fe3a72da200a",
+        "ledger_id": "axiom-b27-a2-qualification-20261116-6792c82b245cd450",
+        "namespace": "ax-a2-qualification-20261116-6792c82b245cd450",
+        "key_id": "a2-ed25519-6792c82b245cd450",
+        "public_key_jwk": {
+          "kty": "OKP",
+          "crv": "Ed25519",
+          "x": "9G3Dzw62h9a094zdQFLO5AfoI637Su8Y9mMT-k0ynrs"
+        }
+      },
+      "matching_consumer_pin": {
+        "account_id": "67469478aa9349fa0a57fe3a72da200a",
+        "ledger_id": "axiom-b27-a2-qualification-20261116-6792c82b245cd450",
+        "namespace": "ax-a2-qualification-20261116-6792c82b245cd450",
+        "key_id": "a2-ed25519-6792c82b245cd450",
+        "public_key_jwk": {
+          "kty": "OKP",
+          "crv": "Ed25519",
+          "x": "9G3Dzw62h9a094zdQFLO5AfoI637Su8Y9mMT-k0ynrs"
+        }
+      },
+      "owner_approved_identity_binding": true,
+      "namespace_unused_verified": false,
+      "deployed": false,
+      "production_identity_binding": false,
+      "approval_path": "authority2_owner_source_config_approval_20261116.json",
+      "proposal_state": "OWNER_APPROVED_FOR_DISPOSABLE_QUALIFICATION_NOT_INSTALLED"
+    },
+    "identity_scope": "DISPOSABLE_AUTHORITY_QUALIFICATION_ONLY",
+    "owner_source_config_approval_path": "authority2_owner_source_config_approval_20261116.json",
+    "public_identity_binding_approved_for_qualification": true,
+    "namespace_unused_verified": false,
+    "installed_in_worker_or_consumer": false
+  },
+  "signer_question_answer": {
+    "asked_about_existing_separate_Ed25519_signer": true,
+    "answer_received": true,
+    "no_private_material_requested": true,
+    "response_kind": "OWNER_CONFIRMS_THIS_IS_A_SEPARATE_KEY_CREATED_SPECIFICALLY_FOR_AUTHORITY2",
+    "public_key_received_and_validated": true,
+    "separate_private_signer_existence_or_custody_verified": false,
+    "owner_governance_key_vs_separate_authority2_key_not_established": false,
+    "owner_confirms_separate_authority2_key": true,
+    "purpose_question_resolved": true,
+    "private_key_or_repeat_public_file_request_required": false,
+    "declaration_path": "authority2_public_role_20261116/authority2_owner_separate_signer_declaration_20261116.json"
+  },
+  "independent_review": {
+    "pr192_submitted_reviews": 0,
+    "pr242_submitted_reviews": 0,
+    "record_provided_in_chat": true,
+    "author_self_approval_satisfies_independent_review": false,
+    "reviewer_name": "Evans Musitu",
+    "reviewer_assignment_provided_in_chat": true,
+    "review_decision_provided_in_chat": true,
+    "authority2_source_config_decision": "APPROVE",
+    "authority2_source_config_approval_path": "authority2_owner_source_config_approval_20261116.json",
+    "authority2_approved_source_commit": "68799a41a367865649b833de649edcb26f77c0d3",
+    "pr242_source_or_fullstack_review_decision_inferred": false,
+    "actual_operator_custody_or_hosted_acceptance_inferred": false,
+    "submitted_review_counts_scope": "Prior GitHub review-list observations; this approval is the directly supplied human chat decision."
+  },
+  "actual_provider_acceptance_required": [
+    "operator-held matching private signer and separate administrator/credential/recovery custody qualification",
+    "approved disposable public identity installed with the matching consumer pin",
+    "unused namespace and fresh immutable genesis commitment verified and approved by the operator before the once-only trigger",
+    "actual private operator-controlled hosted initialization, retirement and destructive acceptance",
+    "isolated full-stack staging/OAuth/MCP acceptance before PR83 veto change"
+  ],
+  "connected_operator_provider_status": {
+    "schema": "musitu.axiom.operator-provider-status.v1",
+    "status": "UNAVAILABLE",
+    "external_provider_execution_authority": false,
+    "provider_admission_required": true,
+    "production_authority": false,
+    "recorded_at_utc": "2026-11-16T05:15:42.915Z",
+    "evidence_origin": "FRESH_ACTUAL_CONNECTED_READONLY_STATUS_RESPONSE_THIS_TURN",
+    "does_not_establish_cloudflare_management_access": true
+  },
+  "operator_private_actions_cannot_be_performed_under_builder_custody_and_count_as_independent": true,
+  "gate3_closed": false,
+  "release_status": "NOT_RELEASE",
+  "reviewer_assignment": {
+    "name": "Evans Musitu",
+    "evidence_origin": "DIRECT_USER_INSTRUCTION",
+    "statement_exact": "Reviewer is Me",
+    "assignment_path": "gate3_owner_named_reviewer_declaration_20261115.json",
+    "identity_resolved": true,
+    "review_decision_pending": false,
+    "review_decision": "APPROVE_AUTHORITY2_SOURCE_AND_DISPOSABLE_CONFIG_ONLY"
+  },
+  "next_owner_input": {
+    "question": "Run the existing Authority 2 signer possession check on the owner PC and return its public proof JSON only.",
+    "expected_file": "OWNER_A2_SIGNER_POSSESSION_PROOF.json",
+    "answer_received": false,
+    "private_key_upload_or_password_requested": false,
+    "prior_key_location_question_resolved": true
+  },
+  "signer_custody_location": {
+    "receipt_path": "authority2_owner_signer_location_20261116.json",
+    "owner_reported_locations": [
+      "Windows PC",
+      "recovery USB drive"
+    ],
+    "evidence_scope": "OWNER_REPORT_ONLY",
+    "live_operator_session_established": false
+  },
+  "owner_pc_available_now": {
+    "confirmed": true,
+    "statement_exact": "Yes",
+    "evidence_origin": "DIRECT_USER_RESPONSE"
+  },
+  "offline_possession_challenge": {
+    "challenge_sha256": "60cd2f0ceec35106bc90beb7bfdb00326223d0a871a893f455e9dc0350a57878",
+    "challenge_id": "afd56cb00b41969342398146ac99b2f2cb434d96b4268d519f17183905b1a2c7",
+    "expires_at_utc": "2026-11-17T06:17:47.524Z",
+    "receipt_path": "authority2_signer_possession_20261116/helper_preparation.json",
+    "possession_verified": false
+  }
+}

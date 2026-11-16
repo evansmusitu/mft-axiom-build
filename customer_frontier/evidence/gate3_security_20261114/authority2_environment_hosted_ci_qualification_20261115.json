@@ -1,0 +1,51 @@
+{
+  "schema": "musitu.axiom.authority2.environment-hosted-ci-qualification.v1",
+  "observed_at_utc": "2026-11-15T14:07:12.296053+00:00",
+  "source_commit": "96319259bbca599420c6648d41cfb5c991c58d05",
+  "candidate_run_id": 43722237949,
+  "candidate_job_id": 132836516834,
+  "candidate_job_conclusion": "success",
+  "synthetic_tests_passed": 135,
+  "real_local_workerd_sqlite_tests_passed": 30,
+  "new_genesis_checks": {
+    "synthetic": 40,
+    "workerd_sqlite_r2": 8
+  },
+  "mandatory_global_rollback_veto": {
+    "job_id": 132836649266,
+    "conclusion": "failure",
+    "retained": true
+  },
+  "build_and_native_windows_run_id": 43722237957,
+  "build_and_native_windows_conclusion": "success",
+  "native_windows_checks": 6,
+  "powershell51_version": "5.1.20348.5773",
+  "powershell7_version": "7.6.10",
+  "two_host_run_id": 43722237955,
+  "two_host_conclusion": "success",
+  "two_host_is_synthetic": true,
+  "build_manifest_sha256": "9ae24a91b3df264ea35c929be1171bd026690a80c81d4882c32eedcc38e73b34",
+  "bundle_sha256": "d1ddd1e944bfa4560cc662f7fd12a9b22b3f6493175e4a38b2b3db7e1aed4210",
+  "artifact_archives": [
+    {
+      "artifact_id": 14165170225,
+      "bytes": 24646,
+      "sha256": "4681b7ac2af4dfe42a75a027210b92a251a857367c452369d872e2298ec4e180",
+      "download_hash_and_crc_verified": true
+    },
+    {
+      "artifact_id": 14164689083,
+      "bytes": 2836,
+      "sha256": "5798285bf74e1886efd5ecb610a6514aca938f92908c5e9fe385dc503433ce4a",
+      "download_hash_and_crc_verified": true
+    }
+  ],
+  "ci_proof_files_are_not_owner_pc_proofs": true,
+  "owner_windows_pc_access_required_for_public_packet_integrity_step": false,
+  "cloudflare_provider_operations": 0,
+  "private_operator_signer_or_token_obtained": false,
+  "authority2_genesis_deployed_or_initialized": false,
+  "independent_custody_or_security_qualified": false,
+  "gate3_closed": false,
+  "release_status": "NOT_RELEASE"
+}

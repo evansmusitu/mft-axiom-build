@@ -1,0 +1,45 @@
+{
+  "schema": "musitu.axiom.authority2.genesis-candidate-local-qualification.v1",
+  "observed_at_utc": "2026-11-15T14:03:18.695367+00:00",
+  "source_commit": "96319259bbca599420c6648d41cfb5c991c58d05",
+  "parent_source_commit": "a2ebd98bef2be6ea61ffe3b37bee2aeb4bf7633e",
+  "status": "CANDIDATE_LOCAL_TESTS_PASS_HOSTED_CUSTODY_AND_ACTIVATION_HOLD",
+  "baseline_node_tests_passed": 95,
+  "new_synthetic_checks_passed": 40,
+  "combined_synthetic_checks_passed": 135,
+  "new_real_local_workerd_sqlite_r2_checks_passed": 8,
+  "synthetic_github_boundary": true,
+  "temporary_test_routes_in_production": false,
+  "serving_runtime_source_changed": false,
+  "serving_bundle_sha256": "d1ddd1e944bfa4560cc662f7fd12a9b22b3f6493175e4a38b2b3db7e1aed4210",
+  "all_state_rollback_counterexamples_retained": true,
+  "original_custody_release_veto_retained": true,
+  "first_workerd_harness_attempt": {
+    "status": "FAILURE_PRESERVED",
+    "reason": "Partial local workspace lacked two original pinned modules needed by esbuild. Recovered analytical_workflows.mjs and decision_analysis.mjs from exact Git source; no logic or test assertion changed to resolve this failure.",
+    "failed_tests": 7
+  },
+  "source_sha256": {
+    "integrations/security-authority2/authority2-genesis-candidate.mjs": "80e5c1cc59bdbe60488cd19fa371d5cc63322d01a077dd7fb32feb29ab0bab0b",
+    "integrations/security-authority2/authority2-genesis-candidate.test.mjs": "75aa9631df76ba91f0ca499cf83fe6680ecb38c633694ad37871c56b871831f1",
+    "integrations/security-authority2/AUTHORITY2_GENESIS_CANDIDATE_20261115_NOT_RELEASE.md": "d9d7372dcdcbc53498a43ce62293c959dc37c9a20fee0492a4efc245ca26b012",
+    "qualification/whole-system-20261029/authority2-genesis-workerd.test.mjs": "8d35dbb1942f5faaa797db0875d54d7245f34d3a2a37629f0a4ae3e1fe47fd65",
+    ".github/workflows/axiom-b27-security-authority2-candidate.yml": "82a58ca4fb8c391fd0733d6332a36a3123509c9bf5b5a8361b5a44c2793c75da"
+  },
+  "local_log_sha256": {
+    "b27_baseline_node_tests.log": "943100d340491b73461d63812c02f74668278c7b8c5f2c7d4bdcc727c5f7fbb3",
+    "genesis_candidate_first_tests.log": "a7d324848f86862711a1d946a9a947cad443e8a7053c265a55d61f4b53fcd0d0",
+    "genesis_workerd_first_tests.log": "395bdcab738b061fddf2b68805a3204610125228528e496aa3514694bf054901",
+    "genesis_workerd_after_dependency_recovery.log": "edbc9e80b23ce51b93b5ce181309983ac7a9d4d47ac19ff56b231e83f599aa43",
+    "b27_with_genesis_node_tests.log": "cbc1eb1a55519e6ce574fa602d7bf79596d876ac25c4e4ac4d33dc52f2b3256a",
+    "genesis_workerd_qualified_tests.log": "090201260702ca6afb24f6c9984564a1eef8996e511806f1977100db1766b91f"
+  },
+  "provider_operations": 0,
+  "production_customer_data_modified": false,
+  "independent_security_review_approved": false,
+  "owner_signer_generated_or_received": false,
+  "hosted_genesis_initialized": false,
+  "deployment_performed": false,
+  "gate3_closed": false,
+  "release_status": "NOT_RELEASE"
+}

@@ -1,0 +1,87 @@
+{
+  "schema": "musitu.axiom.gate3.private-controller-and-staging-progress.v1",
+  "observed_at_utc": "2026-11-15T15:23:41.244061+00:00",
+  "authority2_source_commit": "68799a41a367865649b833de649edcb26f77c0d3",
+  "staging_source_commit": "f6d34d3663e3140665fdc740a529211019a0f46a",
+  "staging_draft_pr": 242,
+  "authority2_candidate_ci": {
+    "run_id": 43726748255,
+    "candidate_job_id": 132850226246,
+    "candidate": "success",
+    "synthetic_checks_passed": 190,
+    "local_workerd_sqlite_checks_passed": 35,
+    "mandatory_global_custody_veto": "failure",
+    "veto_job_id": 132850381018
+  },
+  "authority2_build_ci": {
+    "run_id": 43726748283,
+    "conclusion": "success",
+    "serving_bundle_sha256": "d1ddd1e944bfa4560cc662f7fd12a9b22b3f6493175e4a38b2b3db7e1aed4210",
+    "private_initializer_bundle_sha256": "ec884e4117e3ba392c59ae33b029722cb23bba03889a6dd23facd52a9a5aa3c4",
+    "private_initializer_bundle_bytes": 27153,
+    "native_windows_checks_passed": 6,
+    "powershell51_version": "5.1.20348.5773",
+    "powershell7_version": "7.6.10"
+  },
+  "two_host_synthetic_ci": {
+    "run_id": 43726748267,
+    "conclusion": "success",
+    "real_provider_destructive_acceptance": false
+  },
+  "staging_candidate_ci": {
+    "run_id": 43728658569,
+    "job_id": 132856022539,
+    "conclusion": "success",
+    "checks_passed": 20,
+    "actual_local_d1_checks": 15,
+    "contract_static_checks": 5,
+    "hosted_provider_qualified": false
+  },
+  "artifact_archives": [
+    {
+      "artifact_id": 14166965971,
+      "name": "axiom-a2-native-windows-review-verifier-68799a41a367865649b833de649edcb26f77c0d3",
+      "bytes": 2833,
+      "sha256": "2d09682720c9fa0050ffd3a6e82c848235f1dbc8cc2b84c2a321841ee344429f",
+      "source_commit": "68799a41a367865649b833de649edcb26f77c0d3",
+      "retained_original_archive_path": "raw_ci_artifacts_20261115/14166965971.zip"
+    },
+    {
+      "artifact_id": 14166586455,
+      "name": "axiom-a2-owner-review-build-68799a41a367865649b833de649edcb26f77c0d3",
+      "bytes": 24645,
+      "sha256": "0b06a7e5fc5a8f597fe219422dbf09a87ab159cbe0b14129bb2231450d27effe",
+      "source_commit": "68799a41a367865649b833de649edcb26f77c0d3",
+      "retained_original_archive_path": "raw_ci_artifacts_20261115/14166586455.zip"
+    },
+    {
+      "artifact_id": 14166403026,
+      "name": "axiom-a2-private-initializer-review-build-68799a41a367865649b833de649edcb26f77c0d3",
+      "bytes": 57222,
+      "sha256": "9e096aec9435e6e9d60bdd9d403141c5376f32d8efdc2f3db377d42e0030e810",
+      "source_commit": "68799a41a367865649b833de649edcb26f77c0d3",
+      "retained_original_archive_path": "raw_ci_artifacts_20261115/14166403026.zip"
+    },
+    {
+      "artifact_id": 14166623973,
+      "name": "axiom-frontier-staging-candidate-not-release-f6d34d3663e3140665fdc740a529211019a0f46a",
+      "bytes": 22680,
+      "sha256": "0b3abcdcac262c4a177cbe7c5a184e3ea1fd27b654af98db51a0431e1f097974",
+      "source_commit": "f6d34d3663e3140665fdc740a529211019a0f46a",
+      "retained_original_archive_path": "raw_ci_artifacts_20261115/14166623973.zip"
+    }
+  ],
+  "all_download_hashes_crc_member_hashes_and_manifest_cross_bindings_verified": true,
+  "serving_worker_r2_runtime_and_config_unchanged": true,
+  "private_initializer_dormant": true,
+  "actual_hosted_initializer_retired_or_executed": false,
+  "legacy_frontier_adapter_or_fullstack_veto_changed": false,
+  "independent_source_review_submitted_on_pr192_or_pr242": false,
+  "authority2_public_signer_pin_supplied": false,
+  "operator_private_signer_received_or_generated": false,
+  "cloudflare_operations": 0,
+  "production_customer_or_oauth_data_modified": false,
+  "gate2_closed": true,
+  "gate3_closed": false,
+  "release_status": "NOT_RELEASE"
+}

@@ -1,0 +1,27 @@
+{
+  "schema": "musitu.axiom.frontier.isolated-staging-local-ci.v1",
+  "source_commit": "f6d34d3663e3140665fdc740a529211019a0f46a",
+  "status": "LOCAL_D1_AND_TYPED_CONTRACT_PASS_NOT_RELEASE",
+  "checks_passed": 20,
+  "actual_local_workerd_d1_checks": 15,
+  "contract_static_checks": 5,
+  "source_sha256": {
+    "integrations/frontier-staging/REVIEW_CONTRACT_20261115_NOT_RELEASE.md": "8b799ef5088f00bdcca7c08736ad86566ca71b2c1cbe3c47ee1506f531cff971",
+    "integrations/frontier-staging/client.mjs": "5f4e76c1c5187445b35f0e1078ee3e0b7566c08c05b198b38ffc4fc9d9710b4e",
+    "integrations/frontier-staging/protocol.mjs": "9f14f680873f59afc45e1239268aa79d7693fb7da9305264e697c5df0f07df37",
+    "integrations/frontier-staging/schema.sql": "5f590fca1c5ad8b3cfe38acb7b4bb28151917ae1d56332020c4070adac0d17fe",
+    "integrations/frontier-staging/worker.mjs": "0f3d50362819bea883c19299c584803646242ba06886744fe077794b79115d19",
+    "integrations/frontier-staging/worker.test.mjs": "9bd4381b5340e80d28378f239d28e025f062433fcc9b5302e7e746c613c28b12"
+  },
+  "bundle_sha256": {
+    "client.js": "5ae55be8088fed9336bf11c64c7582694b30a7c3c6e551aa08f4d054548478a8",
+    "worker.js": "95199c80a9adf6a4e7ea3650a6be78066d32db4b808811abc12cba510e7217a4"
+  },
+  "cloudflare_operations": 0,
+  "hosted_provider_qualified": false,
+  "independent_review_approved": false,
+  "legacy_adapter_or_fullstack_veto_changed": false,
+  "production_customer_data_modified": false,
+  "gate3_closed": false,
+  "release_status": "NOT_RELEASE"
+}

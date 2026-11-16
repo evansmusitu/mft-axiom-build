@@ -1,0 +1,42 @@
+{
+  "schema": "musitu.axiom.authority2-recovery-token-owner-saved-permission-readback.v1",
+  "recorded_at_utc": "2026-11-14T22:11:21.871Z",
+  "owner_report_local_date": "2026-11-15",
+  "owner_timezone": "Africa/Harare",
+  "owner": "Evans Musitu",
+  "evidence_origin": "OWNER_BROWSER_MANUAL_EDIT_AND_SAVED_PERMISSION_READBACK_REPORTED_IN_CONVERSATION",
+  "as_spoken_token_name": "Axiom D1 Recovery CF API token",
+  "github_secret_reference": "AXIOM_D1_RECOVERY_CF_API_TOKEN",
+  "provider_token_id_obtained": false,
+  "account_scope_owner_reported": [
+    "67469478aa9349fa0a57fe3a72da200a"
+  ],
+  "permission_rows_normalized_from_owner_readback": [
+    {
+      "product": "Cloudflare Pages",
+      "access": "Read"
+    },
+    {
+      "product": "D1",
+      "access": "Read"
+    },
+    {
+      "product": "Workers Scripts",
+      "access": "Read"
+    }
+  ],
+  "edit_or_write_permission_rows_owner_reports_absent": true,
+  "owner_reports_change_saved": true,
+  "owner_reopened_saved_token_for_readback": true,
+  "owner_saved_readback_quote": "It's only read permissions for pages , D1,and workers scripts",
+  "raw_provider_policy_obtained": false,
+  "independently_authenticated_provider_policy_verified": false,
+  "real_write_denial_test_performed": false,
+  "all_other_builder_credentials_reviewed": false,
+  "builder_administrator_separation_qualified": false,
+  "secret_bearer_value_received": false,
+  "provider_operations_by_assistant_during_this_acceptance": 0,
+  "gate2_closed": true,
+  "gate3_closed": false,
+  "release_status": "NOT_RELEASE"
+}

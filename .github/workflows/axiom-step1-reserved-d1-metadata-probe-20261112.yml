@@ -1,0 +1,83 @@
+name: AXIOM Step1 reserved OAuth DR UUID GET-only reconciliation (NOT RELEASE)
+on:
+  push:
+    branches:
+      - review/axiom-step1-owner-sole-authority-policy-20261112-not-release
+    paths:
+      - .github/workflows/axiom-step1-reserved-d1-metadata-probe-20261112.yml
+permissions:
+  contents: read
+jobs:
+  reserved-d1-readonly:
+    if: >-
+      github.repository == 'evansmusitu/mft-axiom-build' &&
+      github.actor == 'evansmusitu' &&
+      github.ref == 'refs/heads/review/axiom-step1-owner-sole-authority-policy-20261112-not-release' &&
+      github.run_attempt == 1
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - name: Provider GET only for historical reserved database UUID; no SQL or data
+        shell: bash
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import os, json, hashlib, urllib.request, urllib.error
+          from datetime import datetime,timezone
+          ACCOUNT='93f395f5121954671f92fffa453d6b61'
+          RESERVED='c023a0a0-472a-4178-ad07-02f1d6b2e122'
+          TOKEN=os.environ.get('CLOUDFLARE_API_TOKEN','')
+          receipt={
+            'schema':'musitu.axiom.step1.reserved-d1-detail-readonly.v1',
+            'captured_at_utc':datetime.now(timezone.utc).isoformat(),
+            'account':ACCOUNT,'reserved_historical_database_uuid':RESERVED,
+            'http_method':'GET','d1_sql_executed':False,
+            'reserved_detail_http':'UNREAD','reserved_uuid_matches':False,
+            'read_permission_qualified':False,'catalog_discrepancy_reconciled':False,
+            'reserved_database_reuse_authorized':False,
+            'step1_closed':False,'step2_authorized':False,'release':'NOT_RELEASE',
+            'status':'RESERVED_D1_DETAIL_UNVERIFIED_NO_GO'
+          }
+          class NoRedirect(urllib.request.HTTPRedirectHandler):
+            def redirect_request(self,*args,**kwargs):return None
+          if TOKEN and '\n' not in TOKEN and '\r' not in TOKEN:
+            url='https://api.cloudflare.com/client/v4/accounts/'+ACCOUNT+'/d1/database/'+RESERVED
+            req=urllib.request.Request(url,method='GET',headers={'Authorization':'Bearer '+TOKEN,'Accept':'application/json'})
+            try:
+              with urllib.request.build_opener(NoRedirect()).open(req,timeout=15) as res:
+                receipt['reserved_detail_http']=res.status
+                if res.status==200:
+                  raw=res.read(200001)
+                  if len(raw)<=200000:
+                    try:
+                      doc=json.loads(raw)
+                      receipt['reserved_uuid_matches']=(isinstance(doc,dict) and doc.get('success') is True and
+                        isinstance(doc.get('result'),dict) and doc['result'].get('uuid')==RESERVED)
+                      receipt['read_permission_qualified']=receipt['reserved_uuid_matches']
+                    except (ValueError,UnicodeError):pass
+            except urllib.error.HTTPError as err:
+              receipt['reserved_detail_http']=err.code
+            except (OSError,TimeoutError,ValueError):
+              receipt['reserved_detail_http']='UNAVAILABLE'
+          receipt['status']=(
+            'DETAIL_PRESENT_CATALOG_ABSENT_RECONCILIATION_NO_GO' if receipt['reserved_uuid_matches']
+            else 'DETAIL_NOT_FOUND_RECONCILIATION_NO_GO' if receipt['reserved_detail_http']==404
+            else 'DETAIL_NOT_OBSERVABLE_RECONCILIATION_NO_GO')
+          output='axiom_step1_reserved_d1_detail_readonly_20261112.json'
+          data=(json.dumps(receipt,sort_keys=True,indent=2)+'\n').encode()
+          with open(output,'wb') as f:f.write(data)
+          with open(output+'.sha256','w') as f:f.write(hashlib.sha256(data).hexdigest()+'  '+output+'\n')
+          print('AXIOM_STEP1_RESERVED_D1_DETAIL_NO_GO_NOT_RELEASE')
+          PY
+      - name: Preserve only sanitized status and digest
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: axiom-step1-reserved-d1-detail-20261112
+          retention-days: 10
+          if-no-files-found: error
+          path: |
+            axiom_step1_reserved_d1_detail_readonly_20261112.json
+            axiom_step1_reserved_d1_detail_readonly_20261112.json.sha256

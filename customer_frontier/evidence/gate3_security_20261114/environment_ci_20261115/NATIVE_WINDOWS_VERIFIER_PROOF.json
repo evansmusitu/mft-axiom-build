@@ -1,0 +1,35 @@
+{
+    "powershell7_version":  "7.6.10",
+    "release_status":  "NOT_RELEASE",
+    "provider_operations":  0,
+    "gate3_closed":  false,
+    "secrets_used":  false,
+    "checks_passed":  6,
+    "powershell51_version":  "5.1.20348.5773",
+    "source_commit":  "96319259bbca599420c6648d41cfb5c991c58d05",
+    "negative_cases":  [
+                           {
+                               "case":  "bundle",
+                               "stale_proof_present":  false,
+                               "exit_code":  2
+                           },
+                           {
+                               "case":  "source",
+                               "stale_proof_present":  false,
+                               "exit_code":  2
+                           },
+                           {
+                               "case":  "claim",
+                               "stale_proof_present":  false,
+                               "exit_code":  2
+                           },
+                           {
+                               "case":  "manifest-pin",
+                               "stale_proof_present":  false,
+                               "exit_code":  2
+                           }
+                       ],
+    "schema":  "musitu.axiom.authority2.review-packet-native-windows-verifier.v1",
+    "status":  "POWERSHELL51_AND7_REVIEW_PACKET_VERIFIER_QUALIFIED_NOT_DEPLOYED",
+    "worker_uploaded":  false
+}

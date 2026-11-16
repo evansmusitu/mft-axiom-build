@@ -1,0 +1,736 @@
+{
+  "schema": "musitu.axiom.gate3-source-manifest.v1",
+  "snapshots_separate": true,
+  "product_source_modified": false,
+  "files": [
+    {
+      "group": "b27",
+      "repository": "evansmusitu/mft-axiom-build",
+      "ref": "14b5c520bd7cd53ccd4978f575dfcbe9b250ed0c",
+      "path": ".github/workflows/axiom-b27-authority2-build-only.yml",
+      "git_blob_sha": "eaf82d2289e1de5767fd95d2d65a284d446a03d9",
+      "provider_reported_bytes": 3037,
+      "sha256": "db54d0d5403e0de781e0a98f882edc399961a75260d6bb5edd92a9d54978c2e3"
+    },
+    {
+      "group": "b27",
+      "repository": "evansmusitu/mft-axiom-build",
+      "ref": "14b5c520bd7cd53ccd4978f575dfcbe9b250ed0c",
+      "path": ".github/workflows/axiom-b27-security-authority2-candidate.yml",
+      "git_blob_sha": "dc59acadac52c47d5bcd10fe5524521045d7419f",
+      "provider_reported_bytes": 2623,
+      "sha256": "588d4a85d04c816ed7de94b073f3f64620cfc131e7644ad21cd113fd1de3155a"
+    },
+    {
+      "group": "b27",
+      "repository": "evansmusitu/mft-axiom-build",
+      "ref": "14b5c520bd7cd53ccd4978f575dfcbe9b250ed0c",
+      "path": ".github/workflows/axiom-b27-two-host-replay.yml",
+      "git_blob_sha": "f59567903b4719f89239c51ca609037ce3ffb594",
+      "provider_reported_bytes": 3744,
+      "sha256": "cceea2429fc5e5d3554a2f4a604e6a54daaf6b593fec3cdd164e480c1422c754"
+    },
+    {
+      "group": "b27",
+      "repository": "evansmusitu/mft-axiom-build",
+      "ref": "14b5c520bd7cd53ccd4978f575dfcbe9b250ed0c",
+      "path": "integrations/security-authority2/B27_INDEPENDENT_OPERATOR_CEREMONY_20261113.md",
+      "git_blob_sha": "c7267267284cd612dc724c6df77040a61fca8dda",
+      "provider_reported_bytes": 7571,
+      "sha256": "e9fee716bdd63df058c75619cfd54332e11b1d9455132fbfa059c30b213ff9ef"
+    },
+    {
+      "group": "b27",
+      "repository": "evansmusitu/mft-axiom-build",
+      "ref": "14b5c520bd7cd53ccd4978f575dfcbe9b250ed0c",
+      "path": "integrations/security-authority2/README.md",
+      "git_blob_sha": "621e1d94e46923b9737187adf5941682bac8b279",
+      "provider_reported_bytes": 9289,
+      "sha256": "26df6018474cb0301fcb252c19a2a43ecab22e7576c20cc4e0cca948da8cf8f4"
+    },
+    {
+      "group": "b27",
+      "repository": "evansmusitu/mft-axiom-build",
+      "ref": "14b5c520bd7cd53ccd4978f575dfcbe9b250ed0c",
+      "path": "integrations/security-authority2/authority2-active-deployment.mjs",
+      "git_blob_sha": "af149f527e962cc7eb6d0bcf1556d7f7b48ef487",
+      "provider_reported_bytes": 3868,
+      "sha256": "92919c572706cd06e13fe634c5ab0ff1a9ce7fd6ca67c1df65d1203cbd4e0a06"
+    },
+    {
+      "group": "b27",
+      "repository": "evansmusitu/mft-axiom-build",
+      "ref": "14b5c520bd7cd53ccd4978f575dfcbe9b250ed0c",
+      "path": "integrations/security-authority2/authority2-active-deployment.test.mjs",
+      "git_blob_sha": "9b54407f2899ce94d5398db3db95bdf5e1b8698a",
+      "provider_reported_bytes": 4022,
+      "sha256": "bcd45b572417a15e6762db4650e22b4adb2f968964a256f0f84d3ac070d3208e"
+    },
+    {
+      "group": "b27",
+      "repository": "evansmusitu/mft-axiom-build",
+      "ref": "14b5c520bd7cd53ccd4978f575dfcbe9b250ed0c",
+      "path": "integrations/security-authority2/authority2-highwater-worker.mjs",
+      "git_blob_sha": "781741dc1ff74b87a853defa04e8762ebf277cef",
+      "provider_reported_bytes": 10756,
+      "sha256": "7e29a46bb0924c5a7eb0d60d79885f36a0b6945e022fb37a56898bce3aec6df1"
+    },
+    {
+      "group": "b27",
+      "repository": "evansmusitu/mft-axiom-build",
+      "ref": "14b5c520bd7cd53ccd4978f575dfcbe9b250ed0c",
+      "path": "integrations/security-authority2/authority2-highwater-worker.test.mjs",
+      "git_blob_sha": "b043ea47621dd19a546fa574a0763ba5cba29776",
+      "provider_reported_bytes": 12683,
+      "sha256": "9d39feb0b0cc57edef040c4a55201caf0e1572632a6074e20156467f59c90203"
+    },
+    {
+      "group": "b27",
+      "repository": "evansmusitu/mft-axiom-build",
+      "ref": "14b5c520bd7cd53ccd4978f575dfcbe9b250ed0c",
+      "path": "integrations/security-authority2/authority2-lock-policy.mjs",
+      "git_blob_sha": "a7c0df6fe975ea23b86317a5377b62c4d3f59979",
+      "provider_reported_bytes": 4086,
+      "sha256": "db8358bf17fe8bcd87adeb3b421657bef0bb46af7ce2771d39df05f1bcc4fbcd"
+    },
+    {
+      "group": "b27",
+      "repository": "evansmusitu/mft-axiom-build",
+      "ref": "14b5c520bd7cd53ccd4978f575dfcbe9b250ed0c",
+      "path": "integrations/security-authority2/authority2-lock-policy.test.mjs",
+      "git_blob_sha": "f9de4b392f18a389e2488b4ce861bb86a456f174",
+      "provider_reported_bytes": 4747,
+      "sha256": "5024d6e10778c8e788917107962fb15a862237fdb8f1c56b46b79e495c3fb310"
+    },
+    {
+      "group": "b27",
+      "repository": "evansmusitu/mft-axiom-build",
+      "ref": "14b5c520bd7cd53ccd4978f575dfcbe9b250ed0c",
+      "path": "integrations/security-authority2/authority2-provider-readonly-check.mjs",
+      "git_blob_sha": "6ed6f7ab4d7d564f6a5b64e6c632a07fe9629864",
+      "provider_reported_bytes": 4766,
+      "sha256": "98fe16bd7a0f66f09a2a7de3b4336fe963f39a59ab9b1117e9d37e66454a0c17"
+    },
+    {
+      "group": "b27",
+      "repository": "evansmusitu/mft-axiom-build",
+      "ref": "14b5c520bd7cd53ccd4978f575dfcbe9b250ed0c",
+      "path": "integrations/security-authority2/authority2-provider-readonly-check.test.mjs",
+      "git_blob_sha": "1231aedfb64fb92ab689908577b344c4e6391ae0",
+      "provider_reported_bytes": 6560,
+      "sha256": "bfe5b1344872546e54e95ae3e0b32e85f2dbd39ea5a8cd18f0e82c7c8bc54266"
+    },
+    {
+      "group": "b27",
+      "repository": "evansmusitu/mft-axiom-build",
+      "ref": "14b5c520bd7cd53ccd4978f575dfcbe9b250ed0c",
+      "path": "integrations/security-authority2/authority2-r2-worm.mjs",
+      "git_blob_sha": "1f3c0775e237746262adf860cad39403a624214d",
+      "provider_reported_bytes": 4546,
+      "sha256": "ce080ac8b5a6e190cf22e0bf9a5cf34251174822020b3b6da3e349fe4f5e17f7"
+    },
+    {
+      "group": "b27",
+      "repository": "evansmusitu/mft-axiom-build",
+      "ref": "14b5c520bd7cd53ccd4978f575dfcbe9b250ed0c",
+      "path": "integrations/security-authority2/authority2-worker-bindings.mjs",
+      "git_blob_sha": "ec5caab80871dd799cdbccafbae36bbf7a2c541e",
+      "provider_reported_bytes": 4163,
+      "sha256": "956e2fa6ec7356ef0fd828462be6d6dc99431de1487fe8fcaeb00f9f188c6c19"
+    },
+    {
+      "group": "b27",
+      "repository": "evansmusitu/mft-axiom-build",
+      "ref": "14b5c520bd7cd53ccd4978f575dfcbe9b250ed0c",
+      "path": "integrations/security-authority2/authority2-worker-bindings.test.mjs",
+      "git_blob_sha": "bd123c9f0314b2301688db2470167de05c0fed18",
+      "provider_reported_bytes": 4147,
+      "sha256": "59a75d96a6186a9ebcc970517db66dbdfd32d9f7b46682ec4b6c8f3610f15c7b"
+    },
+    {
+      "group": "b27",
+      "repository": "evansmusitu/mft-axiom-build",
+      "ref": "14b5c520bd7cd53ccd4978f575dfcbe9b250ed0c",
+      "path": "integrations/security-authority2/authority2-wrangler-config.test.mjs",
+      "git_blob_sha": "1c70e83f570b66aa0e024c77c47e0a132dcc9fa2",
+      "provider_reported_bytes": 1360,
+      "sha256": "96cde58a07c745c00009b6bdfc97183e0252c16b42f398659051dd53538ac8a7"
+    },
+    {
+      "group": "b27",
+      "repository": "evansmusitu/mft-axiom-build",
+      "ref": "14b5c520bd7cd53ccd4978f575dfcbe9b250ed0c",
+      "path": "integrations/security-authority2/b27-artifact-trust-binding.test.mjs",
+      "git_blob_sha": "8fe3165cc6c886d3efec5040f32195437be7e64c",
+      "provider_reported_bytes": 3712,
+      "sha256": "02174bff487ed90a814be9e7a0fb9592c28d8de2972c713b08ca786b09dbda36"
+    },
+    {
+      "group": "b27",
+      "repository": "evansmusitu/mft-axiom-build",
+      "ref": "14b5c520bd7cd53ccd4978f575dfcbe9b250ed0c",
+      "path": "integrations/security-authority2/b27-ci-release-veto.test.mjs",
+      "git_blob_sha": "8802bf21a221afa612540de38a346f3df0501673",
+      "provider_reported_bytes": 2912,
+      "sha256": "bc3094cf2eff7d0a1f754cbfb363cd9ab770a68cc23019e83212878fe5681238"
+    },
+    {
+      "group": "b27",
+      "repository": "evansmusitu/mft-axiom-build",
+      "ref": "14b5c520bd7cd53ccd4978f575dfcbe9b250ed0c",
+      "path": "integrations/security-authority2/b27-crosshost-checkpoint.mjs",
+      "git_blob_sha": "66a07a2c1e7fdc1a066853af2ec14719f1884208",
+      "provider_reported_bytes": 9647,
+      "sha256": "636d1862e679cb5e2a71e48ac5fbc981bf08af7ac18f46815cec2b92ed6425b9"
+    },
+    {
+      "group": "b27",
+      "repository": "evansmusitu/mft-axiom-build",
+      "ref": "14b5c520bd7cd53ccd4978f575dfcbe9b250ed0c",
+      "path": "integrations/security-authority2/b27-crosshost-checkpoint.test.mjs",
+      "git_blob_sha": "c98570e8f9fd11ca1e5a72e58e3120bbfab397dc",
+      "provider_reported_bytes": 2463,
+      "sha256": "a35f375df8a4ac265065a8df3b217769362647dddae064c6b1849241087b1a9b"
+    },
+    {
+      "group": "b27",
+      "repository": "evansmusitu/mft-axiom-build",
+      "ref": "14b5c520bd7cd53ccd4978f575dfcbe9b250ed0c",
+      "path": "integrations/security-authority2/b27-provider-pin-consistency.test.mjs",
+      "git_blob_sha": "a7bb76fa3ea32726324d2a40ab7185488f67d5a6",
+      "provider_reported_bytes": 1550,
+      "sha256": "82804166305e14db8154e41630d67fd908eacfe43a2ba4b78017e0c0603e5b94"
+    },
+    {
+      "group": "b27",
+      "repository": "evansmusitu/mft-axiom-build",
+      "ref": "14b5c520bd7cd53ccd4978f575dfcbe9b250ed0c",
+      "path": "integrations/security-authority2/b27-record-integrity-regression.test.mjs",
+      "git_blob_sha": "15843b92fd921f9de0944b9f986ad3fe41cdb55e",
+      "provider_reported_bytes": 3726,
+      "sha256": "79e0be74a44449fabef9df1cad05fe313bc60f2f0b7b54c654e7637ccae87d11"
+    },
+    {
+      "group": "b27",
+      "repository": "evansmusitu/mft-axiom-build",
+      "ref": "14b5c520bd7cd53ccd4978f575dfcbe9b250ed0c",
+      "path": "integrations/security-authority2/external-highwater-fence.mjs",
+      "git_blob_sha": "aaa77d4d7ecd7d933add3f2fa7a60d0fc9c9d113",
+      "provider_reported_bytes": 10997,
+      "sha256": "05e2af07f51f3db07f182b48f1597dae2543f090834a8b6b71b74118f675a374"
+    },
+    {
+      "group": "b27",
+      "repository": "evansmusitu/mft-axiom-build",
+      "ref": "14b5c520bd7cd53ccd4978f575dfcbe9b250ed0c",
+      "path": "integrations/security-authority2/external-highwater-fence.test.mjs",
+      "git_blob_sha": "8b8340636c37e67e36660ee63221e21c6c6b283c",
+      "provider_reported_bytes": 8833,
+      "sha256": "319c07e699a7020491120eff6f05e32df69427796886b481483448ed7f09d947"
+    },
+    {
+      "group": "b27",
+      "repository": "evansmusitu/mft-axiom-build",
+      "ref": "14b5c520bd7cd53ccd4978f575dfcbe9b250ed0c",
+      "path": "integrations/security-authority2/wrangler.example.toml",
+      "git_blob_sha": "2d08dd306371392b2d9cad20e74e6c90161eb9f1",
+      "provider_reported_bytes": 1249,
+      "sha256": "d8db8f065d8bdad9a219f994352bf0920e8e7e96d734dd2ebab5b2532c3464fd"
+    },
+    {
+      "group": "sandbox",
+      "repository": "evansmusitu/mft-axiom-build",
+      "ref": "c22bf1930b8576bc6b3bcc25ffcd40bd08c93ddb",
+      "path": ".github/workflows/axiom-frontier-v5-fullstack-verification.yml",
+      "git_blob_sha": "415a0ae25ae526d977f2a57e24e27f5382fb8f50",
+      "provider_reported_bytes": 22274,
+      "sha256": "2955487ca94c183965fa19f74c14b63da3c44a2bc9cbb2f6859ad4c24ccb21ff"
+    },
+    {
+      "group": "sandbox",
+      "repository": "evansmusitu/mft-axiom-build",
+      "ref": "c22bf1930b8576bc6b3bcc25ffcd40bd08c93ddb",
+      "path": "frontier_v5/runtime/fullstack.py",
+      "git_blob_sha": "03ad88244be2017ea717dec27494aee7f50c2df5",
+      "provider_reported_bytes": 15377,
+      "sha256": "cd10261f1a933e41109b9f854590ac103fc3d8aa1b87a40082993dfe3030e469"
+    },
+    {
+      "group": "sandbox",
+      "repository": "evansmusitu/mft-axiom-build",
+      "ref": "c22bf1930b8576bc6b3bcc25ffcd40bd08c93ddb",
+      "path": "frontier_v5/runtime/linux_namespace_sandbox.py",
+      "git_blob_sha": "7ec8c64085cae4a392f0b53787ce67cf0bf168a0",
+      "provider_reported_bytes": 6454,
+      "sha256": "c0f8a3224b848de2c112093093352e7ade8c8ee98ebbf66e86c01b9dfd6b8c4b"
+    },
+    {
+      "group": "sandbox",
+      "repository": "evansmusitu/mft-axiom-build",
+      "ref": "c22bf1930b8576bc6b3bcc25ffcd40bd08c93ddb",
+      "path": "frontier_v5/tests/test_legacy_d1_adapter_veto.py",
+      "git_blob_sha": "7675d5f15c0cfcd932f8390df3ffda87d3a4e70c",
+      "provider_reported_bytes": 3086,
+      "sha256": "ab1523c88f716d9f27683dd51646db0c517fdba78ab4ae0ac33bb29ff46c98a6"
+    },
+    {
+      "group": "sandbox",
+      "repository": "evansmusitu/mft-axiom-build",
+      "ref": "c22bf1930b8576bc6b3bcc25ffcd40bd08c93ddb",
+      "path": "frontier_v5/tests/test_legacy_live_adapter_veto.py",
+      "git_blob_sha": "062e74a450c9749a00a0b18cb63901b374191674",
+      "provider_reported_bytes": 1148,
+      "sha256": "8d1eaa14dd0fd9a314addbf819aa4e480d6a570692f8bd5be7048ca3f1e290e9"
+    },
+    {
+      "group": "sandbox",
+      "repository": "evansmusitu/mft-axiom-build",
+      "ref": "c22bf1930b8576bc6b3bcc25ffcd40bd08c93ddb",
+      "path": "frontier_v5/tests/test_namespace_security.py",
+      "git_blob_sha": "e1dcd384ffda158de4c173d0a980af4493c09dba",
+      "provider_reported_bytes": 4066,
+      "sha256": "d9692b521e13434ca2105a2929da5b66243aeef00851d0c2e0479849d23b8776"
+    },
+    {
+      "group": "sandbox",
+      "repository": "evansmusitu/mft-axiom-build",
+      "ref": "c22bf1930b8576bc6b3bcc25ffcd40bd08c93ddb",
+      "path": "frontier_v5/tests/test_workflow_security_contract.py",
+      "git_blob_sha": "99aca6f733724ff6d6cef51a405edb4195af10b8",
+      "provider_reported_bytes": 4653,
+      "sha256": "14466079db665cbefbb350e0ce03d8606577dea0fc8bf07ac89b7c72d29b8f5c"
+    },
+    {
+      "group": "b27",
+      "repository": "evansmusitu/mft-axiom-build",
+      "ref": "14b5c520bd7cd53ccd4978f575dfcbe9b250ed0c",
+      "path": "integrations/independent-ledger/client.mjs",
+      "git_blob_sha": "551aed49d05b7a57009b5baf3e907d8b82dc54a9",
+      "provider_reported_bytes": 10471,
+      "sha256": "9f477dd0372e7e6c8afc67f33dc74df41f63e396f28848b89b5e6b8fc7196cd3"
+    },
+    {
+      "group": "b27",
+      "repository": "evansmusitu/mft-axiom-build",
+      "ref": "14b5c520bd7cd53ccd4978f575dfcbe9b250ed0c",
+      "path": "integrations/independent-ledger/github-anchor.mjs",
+      "git_blob_sha": "6a0c448329779eb4567bfd7ac1d91c745dd9e725",
+      "provider_reported_bytes": 6423,
+      "sha256": "56adbfd251a1dcf77d09ac4f28aebf88d75500ee1ea02dc02733bd86e42f3a01"
+    },
+    {
+      "group": "b27",
+      "repository": "evansmusitu/mft-axiom-build",
+      "ref": "14b5c520bd7cd53ccd4978f575dfcbe9b250ed0c",
+      "path": "integrations/independent-ledger/protocol.mjs",
+      "git_blob_sha": "2bc942e97943077c48f7206d27a10321e1a7feac",
+      "provider_reported_bytes": 5505,
+      "sha256": "6783a69358851a5f95595e85c5504282f33bcc407bd9225c7e36a95576c5ac93"
+    },
+    {
+      "group": "sandbox",
+      "repository": "evansmusitu/mft-axiom-build",
+      "ref": "c22bf1930b8576bc6b3bcc25ffcd40bd08c93ddb",
+      "path": ".github/workflows/axiom-frontier-v5-skill-gate.yml",
+      "git_blob_sha": "ba669e17657c9909eb6058977f2bbdc29986c3c9",
+      "provider_reported_bytes": 6987,
+      "sha256": "aab7f472e35f9a4a037b22b8917c9d2864fef1b6d9a6ddb5e8d41158ba6e7203"
+    },
+    {
+      "group": "sandbox",
+      "repository": "evansmusitu/mft-axiom-build",
+      "ref": "c22bf1930b8576bc6b3bcc25ffcd40bd08c93ddb",
+      "path": "frontier_v5/runtime/fabric.py",
+      "git_blob_sha": "5911ea2b88721a6ccedf61be3aefa0eb952268fa",
+      "provider_reported_bytes": 11682,
+      "sha256": "5cfa8e6bae498ecac786030be9a1a5c8f2f217c91df872f0ddcdac95f52a5058"
+    },
+    {
+      "group": "sandbox",
+      "repository": "evansmusitu/mft-axiom-build",
+      "ref": "c22bf1930b8576bc6b3bcc25ffcd40bd08c93ddb",
+      "path": "frontier_v5/runtime/fullstack_base.py",
+      "git_blob_sha": "f1bd54b4f204eabec559cadd3ff4beda4d6abf3a",
+      "provider_reported_bytes": 36578,
+      "sha256": "70bc116815c13a13a680528f876c168501b3809d0a4db5b8dae22d85888109cb"
+    },
+    {
+      "group": "sandbox",
+      "repository": "evansmusitu/mft-axiom-build",
+      "ref": "c22bf1930b8576bc6b3bcc25ffcd40bd08c93ddb",
+      "path": "frontier_v5/runtime/retrieval_security.py",
+      "git_blob_sha": "39c2e6ca43647e5bc95267d8037b69fd1c3db8b7",
+      "provider_reported_bytes": 3589,
+      "sha256": "bfddf82e9010e40076c801be14ae44fb828850c6a423ae0bb904a0c3a8ad6328"
+    },
+    {
+      "group": "sandbox",
+      "repository": "evansmusitu/mft-axiom-build",
+      "ref": "c22bf1930b8576bc6b3bcc25ffcd40bd08c93ddb",
+      "path": "frontier_v5/runtime/security.py",
+      "git_blob_sha": "a48a5bab84c4c84a7c56b23c4a256cd985ee7e23",
+      "provider_reported_bytes": 2182,
+      "sha256": "d822609aa78d4fe38b11502d853b24d516f0e16447d21c1885e9b82f35bfe2fd"
+    },
+    {
+      "group": "sandbox",
+      "repository": "evansmusitu/mft-axiom-build",
+      "ref": "c22bf1930b8576bc6b3bcc25ffcd40bd08c93ddb",
+      "path": "frontier_v5/scripts/frontier_live_verify.py",
+      "git_blob_sha": "30216fb8736209314c384ec2f12bbe3c5aeafcf2",
+      "provider_reported_bytes": 20691,
+      "sha256": "07e6a94e3cbcecc27687562fc73d534887301374b8cd951d3fd0bd862f9df3f3"
+    },
+    {
+      "group": "b27",
+      "repository": "evansmusitu/mft-axiom-build",
+      "ref": "14b5c520bd7cd53ccd4978f575dfcbe9b250ed0c",
+      "path": "axiom_interface/vnext/execution_integrity.mjs",
+      "git_blob_sha": "39e2f1331ce7172571ab7bf6f9ec8664e220fa4b",
+      "provider_reported_bytes": 3650,
+      "sha256": "d7cdfd215de86fd44b6e25e8adc014ce3314e11e2529f616a5d6f066dd4884d6"
+    },
+    {
+      "group": "sandbox",
+      "repository": "evansmusitu/mft-axiom-build",
+      "ref": "c22bf1930b8576bc6b3bcc25ffcd40bd08c93ddb",
+      "path": "frontier_v5/runtime/__init__.py",
+      "git_blob_sha": "f1223386ba3927f8934ef8775282840dc631a621",
+      "provider_reported_bytes": 769,
+      "sha256": "4e687baf0d81e2b81e61be768292cd7d0d04c0fa6dc17a0b0f2cfc3f24be76fc"
+    },
+    {
+      "group": "sandbox",
+      "repository": "evansmusitu/mft-axiom-build",
+      "ref": "c22bf1930b8576bc6b3bcc25ffcd40bd08c93ddb",
+      "path": "frontier_v5/runtime/advanced.py",
+      "git_blob_sha": "e9ec8948d844122c40e6603343e5e88266b136d0",
+      "provider_reported_bytes": 22844,
+      "sha256": "b75c38b9c6aa38032818e03d898be8c9e0336a754bd79fd641d8cef05f64a804"
+    },
+    {
+      "group": "sandbox",
+      "repository": "evansmusitu/mft-axiom-build",
+      "ref": "c22bf1930b8576bc6b3bcc25ffcd40bd08c93ddb",
+      "path": "frontier_v5/runtime/agent_plugin_package.py",
+      "git_blob_sha": "bea2f40b3b1c0b29fd83ef4ce503d3b046ac9b54",
+      "provider_reported_bytes": 19571,
+      "sha256": "b0334baeb70db8e9cfb8b1ed19795739dff0c5fbfdb9d7c5c9b5c7167fd5c414"
+    },
+    {
+      "group": "sandbox",
+      "repository": "evansmusitu/mft-axiom-build",
+      "ref": "c22bf1930b8576bc6b3bcc25ffcd40bd08c93ddb",
+      "path": "frontier_v5/runtime/benchmark_registry.py",
+      "git_blob_sha": "0db1cbec510bb0aac970f6628f544dc1be143c1c",
+      "provider_reported_bytes": 14962,
+      "sha256": "89586053f1e810f3cecf99ef5cf0f13f146439d96cb2d0d2b504f35e34d6259d"
+    },
+    {
+      "group": "sandbox",
+      "repository": "evansmusitu/mft-axiom-build",
+      "ref": "c22bf1930b8576bc6b3bcc25ffcd40bd08c93ddb",
+      "path": "frontier_v5/runtime/cimd.py",
+      "git_blob_sha": "ef7a62330bf04b9e52e87480f01777a1969e1637",
+      "provider_reported_bytes": 9990,
+      "sha256": "548bf5e6a7171035ff21a5df71931f68f5b8121c0e0604992834d28370c1cf91"
+    },
+    {
+      "group": "sandbox",
+      "repository": "evansmusitu/mft-axiom-build",
+      "ref": "c22bf1930b8576bc6b3bcc25ffcd40bd08c93ddb",
+      "path": "frontier_v5/runtime/circuit_breakers.py",
+      "git_blob_sha": "6dd4e324c2051a744857de2ae6c39dcea0fea405",
+      "provider_reported_bytes": 13152,
+      "sha256": "5760ace5ded7f81d4d368e2ad188b220de5b868938c36d24f985dde7664c1299"
+    },
+    {
+      "group": "sandbox",
+      "repository": "evansmusitu/mft-axiom-build",
+      "ref": "c22bf1930b8576bc6b3bcc25ffcd40bd08c93ddb",
+      "path": "frontier_v5/runtime/data_lifecycle.py",
+      "git_blob_sha": "f314f2b800b5cc6ae8318927fc348ae8c197cc3d",
+      "provider_reported_bytes": 22325,
+      "sha256": "b390a180a72df8b887c1302de2bcaaa063b259274c173b9ab1123af01fcccb94"
+    },
+    {
+      "group": "sandbox",
+      "repository": "evansmusitu/mft-axiom-build",
+      "ref": "c22bf1930b8576bc6b3bcc25ffcd40bd08c93ddb",
+      "path": "frontier_v5/runtime/disaster_recovery.py",
+      "git_blob_sha": "e859a2e85b30e1bd3f5fe92b4d727a6ba0791d0c",
+      "provider_reported_bytes": 19654,
+      "sha256": "1090bd660eacf4aad9b2257510e356f15463439386e9c3fb9dab2287e8557601"
+    },
+    {
+      "group": "sandbox",
+      "repository": "evansmusitu/mft-axiom-build",
+      "ref": "c22bf1930b8576bc6b3bcc25ffcd40bd08c93ddb",
+      "path": "frontier_v5/runtime/docker_isolated_sandbox.py",
+      "git_blob_sha": "dbc75869f50098ee3c00d6e6df6a8983cce1f964",
+      "provider_reported_bytes": 5997,
+      "sha256": "2d829235fcca9115e8aa732ecc10d03997211293df379f86d5d654824be3857a"
+    },
+    {
+      "group": "sandbox",
+      "repository": "evansmusitu/mft-axiom-build",
+      "ref": "c22bf1930b8576bc6b3bcc25ffcd40bd08c93ddb",
+      "path": "frontier_v5/runtime/durable_tasks.py",
+      "git_blob_sha": "ac8051b34ed55c30a61f82cc8bef4b256c3fdb89",
+      "provider_reported_bytes": 42058,
+      "sha256": "2b98d09fd7f01e4181911888fe2f146e9357e965f4aaeb6100a8d996b1f759be"
+    },
+    {
+      "group": "sandbox",
+      "repository": "evansmusitu/mft-axiom-build",
+      "ref": "c22bf1930b8576bc6b3bcc25ffcd40bd08c93ddb",
+      "path": "frontier_v5/runtime/enterprise_contracts.py",
+      "git_blob_sha": "2fbf89a4f942d99a410358b12868f59284412fa1",
+      "provider_reported_bytes": 29776,
+      "sha256": "7c972094ef64485b7752afc818e1749530b280f91ca0f947f8f86628f096de7d"
+    },
+    {
+      "group": "sandbox",
+      "repository": "evansmusitu/mft-axiom-build",
+      "ref": "c22bf1930b8576bc6b3bcc25ffcd40bd08c93ddb",
+      "path": "frontier_v5/runtime/enterprise_identity.py",
+      "git_blob_sha": "1489ded9925bc4658a4af691687e886aa04b9257",
+      "provider_reported_bytes": 31002,
+      "sha256": "bdb1d6326abbda48a774b42bd8a3cbab610f51a7c0f0dcba2335d15edb75df51"
+    },
+    {
+      "group": "sandbox",
+      "repository": "evansmusitu/mft-axiom-build",
+      "ref": "c22bf1930b8576bc6b3bcc25ffcd40bd08c93ddb",
+      "path": "frontier_v5/runtime/external_claim_boundary.py",
+      "git_blob_sha": "0263cfacb3f989be43c9b8a6c987e23181dd1eb8",
+      "provider_reported_bytes": 8400,
+      "sha256": "04affcded84c3e4a0c22013f51588921c8aa46132128a21be5f734f565138d1b"
+    },
+    {
+      "group": "sandbox",
+      "repository": "evansmusitu/mft-axiom-build",
+      "ref": "c22bf1930b8576bc6b3bcc25ffcd40bd08c93ddb",
+      "path": "frontier_v5/runtime/external_comparative.py",
+      "git_blob_sha": "dee17a53013042efbfdc6c51357fab5be736333b",
+      "provider_reported_bytes": 12649,
+      "sha256": "734d8e83ce52da8ff3f5f3d44562a4f00fd3641d08e2e90e5095378c01514bd9"
+    },
+    {
+      "group": "sandbox",
+      "repository": "evansmusitu/mft-axiom-build",
+      "ref": "c22bf1930b8576bc6b3bcc25ffcd40bd08c93ddb",
+      "path": "frontier_v5/runtime/failure_corpus.py",
+      "git_blob_sha": "10d0d1252e83f44ac455d11a47fa98c1dc92864c",
+      "provider_reported_bytes": 16597,
+      "sha256": "0cf762fb4ac76dc20a953288e3f56a281dcbb825dceb4992d4c08f81c31eee15"
+    },
+    {
+      "group": "sandbox",
+      "repository": "evansmusitu/mft-axiom-build",
+      "ref": "c22bf1930b8576bc6b3bcc25ffcd40bd08c93ddb",
+      "path": "frontier_v5/runtime/financial_ontology.py",
+      "git_blob_sha": "daf2e53283e0293210f63c2c7758ac3a5ac0e09d",
+      "provider_reported_bytes": 8904,
+      "sha256": "b1ab3a6d41a48ac414bac6e6cf765ae8fde4c536a7e3b5e568ddb5d22e199c8c"
+    },
+    {
+      "group": "sandbox",
+      "repository": "evansmusitu/mft-axiom-build",
+      "ref": "c22bf1930b8576bc6b3bcc25ffcd40bd08c93ddb",
+      "path": "frontier_v5/runtime/freshness.py",
+      "git_blob_sha": "2ca2a1ffd2c7d497dfba9b70788edd59961ec8c1",
+      "provider_reported_bytes": 7569,
+      "sha256": "907d780b3b6db014d7ed7faff5453c8b2635c6bafc4db0cda5d4ec39a0b99ce3"
+    },
+    {
+      "group": "sandbox",
+      "repository": "evansmusitu/mft-axiom-build",
+      "ref": "c22bf1930b8576bc6b3bcc25ffcd40bd08c93ddb",
+      "path": "frontier_v5/runtime/incident_forensics.py",
+      "git_blob_sha": "7f603fe7d730cc6a3d81d69bb24d2b11fd9be41c",
+      "provider_reported_bytes": 9474,
+      "sha256": "2aba43ad49c742721f8ea355c18d0d8d640e886863077069b3d0ab5c070a41bb"
+    },
+    {
+      "group": "sandbox",
+      "repository": "evansmusitu/mft-axiom-build",
+      "ref": "c22bf1930b8576bc6b3bcc25ffcd40bd08c93ddb",
+      "path": "frontier_v5/runtime/incident_response.py",
+      "git_blob_sha": "e3ffd1338eab401fe2703d38b7b4d82424d6fc9b",
+      "provider_reported_bytes": 34295,
+      "sha256": "dff24025e4c4010721acff185fc846d3dbbf701bfaa56c2ab8c157f2b86bdd52"
+    },
+    {
+      "group": "sandbox",
+      "repository": "evansmusitu/mft-axiom-build",
+      "ref": "c22bf1930b8576bc6b3bcc25ffcd40bd08c93ddb",
+      "path": "frontier_v5/runtime/latency_performance.py",
+      "git_blob_sha": "d4873868275a11d0c8d336bf0894743e212fc1ef",
+      "provider_reported_bytes": 9121,
+      "sha256": "c47c36bbfc56629578ef2b223d925ec8ac8a887ac4442ab4e2f0214121b0ff63"
+    },
+    {
+      "group": "sandbox",
+      "repository": "evansmusitu/mft-axiom-build",
+      "ref": "c22bf1930b8576bc6b3bcc25ffcd40bd08c93ddb",
+      "path": "frontier_v5/runtime/malicious_file_guard.py",
+      "git_blob_sha": "1f9f1fbe3937cf48cdcdc9a875e2aa08c8aff2e1",
+      "provider_reported_bytes": 10293,
+      "sha256": "24d870267e43002115783da4f10ff7400c1003e0e56e3bcabd51d7a7649ccd46"
+    },
+    {
+      "group": "sandbox",
+      "repository": "evansmusitu/mft-axiom-build",
+      "ref": "c22bf1930b8576bc6b3bcc25ffcd40bd08c93ddb",
+      "path": "frontier_v5/runtime/mcp_2026.py",
+      "git_blob_sha": "574d494ffb4dee6268c090a20f7c45258213bd50",
+      "provider_reported_bytes": 10753,
+      "sha256": "ea10646b05aae557701a1cc8c19bb5f653dc98a5c6bf6012439ee8ea095cb376"
+    },
+    {
+      "group": "sandbox",
+      "repository": "evansmusitu/mft-axiom-build",
+      "ref": "c22bf1930b8576bc6b3bcc25ffcd40bd08c93ddb",
+      "path": "frontier_v5/runtime/migration_safety.py",
+      "git_blob_sha": "567fb58d7ffa31bd3bfe459a91071d49d41eda18",
+      "provider_reported_bytes": 21305,
+      "sha256": "9250bb069a087fbcfc4bf7a76e29fd1d4fb9f7225929f5e79b0821dbe7971c78"
+    },
+    {
+      "group": "sandbox",
+      "repository": "evansmusitu/mft-axiom-build",
+      "ref": "c22bf1930b8576bc6b3bcc25ffcd40bd08c93ddb",
+      "path": "frontier_v5/runtime/oidc.py",
+      "git_blob_sha": "06dc2b3dfee2146d4daa4deb24feccf5b096a5e8",
+      "provider_reported_bytes": 16320,
+      "sha256": "48e39c61a6066c643f406e05fdbb032d0a943137ddd0f69b74da33ddb3ecb077"
+    },
+    {
+      "group": "sandbox",
+      "repository": "evansmusitu/mft-axiom-build",
+      "ref": "c22bf1930b8576bc6b3bcc25ffcd40bd08c93ddb",
+      "path": "frontier_v5/runtime/openai_plugin_package.py",
+      "git_blob_sha": "6b27f7f89f96fda494205afff8678672407def52",
+      "provider_reported_bytes": 19439,
+      "sha256": "4ff7e9494eef03395a4cf816c2641dbb0c55e8381745c824bc1037b878135a5e"
+    },
+    {
+      "group": "sandbox",
+      "repository": "evansmusitu/mft-axiom-build",
+      "ref": "c22bf1930b8576bc6b3bcc25ffcd40bd08c93ddb",
+      "path": "frontier_v5/runtime/persistent_planner.py",
+      "git_blob_sha": "1ca190ac772a6edfccdd1cdf711f5dfd07b2d737",
+      "provider_reported_bytes": 37486,
+      "sha256": "0ad648243348531c99e58d0de3ef0ad044fb5109cf6ae01c84f96a6ee47d1f6a"
+    },
+    {
+      "group": "sandbox",
+      "repository": "evansmusitu/mft-axiom-build",
+      "ref": "c22bf1930b8576bc6b3bcc25ffcd40bd08c93ddb",
+      "path": "frontier_v5/runtime/privacy_analytics.py",
+      "git_blob_sha": "3d49e7925263d10762977f6204ceb339e1eded3e",
+      "provider_reported_bytes": 15372,
+      "sha256": "ae9662b4f7b30122faf8711c52a6e55be7029b58b094c00e566a5f360d23e2b5"
+    },
+    {
+      "group": "sandbox",
+      "repository": "evansmusitu/mft-axiom-build",
+      "ref": "c22bf1930b8576bc6b3bcc25ffcd40bd08c93ddb",
+      "path": "frontier_v5/runtime/provider_fallback.py",
+      "git_blob_sha": "71fd6e1d08cc18fa92f4c59bad7bd4511e0192e3",
+      "provider_reported_bytes": 13095,
+      "sha256": "910204f26c9445512b311eb03a3a493f2237de80999ebfc879f0f3e4fa2a501c"
+    },
+    {
+      "group": "sandbox",
+      "repository": "evansmusitu/mft-axiom-build",
+      "ref": "c22bf1930b8576bc6b3bcc25ffcd40bd08c93ddb",
+      "path": "frontier_v5/runtime/secret_scanning.py",
+      "git_blob_sha": "fbee75cb8d661bc3e182087c1fdff27d5b53aff4",
+      "provider_reported_bytes": 7739,
+      "sha256": "05c6aa3fb5623217ef325debddd45a56c1c5ec9b54957c1ac1152f325cd291f5"
+    },
+    {
+      "group": "sandbox",
+      "repository": "evansmusitu/mft-axiom-build",
+      "ref": "c22bf1930b8576bc6b3bcc25ffcd40bd08c93ddb",
+      "path": "frontier_v5/runtime/secure_research.py",
+      "git_blob_sha": "8b75386489f61026c57b60c51ee826150e112c11",
+      "provider_reported_bytes": 1206,
+      "sha256": "f5474f55851741fe78fb0b70cc2c5ca55fca63ffd538c34dfb9035e33311c462"
+    },
+    {
+      "group": "sandbox",
+      "repository": "evansmusitu/mft-axiom-build",
+      "ref": "c22bf1930b8576bc6b3bcc25ffcd40bd08c93ddb",
+      "path": "frontier_v5/runtime/slo_governance.py",
+      "git_blob_sha": "cbfd2d8d550b4f2f505f87ef8ae6d4098b5eeaef",
+      "provider_reported_bytes": 32022,
+      "sha256": "dce789aba66836cfac77c340e11cf2a688269149ddb1364852b57c33d56e415c"
+    },
+    {
+      "group": "sandbox",
+      "repository": "evansmusitu/mft-axiom-build",
+      "ref": "c22bf1930b8576bc6b3bcc25ffcd40bd08c93ddb",
+      "path": "frontier_v5/runtime/spend_governance.py",
+      "git_blob_sha": "0f2a9d68285433ae08d14148efaa59a85e503502",
+      "provider_reported_bytes": 29269,
+      "sha256": "107fe2f5c549e9ef236a9e9a1eb41fe286cb4caf0635f24a287a0966170a558c"
+    },
+    {
+      "group": "sandbox",
+      "repository": "evansmusitu/mft-axiom-build",
+      "ref": "c22bf1930b8576bc6b3bcc25ffcd40bd08c93ddb",
+      "path": "frontier_v5/runtime/workspace_licensing.py",
+      "git_blob_sha": "f2997a363f8f98844175724719feaa53f014e847",
+      "provider_reported_bytes": 43467,
+      "sha256": "b56b8dcaf044c1577170f985025c1fcb402d4ed23441d2b7464471b22c598b74"
+    },
+    {
+      "path": "customer_frontier/qualification/step1_owner_control_policy_candidate.mjs",
+      "ref": "5c03cf457fa0e2bdee7103e2d9f0e4bfd32d9e50",
+      "group": "owner-authority",
+      "git_blob_sha": "e17dcdf5ed3c1dc0df048320c4397769f1cedb53",
+      "repository": "evansmusitu/mft-axiom-build",
+      "provider_reported_bytes": 7269,
+      "sha256": "ec4722be67520bb61b66d163c6f7eec5b588898b8af7c323cb01e1f8fb86dbe3"
+    },
+    {
+      "path": "customer_frontier/qualification/step1_owner_nonce_replay_store.py",
+      "ref": "5c03cf457fa0e2bdee7103e2d9f0e4bfd32d9e50",
+      "group": "owner-authority",
+      "git_blob_sha": "a1ce10ad22a56671db0314ef386eafc636dfaef4",
+      "repository": "evansmusitu/mft-axiom-build",
+      "provider_reported_bytes": 9323,
+      "sha256": "c0b8ed5c31b910fd78bbdee50d43ca2db49c7e2e6372404d7dabe864cbeed9e2"
+    },
+    {
+      "path": "customer_frontier/qualification/step1_owner_signed_proposal_nonce_guard.mjs",
+      "ref": "5c03cf457fa0e2bdee7103e2d9f0e4bfd32d9e50",
+      "group": "owner-authority",
+      "git_blob_sha": "bcc913b9d2f2ed3bce69d2cbd21c9aa755c7d920",
+      "repository": "evansmusitu/mft-axiom-build",
+      "provider_reported_bytes": 4341,
+      "sha256": "3638855fd0fa36cde1ad0d5e8a032ef7920499be624d24762d4a919623e4da4e"
+    },
+    {
+      "path": "customer_frontier/tests/step1_owner_signed_proposal_nonce_guard.test.mjs",
+      "ref": "5c03cf457fa0e2bdee7103e2d9f0e4bfd32d9e50",
+      "group": "owner-authority",
+      "git_blob_sha": "5d7ff92938f032bff25461e3614ed170ba3270bd",
+      "repository": "evansmusitu/mft-axiom-build",
+      "provider_reported_bytes": 6295,
+      "sha256": "9411142e4d73c8c8d586fba9be7c2be6e4108fe72990fa41201280810334ac99"
+    },
+    {
+      "path": "customer_frontier/tests/test_step1_owner_nonce_replay_store.py",
+      "ref": "5c03cf457fa0e2bdee7103e2d9f0e4bfd32d9e50",
+      "group": "owner-authority",
+      "git_blob_sha": "1a828c3644dfbf0b70193a2606cc47050ce50eb6",
+      "repository": "evansmusitu/mft-axiom-build",
+      "provider_reported_bytes": 7885,
+      "sha256": "1ca99d1c40de6417fb84d33ade173a5f13278b0f23ea3fdd09ff3e7a8dda3003"
+    }
+  ]
+}

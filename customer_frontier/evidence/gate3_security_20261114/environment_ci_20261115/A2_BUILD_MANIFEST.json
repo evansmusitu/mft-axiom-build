@@ -1,0 +1,22 @@
+{
+  "schema": "musitu.axiom.authority2.worker.dryrun.v1",
+  "source_commit": "96319259bbca599420c6648d41cfb5c991c58d05",
+  "reviewed_runtime_source_commit": "14b5c520bd7cd53ccd4978f575dfcbe9b250ed0c",
+  "wrangler_version": "4.150.0",
+  "deployment": "NONE",
+  "origin": "UNASSIGNED",
+  "worker_uploaded": false,
+  "customer_traffic_enabled": false,
+  "secrets_used": false,
+  "independent_custody_qualified": false,
+  "release_eligible": false,
+  "bundle_sha256": "d1ddd1e944bfa4560cc662f7fd12a9b22b3f6493175e4a38b2b3db7e1aed4210",
+  "bundle_size": 15548,
+  "bundle_file": "authority2-highwater-worker.js",
+  "sources": {
+    "integrations/security-authority2/authority2-highwater-worker.mjs": "7e29a46bb0924c5a7eb0d60d79885f36a0b6945e022fb37a56898bce3aec6df1",
+    "integrations/security-authority2/authority2-r2-worm.mjs": "ce080ac8b5a6e190cf22e0bf9a5cf34251174822020b3b6da3e349fe4f5e17f7",
+    "integrations/security-authority2/wrangler.example.toml": "d8db8f065d8bdad9a219f994352bf0920e8e7e96d734dd2ebab5b2532c3464fd"
+  },
+  "verifier_sha256": "86c59f3097e4a46c71904585b37cd6bd9da08889b1b8a34171c7b8623299e165"
+}

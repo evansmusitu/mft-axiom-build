@@ -1,0 +1,23 @@
+✔ actual D1 typed create/read/update preserves independently hashed data across worker restart (821.890934ms)
+✔ actual D1 fixture bridge rejects arbitrary SQL routes, browser origins and wrong role before writes (339.851804ms)
+✔ actual D1 bridge enforces tenant separation for reads, writes and revocations (383.132273ms)
+✔ actual D1 compare-and-set linearizes twelve concurrent creates into one version (393.764748ms)
+✔ actual D1 revocation persists across restart and blocks an otherwise valid stored credential (372.890813ms)
+✔ actual D1 identity marker is required before writes; requests cannot create a missing schema (266.956369ms)
+✔ actual D1 marker mismatch rejects before a schema or data mutation (381.504707ms)
+✔ source and accepted recovery-copy UUIDs can never become a staging target (0.581306ms)
+✔ actual D1 bridge rejects SQL-shaped IDs, extra fields and mismatched request scope (373.798572ms)
+✔ actual D1 integrity corruption never returns an unchecked record (340.262605ms)
+✔ actual D1 wrong role cannot self-upgrade or revoke tenant administration (314.35351ms)
+✔ typed client denies production/general origins and rejects a forged response without retrying (3.110597ms)
+✔ typed client holds a lost acknowledgement instead of automatically repeating a mutation (0.33321ms)
+✔ typed client bounds uncooperative provider responses (200.703239ms)
+✔ fixture schema and bridge source never contain a default identity or migration/provisioning route (1.855644ms)
+ℹ tests 15
+ℹ suites 0
+ℹ pass 15
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 4792.736983

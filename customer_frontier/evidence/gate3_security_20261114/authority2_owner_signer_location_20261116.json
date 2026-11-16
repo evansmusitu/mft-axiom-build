@@ -1,0 +1,22 @@
+{
+  "schema": "musitu.axiom.authority2.owner-signer-location.v1",
+  "recorded_at_utc": "2026-11-16T05:59:20.828Z",
+  "controller": "Evans Musitu",
+  "evidence_origin": "DIRECT_USER_RESPONSE_TO_PRIVATE_SIGNER_ACCESS_QUESTION",
+  "statement_exact": "Windows PC and recovery USB drive",
+  "owner_reported_locations": [
+    "Windows PC",
+    "recovery USB drive"
+  ],
+  "dedicated_authority2_public_spki_sha256": "6792c82b245cd45051052cc1b00eb5f99a99489829c3f0567c7c15f741389d8a",
+  "location_question_resolved": true,
+  "phone_or_secure_cloud_access_reported": false,
+  "live_owner_controlled_pc_operator_session_established": false,
+  "private_file_or_passphrase_requested_or_obtained": false,
+  "physical_media_or_private_key_correspondence_independently_verified": false,
+  "prior_completed_owner_key_recovery_repeated": false,
+  "source_config_approval_preserved": true,
+  "cloudflare_mutation_performed": false,
+  "gate3_closed": false,
+  "release_status": "NOT_RELEASE"
+}

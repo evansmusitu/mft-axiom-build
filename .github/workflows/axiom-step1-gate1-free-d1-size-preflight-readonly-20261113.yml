@@ -1,0 +1,45 @@
+name: AXIOM Gate1 free D1 per-db size feasibility GET-only (NOT RELEASE)
+on:
+  push:
+    branches:
+      - review/axiom-step1-owner-sole-authority-policy-20261112-not-release
+    paths:
+      - customer_frontier/qualification/step1_gate1_free_d1_feasibility_readonly_20261113.py
+      - customer_frontier/tests/test_step1_gate1_free_d1_feasibility_readonly_20261113.py
+      - .github/workflows/axiom-step1-gate1-free-d1-size-preflight-readonly-20261113.yml
+permissions: {contents: read}
+jobs:
+  source-size-get-only:
+    if: >-
+      github.repository == 'evansmusitu/mft-axiom-build' &&
+      github.actor == 'evansmusitu' &&
+      github.ref == 'refs/heads/review/axiom-step1-owner-sole-authority-policy-20261112-not-release' &&
+      github.run_attempt == 1
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - name: Checkout isolated draft without persisted credentials
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with: {persist-credentials: false}
+      - name: 19 offline synthetic tests before provider access
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -m unittest discover -s customer_frontier/tests -p test_step1_gate1_free_d1_feasibility_readonly_20261113.py -v
+      - name: Existing account pinned source D1 detail GET, NO QUERY OR EXPORT
+        shell: bash
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+        run: |
+          set -euo pipefail
+          python3 customer_frontier/qualification/step1_gate1_free_d1_feasibility_readonly_20261113.py
+      - name: Save only sanitized source size feasibility and sha256
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: axiom-step1-gate1-free-d1-size-readonly-20261113
+          retention-days: 10
+          if-no-files-found: error
+          path: |
+            axiom_step1_free_d1_feasibility_readonly_20261113.json
+            axiom_step1_free_d1_feasibility_readonly_20261113.json.sha256

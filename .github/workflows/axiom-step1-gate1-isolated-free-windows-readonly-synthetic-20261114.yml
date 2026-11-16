@@ -1,0 +1,69 @@
+name: AXIOM Gate1 Windows isolated Free account checker SYNTHETIC ONLY (NOT RELEASE)
+on:
+  push:
+    branches:
+      - review/axiom-step1-owner-sole-authority-policy-20261112-not-release
+    paths:
+      - Run_MUSITU_AXIOM_Gate1_Free_Readonly_Windows.ps1
+      - customer_frontier/qualification/step1_gate1_free_isolated_account_readonly_20261114.mjs
+      - customer_frontier/tests/step1_gate1_free_isolated_account_readonly_20261114.test.mjs
+      - .github/workflows/axiom-step1-gate1-isolated-free-windows-readonly-synthetic-20261114.yml
+permissions: {contents: read}
+jobs:
+  node-no-secrets-synthetic:
+    if: >-
+      github.repository == 'evansmusitu/mft-axiom-build' &&
+      github.ref == 'refs/heads/review/axiom-step1-owner-sole-authority-policy-20261112-not-release' &&
+      github.run_attempt == 1
+    runs-on: ubuntu-24.04
+    timeout-minutes: 6
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with: {persist-credentials: false}
+      - name: Verify 20 synthetic denials, no provider tokens or account creation
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --test customer_frontier/tests/step1_gate1_free_isolated_account_readonly_20261114.test.mjs
+          mkdir -p "$RUNNER_TEMP/axiom-gate1-no-go"
+          cd "$RUNNER_TEMP/axiom-gate1-no-go"
+          unset AXIOM_GATE1_OWNER_FREE_ACCOUNT_ID AXIOM_GATE1_OWNER_FREE_ACCOUNT_READ_TOKEN || true
+          if node "$GITHUB_WORKSPACE/customer_frontier/qualification/step1_gate1_free_isolated_account_readonly_20261114.mjs"; then
+            echo 'ERROR: no account/token unexpectedly qualified'; exit 1
+          fi
+          node - <<'JS'
+          const fs=require('fs');
+          const r=JSON.parse(fs.readFileSync('axiom_gate1_free_account_readonly_NO_GO_20261114.json'));
+          if(r.gate1_closed!==false||r.release_authorized!==false||r.release_status!=='NOT_RELEASE')process.exit(1);
+          console.log('AXIOM_GATE1_NODE_MISSING_CREDENTIAL_NO_GO_PASS_NOT_RELEASE');
+          JS
+  windows-owner-simulator-refusal:
+    if: >-
+      github.repository == 'evansmusitu/mft-axiom-build' &&
+      github.ref == 'refs/heads/review/axiom-step1-owner-sole-authority-policy-20261112-not-release' &&
+      github.run_attempt == 1
+    runs-on: windows-2022
+    timeout-minutes: 6
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with: {persist-credentials: false}
+      - name: Parse PowerShell and confirm real owner/MFA and token are never simulated
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop'
+          $file='Run_MUSITU_AXIOM_Gate1_Free_Readonly_Windows.ps1'
+          $t=$null; $e=$null
+          [void][Management.Automation.Language.Parser]::ParseFile((Resolve-Path $file).Path,[ref]$t,[ref]$e)
+          if($e.Count -gt 0){throw ('Syntax error: '+($e|Out-String))}
+          $contents=Get-Content $file -Raw
+          foreach($x in @('CLOUD_RUNNER_FORBIDDEN','PAID_ORIGINAL_ACCOUNT_REUSE_FORBIDDEN','PINNED_PROVIDER_CHECKER_SHA256_MISMATCH','INTERACTIVE_OWNER_CONSOLE_REQUIRED','NOT_RELEASE')) {
+            if(-not $contents.Contains($x) -and $x -ne 'PAID_ORIGINAL_ACCOUNT_REUSE_FORBIDDEN'){throw ('Missing veto '+$x)}
+          }
+          $stdout=Join-Path $env:RUNNER_TEMP 'ax-free-stdout.txt'
+          $stderr=Join-Path $env:RUNNER_TEMP 'ax-free-stderr.txt'
+          $env:CI='true'
+          $proc=Start-Process 'powershell.exe' -ArgumentList @('-NoProfile','-NonInteractive','-ExecutionPolicy','Bypass','-File', (Resolve-Path $file).Path, '-FreeAccountId', ('a'*32)) -NoNewWindow -Wait -PassThru -RedirectStandardOutput $stdout -RedirectStandardError $stderr
+          if($proc.ExitCode -ne 2){throw ('Owner-only Windows checker refused with unexpected exit '+$proc.ExitCode)}
+          $err=Get-Content $stderr -Raw
+          if($err -notmatch 'CLOUD_RUNNER_FORBIDDEN'){throw 'Missing secure CI refusal'}
+          Write-Output 'AXIOM_GATE1_WINDOWS_CI_REFUSAL_PASS_NO_CLOUD_NO_OWNER_KEYS_NOT_RELEASE'

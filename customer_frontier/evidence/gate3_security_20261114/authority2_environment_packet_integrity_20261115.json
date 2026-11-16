@@ -1,0 +1,39 @@
+{
+  "schema": "musitu.axiom.authority2.environment-review-packet-integrity.v1",
+  "observed_at_utc": "2026-11-15T13:52:39.239292+00:00",
+  "evidence_origin": "ASSISTANT_LINUX_ENVIRONMENT_ACTUAL_ARCHIVE_BYTES",
+  "status": "REVIEW_ARCHIVE_AND_ALL_MEMBERS_VERIFIED_ONLY_NOT_DEPLOYED",
+  "zip_bytes": 68098,
+  "zip_sha256": "c9dee791478ba5927f4636ce50eaee59b52d032f4d1438a111d5f17a28e4df08",
+  "zip_members": 25,
+  "manifest_members_verified": 24,
+  "build_manifest_sha256": "3e34dfed171f8874e08351d0b57a8a9dea93b39774983ee69d5e54943d4904ea",
+  "bundle_sha256": "d1ddd1e944bfa4560cc662f7fd12a9b22b3f6493175e4a38b2b3db7e1aed4210",
+  "sources_sha256": {
+    "integrations/security-authority2/authority2-highwater-worker.mjs": "7e29a46bb0924c5a7eb0d60d79885f36a0b6945e022fb37a56898bce3aec6df1",
+    "integrations/security-authority2/authority2-r2-worm.mjs": "ce080ac8b5a6e190cf22e0bf9a5cf34251174822020b3b6da3e349fe4f5e17f7",
+    "integrations/security-authority2/wrangler.example.toml": "d8db8f065d8bdad9a219f994352bf0920e8e7e96d734dd2ebab5b2532c3464fd"
+  },
+  "nested_archives": [
+    {
+      "path": "evidence/original_review_build_artifact.zip",
+      "crc_verified": true
+    },
+    {
+      "path": "evidence/original_native_windows_artifact.zip",
+      "crc_verified": true
+    }
+  ],
+  "native_windows_ci_already_qualified_run": 43676166219,
+  "windows_execution_performed_in_this_environment": false,
+  "owner_windows_machine_test_performed": false,
+  "powershell_script_executed_here": false,
+  "public_routes_disabled_in_config": true,
+  "provider_state_verified": false,
+  "provider_operations": 0,
+  "private_keys_or_tokens_obtained": false,
+  "deployment_performed": false,
+  "genesis_initialized": false,
+  "gate3_closed": false,
+  "release_status": "NOT_RELEASE"
+}

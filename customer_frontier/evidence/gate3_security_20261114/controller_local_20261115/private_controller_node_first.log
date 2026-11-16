@@ -1,0 +1,93 @@
+✔ candidate creates one externally bound pre-genesis, then serving runtime appends real sequence zero (44.487613ms)
+▶ candidate rejects modified commitment, hash, key, runtime or identity before storage writes
+  ✔ approved-hash (3.950734ms)
+  ✔ nonce (9.41748ms)
+  ✔ private-key (3.534819ms)
+  ✔ bundle (2.675411ms)
+  ✔ account (2.438407ms)
+  ✔ namespace (3.959388ms)
+  ✔ extra-field (4.279724ms)
+✔ candidate rejects modified commitment, hash, key, runtime or identity before storage writes (31.874891ms)
+▶ candidate requires live immutable proof, original private repo and valid read credential
+  ✔ mutable (6.394053ms)
+  ✔ deleted (4.679925ms)
+  ✔ recreated (2.171609ms)
+  ✔ wrong-target (2.870506ms)
+  ✔ wrong-proof (4.099294ms)
+  ✔ missing-token (3.762501ms)
+✔ candidate requires live immutable proof, original private repo and valid read credential (25.289874ms)
+▶ candidate refuses any prior DO state or alarm instead of resetting it
+  ✔ tip (5.416073ms)
+  ✔ pending (2.282302ms)
+  ✔ unknown (2.846416ms)
+  ✔ alarm (3.039396ms)
+✔ candidate refuses any prior DO state or alarm instead of resetting it (14.412579ms)
+▶ candidate refuses any existing R2 namespace history and keeps pending
+  ✔ barrier (5.035202ms)
+  ✔ sequence-zero (3.067151ms)
+  ✔ orphan-later (3.057444ms)
+  ✔ other (2.642456ms)
+✔ candidate refuses any existing R2 namespace history and keeps pending (14.408743ms)
+✔ candidate serializes twelve concurrent initializers into exactly one conditional write (14.567659ms)
+✔ candidate rejects second invocation and restored empty DO when R2 barrier survives (7.744602ms)
+✔ candidate retains pending forever after lost R2 acknowledgement, even with readable barrier (4.246952ms)
+✔ candidate times out ambiguous PUT and late completion cannot promote DO state (3013.755941ms)
+▶ candidate holds on unconfirmed or changed R2 readback and new history
+  ✔ unconfirmed (4.763806ms)
+  ✔ readback (4.86584ms)
+  ✔ new-history (4.389186ms)
+  ✔ truncated (2.494453ms)
+✔ candidate holds on unconfirmed or changed R2 readback and new history (17.494975ms)
+✔ candidate rechecks immutable provider identity after R2 commit before promoting tip (2.65501ms)
+✔ candidate does not write R2 if durable pending synchronization fails (4.469153ms)
+✔ candidate detects modified pending before promotion and never retries R2 (3.606654ms)
+✔ serving Worker still exposes neither genesis nor reset routes (3.210062ms)
+✔ negative candidate: restoring BOTH DO and R2 can re-provision; global custody veto remains necessary (7.119379ms)
+✔ candidate rejects an expired operator deadline before any provider or storage operation (1.585691ms)
+✔ candidate expiry after irreversible R2 commit retains pending without promoting tip (3.027687ms)
+✔ temporary Worker rejects all public HTTP ingress even with correct operator credentials (38.987439ms)
+✔ private scheduled controller verifies actual signer and forwards one narrowly scoped internal request (10.899597ms)
+▶ private controller rejects missing, expired, unapproved or oversized schedule window before DO access
+  ✔ expired (5.840731ms)
+  ✔ future (5.131099ms)
+  ✔ long-window (3.934101ms)
+  ✔ wrong-cron (3.262345ms)
+  ✔ old-event (2.617673ms)
+  ✔ missing-context (6.439823ms)
+  ✔ extra-field (6.01379ms)
+✔ private controller rejects missing, expired, unapproved or oversized schedule window before DO access (35.134368ms)
+▶ private controller rejects unusable signing key, swapped key and shared roles before DO access
+  ✔ no-key (5.354493ms)
+  ✔ swapped-public (6.98512ms)
+  ✔ wrong-private (3.619977ms)
+  ✔ same-roles (4.775305ms)
+  ✔ no-control-token (3.853821ms)
+  ✔ wrong-account (5.318569ms)
+✔ private controller rejects unusable signing key, swapped key and shared roles before DO access (31.411819ms)
+▶ private DO denies unauthorized, browser, malformed and oversized input without touching storage
+  ✔ no-auth (6.681333ms)
+  ✔ wrong-token (6.354725ms)
+  ✔ origin (3.197646ms)
+  ✔ malformed (3.445081ms)
+  ✔ oversized (3.566669ms)
+  ✔ noncanonical (4.574539ms)
+  ✔ wrong-commitment (3.479253ms)
+✔ private DO denies unauthorized, browser, malformed and oversized input without touching storage (32.491826ms)
+▶ private controller rejects a forged acknowledgement instead of issuing an approval
+  ✔ schema (21.505839ms)
+  ✔ status (4.761291ms)
+  ✔ initial_sequence (4.232981ms)
+  ✔ barrier_key (4.013063ms)
+  ✔ commitment_sha256 (3.285501ms)
+  ✔ dispatch_allowed (2.839034ms)
+  ✔ release_status (4.851358ms)
+✔ private controller rejects a forged acknowledgement instead of issuing an approval (47.15649ms)
+✔ private controller review config pins the account/bucket and keeps public URLs and cron disabled (2.195187ms)
+ℹ tests 76
+ℹ suites 0
+ℹ pass 76
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 3404.75127

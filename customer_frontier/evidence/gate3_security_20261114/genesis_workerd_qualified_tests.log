@@ -1,0 +1,16 @@
+✔ real workerd: empty state HOLD, reviewed pre-genesis, sequence-zero signed append and replay denial (408.952312ms)
+✔ real workerd: eight concurrent initializers commit one R2 barrier and one DO tip (400.743708ms)
+✔ real workerd: erased SQLite DO cannot reinitialize while genuine local R2 barrier survives (153.241795ms)
+✔ real workerd: lost ACK after actual R2 write preserves pending across process restart (497.19171ms)
+✔ real workerd: post-R2 immutable-checkpoint identity failure keeps DO pending (380.678612ms)
+✔ real workerd: committed pre-genesis survives process restart without a new initializer (280.709851ms)
+✔ real workerd: orphan later R2 checkpoint prevents provisioning a new pre-genesis (233.393026ms)
+✔ real workerd: actual conditional PUT cannot overwrite a barrier created after empty listing (232.735835ms)
+ℹ tests 8
+ℹ suites 0
+ℹ pass 8
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 3072.240736

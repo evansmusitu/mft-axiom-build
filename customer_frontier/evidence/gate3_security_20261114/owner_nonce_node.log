@@ -1,0 +1,17 @@
+✔ a synthetic valid proposal consumes local nonce but always NO_GO (32.719696ms)
+✔ exact signature or exact nonce replay is denied across fresh process attempts (103.984678ms)
+✔ different fresh nonces are accepted locally, never globally qualified (62.984644ms)
+✔ invalid signature, changed plan, expired time never touch ledger (1.40594ms)
+✔ pin mismatch or missing recipient pin blocks before ledger mutation (1.566776ms)
+✔ unreviewed action/side-effects cannot be signed into local replay ledger (0.746023ms)
+✔ path symlink and permissive shared directory cannot act as trusted ledger (58.965735ms)
+✔ a symlink or reused insecure database file cannot be used (37.493841ms)
+✔ direct noninteractive CLI refuses even public signed test input and leaves no ledger (45.717321ms)
+ℹ tests 9
+ℹ suites 0
+ℹ pass 9
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 502.188261

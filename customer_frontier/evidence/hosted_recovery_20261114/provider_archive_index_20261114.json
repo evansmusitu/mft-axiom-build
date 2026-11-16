@@ -1,0 +1,108 @@
+{
+  "schema": "musitu.axiom.hosted-recovery-provider-archive-index.v1",
+  "owner_private_destination_folder": "1Vv41NccwYyRc4xkiMBXcCwqGPjW334Ws",
+  "owner_only_folder_verified_before_upload": true,
+  "archive_count": 11,
+  "archives": [
+    {
+      "directory": "native-preview-after-token-update",
+      "id": "1ZUw1kP9F1keIfRbvlT5eTm8EAZZ3D68K",
+      "name": "axiom-native-preview-after-token-update-43624256069-original.zip",
+      "url": "https://drive.google.com/file/d/1ZUw1kP9F1keIfRbvlT5eTm8EAZZ3D68K/view?usp=drivesdk",
+      "bytes": 3389,
+      "original_zip_sha256": "0d46f3aff58e66d114e1aa9859cfe5fbb30ee8caabce8b52c377a8a8e4e27759",
+      "private_drive_download_sha256_verified": false
+    },
+    {
+      "directory": "native-preview-safe-diagnostic",
+      "id": "1fMZ0PhdlkkpSTfpGRlgVjafMIsjJXXfj",
+      "name": "axiom-native-preview-missing-subdomain-43624602504-original.zip",
+      "url": "https://drive.google.com/file/d/1fMZ0PhdlkkpSTfpGRlgVjafMIsjJXXfj/view?usp=drivesdk",
+      "bytes": 3487,
+      "original_zip_sha256": "9998e57ce31ef75cc77f4b3c15868e8819ae3e88d7dfa378c44c1af6459eaf8c",
+      "private_drive_download_sha256_verified": false
+    },
+    {
+      "directory": "native-preview-subdomain-preflight",
+      "id": "1HxrUTSkAH1257NwmApYgYiYpDxqjUV11",
+      "name": "axiom-preview-subdomain-registered-43625113537-original.zip",
+      "url": "https://drive.google.com/file/d/1HxrUTSkAH1257NwmApYgYiYpDxqjUV11/view?usp=drivesdk",
+      "bytes": 3482,
+      "original_zip_sha256": "fcea2fe4216c3709c8680e7bc78eacf011dce2b4b083aacfaa103dc7211c77df",
+      "private_drive_download_sha256_verified": false
+    },
+    {
+      "directory": "native-preview-session-fallback",
+      "id": "1n4fqm-GPPru4fVg4YviL4LFPmM74T75V",
+      "name": "axiom-preview-edge-transport-stop-43625392275-original.zip",
+      "url": "https://drive.google.com/file/d/1n4fqm-GPPru4fVg4YviL4LFPmM74T75V/view?usp=drivesdk",
+      "bytes": 3578,
+      "original_zip_sha256": "61bc87316a800c1d530ba48f626d7e0b7b8e86eb419c098090ed11127e034bbb",
+      "private_drive_download_sha256_verified": false
+    },
+    {
+      "directory": "native-preview-edge-transport-diagnostic",
+      "id": "1eDUfEDv97sYnsf5PUXSXqsA_lrYsBYp4",
+      "name": "axiom-native-batch-qualified-43625803744-original.zip",
+      "url": "https://drive.google.com/file/d/1eDUfEDv97sYnsf5PUXSXqsA_lrYsBYp4/view?usp=drivesdk",
+      "bytes": 3947,
+      "original_zip_sha256": "41a726ece3790b5b003a1b97b4d1ec38ed9b35aa38dd37c7278ae3d736868b29",
+      "private_drive_download_sha256_verified": false
+    },
+    {
+      "directory": "oauth-target-created",
+      "id": "11jZFaGfvlqmDiF9ggLJZL2mHzskFpiTJ",
+      "name": "axiom-separate-oauth-target-created-43626383264-original.zip",
+      "url": "https://drive.google.com/file/d/11jZFaGfvlqmDiF9ggLJZL2mHzskFpiTJ/view?usp=drivesdk",
+      "bytes": 965,
+      "original_zip_sha256": "d306f8ba16f7a4896891ac0a710e7426490de3b20e56c10257ce700532bef2a3",
+      "private_drive_download_sha256_verified": false
+    },
+    {
+      "directory": "prod-oauth-current-backup-hosted-restore",
+      "id": "1xs8VZxYJKufrTS3RIm02gnBDMza_-6oz",
+      "name": "axiom-prod-oauth-import-complete-fk-stop-43627158324-original.zip",
+      "url": "https://drive.google.com/file/d/1xs8VZxYJKufrTS3RIm02gnBDMza_-6oz/view?usp=drivesdk",
+      "bytes": 2682224,
+      "original_zip_sha256": "e470dc99b52d0d6543ff5224fe64d34ffdcd5c0a1c78c16ad53a7a51af2fbb0d",
+      "private_drive_download_sha256_verified": false
+    },
+    {
+      "directory": "prod-oauth-qualified",
+      "id": "1yzvJgVz_eCXyEcXmO-MBpfGHrnqP4vLq",
+      "name": "axiom-prod-oauth-recovery-qualified-43627859736-original.zip",
+      "url": "https://drive.google.com/file/d/1yzvJgVz_eCXyEcXmO-MBpfGHrnqP4vLq/view?usp=drivesdk",
+      "bytes": 2682434,
+      "original_zip_sha256": "2bea1ef983da5fbde890191c2d708274aed570f3cda3e740585c9bab338546f7",
+      "private_drive_download_sha256_verified": true
+    },
+    {
+      "directory": "prod-oauth-real-data-plan-preflight",
+      "id": "1StVfkyJ1NHsh7aBiDClhmefksf72A6Bp",
+      "name": "axiom-prod-oauth-memory-preflight-43629137820-original.zip",
+      "url": "https://drive.google.com/file/d/1StVfkyJ1NHsh7aBiDClhmefksf72A6Bp/view?usp=drivesdk",
+      "bytes": 3132,
+      "original_zip_sha256": "7d48c82510b23c6a1130fb26c927568a279d1cb68a5b01cf26d6e6daacf11e33",
+      "private_drive_download_sha256_verified": false
+    },
+    {
+      "directory": "prod-oauth-native-migration-rehearsal",
+      "id": "1iOd1ie3AZZhQiXBvTtA1bXRA8o3LowZ6",
+      "name": "axiom-prod-oauth-native-migration-qualified-43630591859-original.zip",
+      "url": "https://drive.google.com/file/d/1iOd1ie3AZZhQiXBvTtA1bXRA8o3LowZ6/view?usp=drivesdk",
+      "bytes": 4418,
+      "original_zip_sha256": "42aef2bbacfe782161c706099ad34dc580f3e59ac6f822c7caedfc242df28afc",
+      "private_drive_download_sha256_verified": false
+    },
+    {
+      "directory": "prod-oauth-native-windows-verifier",
+      "id": "1aEM1ZQKOdSrFtlH8Wsiqt8iQPoVhNBho",
+      "name": "axiom-prod-oauth-windows-verifier-qualified-43631467558-original.zip",
+      "url": "https://drive.google.com/file/d/1aEM1ZQKOdSrFtlH8Wsiqt8iQPoVhNBho/view?usp=drivesdk",
+      "bytes": 943,
+      "original_zip_sha256": "24751491e6abd96319a7064097f74e7ea3820131bf35ab40183905cf1c2c5905",
+      "private_drive_download_sha256_verified": false
+    }
+  ],
+  "release_status": "NOT_RELEASE"
+}

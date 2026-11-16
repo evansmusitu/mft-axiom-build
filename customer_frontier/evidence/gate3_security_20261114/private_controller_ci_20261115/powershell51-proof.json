@@ -1,0 +1,22 @@
+{
+    "schema":  "musitu.axiom.authority2.owner-review-packet-integrity.v1",
+    "observed_at_utc":  "2026-11-15T14:53:23.5646204Z",
+    "status":  "REVIEW_PACKET_FILES_VERIFIED_ONLY_NOT_DEPLOYED",
+    "powershell_version":  "5.1.20348.5773",
+    "build_source_commit":  "68799a41a367865649b833de649edcb26f77c0d3",
+    "reviewed_runtime_source_commit":  "14b5c520bd7cd53ccd4978f575dfcbe9b250ed0c",
+    "build_manifest_sha256":  "43e90084fd663685070b7d0deaac9101fcbb426ab12ce9dd40940b1827532c54",
+    "reviewed_bundle_sha256":  "d1ddd1e944bfa4560cc662f7fd12a9b22b3f6493175e4a38b2b3db7e1aed4210",
+    "reviewed_source_sha256":  {
+                                   "integrations/security-authority2/authority2-r2-worm.mjs":  "ce080ac8b5a6e190cf22e0bf9a5cf34251174822020b3b6da3e349fe4f5e17f7",
+                                   "integrations/security-authority2/authority2-highwater-worker.mjs":  "7e29a46bb0924c5a7eb0d60d79885f36a0b6945e022fb37a56898bce3aec6df1",
+                                   "integrations/security-authority2/wrangler.example.toml":  "d8db8f065d8bdad9a219f994352bf0920e8e7e96d734dd2ebab5b2532c3464fd"
+                               },
+    "config_only_public_routes_disabled":  true,
+    "provider_state_verified":  false,
+    "provider_operations":  0,
+    "owner_key_custody_qualified":  false,
+    "deployment_performed":  false,
+    "gate3_closed":  false,
+    "release_status":  "NOT_RELEASE"
+}

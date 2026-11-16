@@ -1,0 +1,39 @@
+name: AXIOM Step1 D1 billing analytics QUERY ONLY (NOT RELEASE)
+on:
+  push:
+    branches:
+      - review/axiom-step1-owner-sole-authority-policy-20261112-not-release
+    paths:
+      - .github/workflows/axiom-step1-d1-analytics-queryonly-20261112.yml
+      - customer_frontier/qualification/step1_d1_billing_analytics_readonly.py
+      - customer_frontier/tests/test_step1_d1_billing_analytics_readonly.py
+permissions: { contents: read }
+jobs:
+  owner-step1-billing-analytics:
+    if: >-
+      github.repository == 'evansmusitu/mft-axiom-build' &&
+      github.actor == 'evansmusitu' &&
+      github.ref == 'refs/heads/review/axiom-step1-owner-sole-authority-policy-20261112-not-release' &&
+      github.run_attempt == 1
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - name: Checkout isolated reviewed source only without retained credentials
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with: { persist-credentials: false }
+      - name: Test fail-closed analytics parser with synthetic data
+        run: python3 -m unittest discover -s customer_frontier/tests -p test_step1_d1_billing_analytics_readonly.py -v
+      - name: Read account aggregate analytics only (GraphQL read-only query via HTTP POST; no mutation)
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+        run: python3 customer_frontier/qualification/step1_d1_billing_analytics_readonly.py
+      - name: Archive sanitized percentage BANDS and SHA256 only; never raw metrics
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: axiom-step1-d1-billing-bands-20261112
+          retention-days: 10
+          if-no-files-found: warn
+          path: |
+            axiom_step1_owner_d1_billing_analytics_20261112.json
+            axiom_step1_owner_d1_billing_analytics_20261112.json.sha256

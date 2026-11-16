@@ -1,0 +1,130 @@
+TAP version 13
+# Subtest: actual D1 typed create/read/update preserves independently hashed data across worker restart
+ok 1 - actual D1 typed create/read/update preserves independently hashed data across worker restart
+  ---
+  duration_ms: 539.323146
+  type: 'test'
+  ...
+# Subtest: actual D1 fixture bridge rejects arbitrary SQL routes, browser origins and wrong role before writes
+ok 2 - actual D1 fixture bridge rejects arbitrary SQL routes, browser origins and wrong role before writes
+  ---
+  duration_ms: 286.803904
+  type: 'test'
+  ...
+# Subtest: actual D1 bridge enforces tenant separation for reads, writes and revocations
+ok 3 - actual D1 bridge enforces tenant separation for reads, writes and revocations
+  ---
+  duration_ms: 305.984788
+  type: 'test'
+  ...
+# Subtest: actual D1 compare-and-set linearizes twelve concurrent creates into one version
+ok 4 - actual D1 compare-and-set linearizes twelve concurrent creates into one version
+  ---
+  duration_ms: 360.040056
+  type: 'test'
+  ...
+# Subtest: actual D1 revocation persists across restart and blocks an otherwise valid stored credential
+ok 5 - actual D1 revocation persists across restart and blocks an otherwise valid stored credential
+  ---
+  duration_ms: 392.589395
+  type: 'test'
+  ...
+# Subtest: actual D1 identity marker is required before writes; requests cannot create a missing schema
+ok 6 - actual D1 identity marker is required before writes; requests cannot create a missing schema
+  ---
+  duration_ms: 225.531284
+  type: 'test'
+  ...
+# Subtest: actual D1 marker mismatch rejects before a schema or data mutation
+ok 7 - actual D1 marker mismatch rejects before a schema or data mutation
+  ---
+  duration_ms: 294.450987
+  type: 'test'
+  ...
+# Subtest: source and accepted recovery-copy UUIDs can never become a staging target
+ok 8 - source and accepted recovery-copy UUIDs can never become a staging target
+  ---
+  duration_ms: 0.377159
+  type: 'test'
+  ...
+# Subtest: actual D1 bridge rejects SQL-shaped IDs, extra fields and mismatched request scope
+ok 9 - actual D1 bridge rejects SQL-shaped IDs, extra fields and mismatched request scope
+  ---
+  duration_ms: 281.45017
+  type: 'test'
+  ...
+# Subtest: actual D1 integrity corruption never returns an unchecked record
+ok 10 - actual D1 integrity corruption never returns an unchecked record
+  ---
+  duration_ms: 316.416199
+  type: 'test'
+  ...
+# Subtest: actual bridge refuses unauthenticated callers and oversized stored payloads before mutation
+ok 11 - actual bridge refuses unauthenticated callers and oversized stored payloads before mutation
+  ---
+  duration_ms: 323.575627
+  type: 'test'
+  ...
+# Subtest: actual bridge refuses a production database pin even when a caller bypasses the typed client
+ok 12 - actual bridge refuses a production database pin even when a caller bypasses the typed client
+  ---
+  duration_ms: 300.626326
+  type: 'test'
+  ...
+# Subtest: actual D1 wrong role cannot self-upgrade or revoke tenant administration
+ok 13 - actual D1 wrong role cannot self-upgrade or revoke tenant administration
+  ---
+  duration_ms: 298.567387
+  type: 'test'
+  ...
+# Subtest: typed client denies production/general origins and rejects a forged response without retrying
+ok 14 - typed client denies production/general origins and rejects a forged response without retrying
+  ---
+  duration_ms: 2.242269
+  type: 'test'
+  ...
+# Subtest: typed client holds a lost acknowledgement instead of automatically repeating a mutation
+ok 15 - typed client holds a lost acknowledgement instead of automatically repeating a mutation
+  ---
+  duration_ms: 0.33507
+  type: 'test'
+  ...
+# Subtest: typed client bounds uncooperative provider responses
+ok 16 - typed client bounds uncooperative provider responses
+  ---
+  duration_ms: 201.443335
+  type: 'test'
+  ...
+# Subtest: actual D1 mutation rechecks revocation after the preflight authorization read
+ok 17 - actual D1 mutation rechecks revocation after the preflight authorization read
+  ---
+  duration_ms: 325.555991
+  type: 'test'
+  ...
+# Subtest: actual D1 mutation rechecks database identity after the initial marker read
+ok 18 - actual D1 mutation rechecks database identity after the initial marker read
+  ---
+  duration_ms: 314.246363
+  type: 'test'
+  ...
+# Subtest: actual D1 commit with lost client ACK is never automatically resubmitted
+ok 19 - actual D1 commit with lost client ACK is never automatically resubmitted
+  ---
+  duration_ms: 300.701921
+  type: 'test'
+  ...
+# Subtest: fixture schema and bridge source never contain a default identity or migration/provisioning route
+ok 20 - fixture schema and bridge source never contain a default identity or migration/provisioning route
+  ---
+  duration_ms: 1.583339
+  type: 'test'
+  ...
+1..20
+# tests 20
+# suites 0
+# pass 20
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 5546.480523
