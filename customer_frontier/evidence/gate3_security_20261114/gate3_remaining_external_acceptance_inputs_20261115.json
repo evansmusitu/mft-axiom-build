@@ -1,7 +1,7 @@
 {
   "schema": "musitu.axiom.gate3.external-acceptance-inputs.v1",
-  "recorded_at_utc": "2026-11-16T05:59:20.828Z",
-  "status": "AUTHORITY2_CODE_CONFIG_APPROVED_PC_USB_SIGNER_LOCATION_RECORDED_OWNER_OPERATOR_AND_HOSTED_ACCEPTANCE_PENDING",
+  "recorded_at_utc": "2026-11-16T06:32:21.121Z",
+  "status": "OWNER_PC_AVAILABLE_OFFLINE_AUTHORITY2_PUBLIC_POSSESSION_PROOF_PENDING",
   "controller": "Evans Musitu",
   "already_completed_owner_steps": [
     "controller declaration",
@@ -139,17 +139,11 @@
     "review_decision": "APPROVE_AUTHORITY2_SOURCE_AND_DISPOSABLE_CONFIG_ONLY"
   },
   "next_owner_input": {
-    "question": "Where can the matching Authority 2 private signer currently be accessed?",
+    "question": "Run the existing Authority 2 signer possession check on the owner PC and return its public proof JSON only.",
+    "expected_file": "OWNER_A2_SIGNER_POSSESSION_PROOF.json",
+    "answer_received": false,
     "private_key_upload_or_password_requested": false,
-    "answer_received": true,
-    "answer_exact": "Windows PC and recovery USB drive",
-    "owner_reported_locations": [
-      "Windows PC",
-      "recovery USB drive"
-    ],
-    "location_question_resolved": true,
-    "location_receipt_path": "authority2_owner_signer_location_20261116.json",
-    "next_execution_dependency": "An owner-controlled operator session on the Windows PC with access to the matching signer; no live session is established in this chat."
+    "prior_key_location_question_resolved": true
   },
   "signer_custody_location": {
     "receipt_path": "authority2_owner_signer_location_20261116.json",
@@ -159,5 +153,17 @@
     ],
     "evidence_scope": "OWNER_REPORT_ONLY",
     "live_operator_session_established": false
+  },
+  "owner_pc_available_now": {
+    "confirmed": true,
+    "statement_exact": "Yes",
+    "evidence_origin": "DIRECT_USER_RESPONSE"
+  },
+  "offline_possession_challenge": {
+    "challenge_sha256": "60cd2f0ceec35106bc90beb7bfdb00326223d0a871a893f455e9dc0350a57878",
+    "challenge_id": "afd56cb00b41969342398146ac99b2f2cb434d96b4268d519f17183905b1a2c7",
+    "expires_at_utc": "2026-11-17T06:17:47.524Z",
+    "receipt_path": "authority2_signer_possession_20261116/helper_preparation.json",
+    "possession_verified": false
   }
 }

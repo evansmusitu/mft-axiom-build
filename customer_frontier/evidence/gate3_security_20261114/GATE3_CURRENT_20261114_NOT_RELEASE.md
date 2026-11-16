@@ -412,3 +412,21 @@ session on the Windows PC with private Cloudflare administration outside builder
 custody. No live session is established here. Actual hosted genesis/retirement,
 destructive recovery and full-stack acceptance remain open. Gate 2 stays CLOSED;
 Gate 3 stays OPEN/HOLD and NOT_RELEASE.
+
+
+## 16 November — Windows PC available; separate Authority 2 possession check prepared
+
+The owner answered "Yes" to current Windows PC access. A new offline helper
+checks only the existing dedicated Ed25519 signer, without repeating completed
+owner-key or SQL backup recovery and without requiring X25519, Ubuntu or WSL.
+It signs a fresh fixed-purpose challenge; the public proof can be verified
+against the original issued nonce and trusted SPKI pin. Domain separation keeps
+this signature outside the runtime high-water authorization protocol.
+
+Fifteen Linux synthetic-key checks and local public-packet integrity passed.
+Native Windows PowerShell 5.1/7 packet, NTFS and denial checks are pending fresh
+CI. Real owner private material is absent from this environment and CI, and no
+real owner proof or hosted custody has been qualified. Approved runtime source
+`68799a41a367865649b833de649edcb26f77c0d3` and public configuration remain
+unchanged. See `authority2_signer_possession_20261116/helper_preparation.json`.
+Gate 2 remains CLOSED; Gate 3 remains OPEN/HOLD and NOT_RELEASE.

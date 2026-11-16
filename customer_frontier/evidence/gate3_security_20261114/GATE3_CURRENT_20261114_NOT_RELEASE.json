@@ -1,7 +1,7 @@
 {
   "schema": "musitu.axiom.gate3-security-current.v1",
-  "observed_at_utc": "2026-11-16T05:59:20.828Z",
-  "status": "HOLD_APPROVED_A2_CANDIDATE_OWNER_PC_SIGNER_AND_HOSTED_ACCEPTANCE_REQUIRED",
+  "observed_at_utc": "2026-11-16T06:32:21.121Z",
+  "status": "HOLD_OWNER_WINDOWS_AUTHORITY2_POSSESSION_PROOF_AND_HOSTED_ACCEPTANCE_REQUIRED",
   "gate3_closed": false,
   "release_status": "NOT_RELEASE",
   "gate2_closed": true,
@@ -59,7 +59,7 @@
       "browser": "success"
     }
   },
-  "next_required_input": "The owner reports the matching Authority 2 private signer is on the Windows PC and recovery USB drive. The location question is resolved; do not request the location again, another key, private upload or completed owner-key recovery. The next necessary action is an owner-controlled operator session on that PC with the matching signer and private Cloudflare administration outside builder custody. Code/config approval remains valid for the pinned source and disposable identity. Actual signer correspondence, custody, namespace non-use, fresh commitment, hosted execution and full-stack acceptance remain unqualified.",
+  "next_required_input": "The owner confirmed access to the Windows PC. Run the separate offline single-key Authority 2 possession check with the existing encrypted Ed25519 signer and return only OWNER_A2_SIGNER_POSSESSION_PROOF.json. The public signature will be checked against the exact issued domain-separated challenge and trusted public pin before any possession claim. No backup recovery, X25519 operation, private upload, runtime change or provider operation is requested. Pinned Authority 2 source/config approval remains valid; hosted custody and destructive/full-stack acceptance remain open.",
   "next_gate_blocked": "GATE4_REAL_CUSTOMER_IDENTITY",
   "source_manifest_sha256": "0e9b2de4e9f3b5982246ed443251563f6489092bd339007538bc01df7552cad5",
   "local_regression_results_sha256": "bd28f12146727875ac707dd705d0f24f6e1c07ba22b684bc2fb65f0edabd22b9",
@@ -96,7 +96,7 @@
     "evidence_sha256": "b0713cbfc086e81bd0da9bd38f49232ba95968a5034b25cc1d0a6410e3e70474",
     "provider_or_custody_independent_qualification_earned": false
   },
-  "current_operational_block": "MATCHING_PRIVATE_SIGNER_REPORTED_ON_OWNER_WINDOWS_PC_AND_RECOVERY_USB_NO_LIVE_OPERATOR_SESSION",
+  "current_operational_block": "OWNER_PC_ACCESS_CONFIRMED_AWAITING_PUBLIC_ONLY_AUTHORITY2_POSSESSION_PROOF",
   "credential_restrictions_prepared_path": "AUTHORITY2_BUILD_CREDENTIAL_RESTRICTIONS_20261114_NOT_RELEASE.md",
   "credential_restrictions_applied": false,
   "owner_confirmation_updated_at_utc": "2026-11-14T21:33:40.634Z",
@@ -155,7 +155,7 @@
     "genesis_initialized": false,
     "independent_security_approval_earned": false
   },
-  "current_review_update_utc": "2026-11-16T05:59:20.828Z",
+  "current_review_update_utc": "2026-11-16T06:32:21.121Z",
   "serving_worker_r2_module_or_wrangler_config_modified": false,
   "source_change_is_review_only_genesis_candidate": true,
   "current_review_heads": {
@@ -163,7 +163,7 @@
     "pr242": "f6d34d3663e3140665fdc740a529211019a0f46a",
     "pr190": "c22bf1930b8576bc6b3bcc25ffcd40bd08c93ddb",
     "pr83": "fdc89d48f7aa888c67afc4ece3465328cc2a77f6",
-    "pr241_evidence_parent": "cad3fc3ca96d2aed486489f4469fdf9a28977b93"
+    "pr241_evidence_parent": "1a2d99febdc4687536a591f361e89dfaced269ec"
   },
   "authority2_current_r2_owner_readback": {
     "path": "authority2_owner_r2_retention_readback_20261115.json",
@@ -320,5 +320,14 @@
     "evidence_scope": "OWNER_REPORT_ONLY",
     "location_question_resolved": true,
     "live_operator_session_established": false
+  },
+  "authority2_owner_pc_access_confirmed": true,
+  "authority2_offline_possession_check": {
+    "preparation_path": "authority2_signer_possession_20261116/helper_preparation.json",
+    "challenge_sha256": "60cd2f0ceec35106bc90beb7bfdb00326223d0a871a893f455e9dc0350a57878",
+    "challenge_id": "afd56cb00b41969342398146ac99b2f2cb434d96b4268d519f17183905b1a2c7",
+    "expires_at_utc": "2026-11-17T06:17:47.524Z",
+    "actual_owner_proof_verified": false,
+    "native_windows_status": "PENDING_FRESH_CI_RESULT"
   }
 }

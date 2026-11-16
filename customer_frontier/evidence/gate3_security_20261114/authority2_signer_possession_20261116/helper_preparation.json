@@ -1,0 +1,64 @@
+{
+  "schema": "musitu.axiom.authority2.offline-possession-helper-preparation.v1",
+  "recorded_at_utc": "2026-11-16T06:32:21.121Z",
+  "owner_pc_access_confirmed": {
+    "statement_exact": "Yes",
+    "question": "Can you use the Windows PC now?",
+    "evidence_origin": "DIRECT_USER_RESPONSE"
+  },
+  "tool_scope": "EXISTING_DEDICATED_AUTHORITY2_KEY_POSSESSION_ONLY_NO_RECOVERY_OR_PROVIDER_OPERATION",
+  "approved_runtime_source_unchanged": "68799a41a367865649b833de649edcb26f77c0d3",
+  "approved_public_config_sha256_unchanged": "bc09d63349f611a71f0eef6c1ad1d00bd861454aeab7c41f9565056758f2f8e3",
+  "challenge": {
+    "challenge_sha256": "60cd2f0ceec35106bc90beb7bfdb00326223d0a871a893f455e9dc0350a57878",
+    "challenge_id": "afd56cb00b41969342398146ac99b2f2cb434d96b4268d519f17183905b1a2c7",
+    "expires_at_utc": "2026-11-17T06:17:47.524Z"
+  },
+  "public_der_git_blob": "af4630325919c3dcaf0470e0e4e7415d8b91ad12",
+  "node_synthetic_checks_passed": 15,
+  "public_packet_local_integrity_passed": true,
+  "native_windows_checks_status": "PENDING_FRESH_CI_RESULT",
+  "real_owner_private_key_obtained_or_tested": false,
+  "actual_owner_possession_proof_verified": false,
+  "hosted_custody_qualified": false,
+  "cloudflare_provider_operations": 0,
+  "key_generation_or_completed_recovery_repeat_requested": false,
+  "domain_separated_signature_not_a_runtime_authorization": true,
+  "expected_return_file": "OWNER_A2_SIGNER_POSSESSION_PROOF.json",
+  "gate3_closed": false,
+  "release_status": "NOT_RELEASE",
+  "source_files": [
+    {
+      "path": ".github/workflows/axiom-step3-a2-signer-possession-windows-20261116.yml",
+      "sha256": "c4f40d02a7752168359d51b7faf486b6a82caf90813cadd3020221a91fedba25"
+    },
+    {
+      "path": "customer_frontier/qualification/step3_authority2_signer_possession.mjs",
+      "sha256": "1200d429517bc2fe61b1efd60216b78e0ec99100f63793a88b51137d75c1cd4f"
+    },
+    {
+      "path": "customer_frontier/qualification/step3_authority2_signer_possession.ps1",
+      "sha256": "a6d8325746d9057b1a3f478b43f39df1d983d8b7180bf1e69bc0194f1d90c11c"
+    },
+    {
+      "path": "customer_frontier/qualification/STEP3_AUTHORITY2_SIGNER_POSSESSION_20261116_NOT_RELEASE.md",
+      "sha256": "34f1ae76f36527a286736cf5fd15622e520299db78e6e5a4dbae18af2f5fa606"
+    },
+    {
+      "path": "customer_frontier/tests/step3_authority2_signer_possession.test.mjs",
+      "sha256": "0441b25e39d236bb8e3ad5f8c219ba290ffe9cfc754c28d883bd4e300353176b"
+    },
+    {
+      "path": "customer_frontier/tests/step3_authority2_signer_packet_windows.test.ps1",
+      "sha256": "ababc4f15fa692087aa180db3af045e94b249702465cd7903d058b9f655a0d33"
+    },
+    {
+      "path": "scripts/build_authority2_possession_packet.py",
+      "sha256": "a9758b5682e42fdd2c04dec55aac09b14248e79bce8b0b01be53189e894645b5"
+    },
+    {
+      "path": "customer_frontier/evidence/gate3_security_20261114/authority2_signer_possession_20261116/challenge.json",
+      "sha256": "60cd2f0ceec35106bc90beb7bfdb00326223d0a871a893f455e9dc0350a57878"
+    }
+  ]
+}
