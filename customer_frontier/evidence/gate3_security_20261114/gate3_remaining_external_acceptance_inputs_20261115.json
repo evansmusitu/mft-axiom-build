@@ -1,7 +1,7 @@
 {
   "schema": "musitu.axiom.gate3.external-acceptance-inputs.v1",
-  "recorded_at_utc": "2026-11-15T22:37:10.299Z",
-  "status": "SEPARATE_AUTHORITY2_PUBLIC_ROLE_OWNER_CONFIRMED_CONFIG_REVIEW_AND_HOSTED_ACCEPTANCE_PENDING",
+  "recorded_at_utc": "2026-11-16T05:15:42.915Z",
+  "status": "AUTHORITY2_SOURCE_AND_DISPOSABLE_PUBLIC_CONFIG_APPROVED_PRIVATE_OPERATOR_AND_HOSTED_ACCEPTANCE_PENDING",
   "controller": "Evans Musitu",
   "already_completed_owner_steps": [
     "controller declaration",
@@ -12,15 +12,15 @@
   ],
   "authority2_public_inputs": {
     "account_id": "67469478aa9349fa0a57fe3a72da200a",
-    "ledger_id": null,
-    "namespace": null,
-    "key_id": null,
+    "ledger_id": "axiom-b27-a2-qualification-20261116-6792c82b245cd450",
+    "namespace": "ax-a2-qualification-20261116-6792c82b245cd450",
+    "key_id": "a2-ed25519-6792c82b245cd450",
     "ed25519_public_key_jwk": {
       "kty": "OKP",
       "crv": "Ed25519",
       "x": "9G3Dzw62h9a094zdQFLO5AfoI637Su8Y9mMT-k0ynrs"
     },
-    "state": "DEDICATED_AUTHORITY2_SIGNER_OWNER_CONFIRMED_FULL_PUBLIC_IDENTITY_AND_CUSTODY_PENDING",
+    "state": "OWNER_APPROVED_DISPOSABLE_PUBLIC_IDENTITY_NOT_DEPLOYED",
     "candidate_public_key": {
       "source_receipt": "owner_public_key_20261115/OWNER_ED25519_PUBLIC_DOWNLOAD_RECEIPT.json",
       "original_der": "owner_public_key_20261115/owner_ed25519_spki.der",
@@ -36,7 +36,9 @@
       "separate_private_signer_custody_qualified": false,
       "runtime_trust_pin_changed": false,
       "authority2_role_declaration_path": "authority2_public_role_20261116/authority2_owner_separate_signer_declaration_20261116.json",
-      "full_identity_binding_approved": false
+      "full_identity_binding_approved": true,
+      "full_identity_binding_approval_scope": "DISPOSABLE_AUTHORITY_QUALIFICATION_ONLY",
+      "source_config_approval_path": "authority2_owner_source_config_approval_20261116.json"
     },
     "proposed_qualification_public_identity": {
       "config_path": "authority2_public_role_20261116/AUTHORITY2_PUBLIC_QUALIFICATION_CONFIG_PROPOSED_20261116.json",
@@ -66,11 +68,18 @@
           "x": "9G3Dzw62h9a094zdQFLO5AfoI637Su8Y9mMT-k0ynrs"
         }
       },
-      "owner_approved_identity_binding": false,
+      "owner_approved_identity_binding": true,
       "namespace_unused_verified": false,
       "deployed": false,
-      "production_identity_binding": false
-    }
+      "production_identity_binding": false,
+      "approval_path": "authority2_owner_source_config_approval_20261116.json",
+      "proposal_state": "OWNER_APPROVED_FOR_DISPOSABLE_QUALIFICATION_NOT_INSTALLED"
+    },
+    "identity_scope": "DISPOSABLE_AUTHORITY_QUALIFICATION_ONLY",
+    "owner_source_config_approval_path": "authority2_owner_source_config_approval_20261116.json",
+    "public_identity_binding_approved_for_qualification": true,
+    "namespace_unused_verified": false,
+    "installed_in_worker_or_consumer": false
   },
   "signer_question_answer": {
     "asked_about_existing_separate_Ed25519_signer": true,
@@ -88,17 +97,23 @@
   "independent_review": {
     "pr192_submitted_reviews": 0,
     "pr242_submitted_reviews": 0,
-    "record_provided_in_chat": false,
+    "record_provided_in_chat": true,
     "author_self_approval_satisfies_independent_review": false,
     "reviewer_name": "Evans Musitu",
     "reviewer_assignment_provided_in_chat": true,
-    "review_decision_provided_in_chat": false
+    "review_decision_provided_in_chat": true,
+    "authority2_source_config_decision": "APPROVE",
+    "authority2_source_config_approval_path": "authority2_owner_source_config_approval_20261116.json",
+    "authority2_approved_source_commit": "68799a41a367865649b833de649edcb26f77c0d3",
+    "pr242_source_or_fullstack_review_decision_inferred": false,
+    "actual_operator_custody_or_hosted_acceptance_inferred": false,
+    "submitted_review_counts_scope": "Prior GitHub review-list observations; this approval is the directly supplied human chat decision."
   },
   "actual_provider_acceptance_required": [
-    "separate administrator/credential custody qualification",
-    "operator-owned signer and matching consumer public pin",
-    "independent source/genesis/retirement approval",
-    "private operator-controlled staging and actual disposable hosted destructive acceptance",
+    "operator-held matching private signer and separate administrator/credential/recovery custody qualification",
+    "approved disposable public identity installed with the matching consumer pin",
+    "unused namespace and fresh immutable genesis commitment verified and approved by the operator before the once-only trigger",
+    "actual private operator-controlled hosted initialization, retirement and destructive acceptance",
     "isolated full-stack staging/OAuth/MCP acceptance before PR83 veto change"
   ],
   "connected_operator_provider_status": {
@@ -107,8 +122,9 @@
     "external_provider_execution_authority": false,
     "provider_admission_required": true,
     "production_authority": false,
-    "recorded_at_utc": "2026-11-15T22:37:10.299Z",
-    "evidence_origin": "FRESH_ACTUAL_CONNECTED_READONLY_PROVIDER_STATUS_RESPONSE_THIS_TURN"
+    "recorded_at_utc": "2026-11-16T05:15:42.915Z",
+    "evidence_origin": "FRESH_ACTUAL_CONNECTED_READONLY_STATUS_RESPONSE_THIS_TURN",
+    "does_not_establish_cloudflare_management_access": true
   },
   "operator_private_actions_cannot_be_performed_under_builder_custody_and_count_as_independent": true,
   "gate3_closed": false,
@@ -119,6 +135,12 @@
     "statement_exact": "Reviewer is Me",
     "assignment_path": "gate3_owner_named_reviewer_declaration_20261115.json",
     "identity_resolved": true,
-    "review_decision_pending": true
+    "review_decision_pending": false,
+    "review_decision": "APPROVE_AUTHORITY2_SOURCE_AND_DISPOSABLE_CONFIG_ONLY"
+  },
+  "next_owner_input": {
+    "question": "Can the owner access the matching Authority 2 private signing key from his phone, or is it only available on the Windows PC?",
+    "private_key_upload_or_password_requested": false,
+    "answer_received": false
   }
 }

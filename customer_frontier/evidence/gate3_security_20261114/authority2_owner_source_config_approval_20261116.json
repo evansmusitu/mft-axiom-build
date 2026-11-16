@@ -1,0 +1,54 @@
+{
+  "schema": "musitu.axiom.authority2.owner-source-config-review-decision.v1",
+  "recorded_at_utc": "2026-11-16T05:15:42.915Z",
+  "reviewer": "Evans Musitu",
+  "reviewer_role": "OWNER_NAMED_HUMAN_GATE3_REVIEWER",
+  "evidence_origin": "DIRECT_USER_RESPONSE_TO_PINNED_AUTHORITY2_REVIEW_REQUEST",
+  "statement_exact": "Approve",
+  "decision": "APPROVE",
+  "review_request_commit": "12727c659b1337ee487d8a4924bc7505e41956c2",
+  "review_request_path": "authority2_public_role_20261116/GATE3_AUTHORITY2_REVIEW_REQUEST_20261116_NOT_RELEASE.md",
+  "approved_source": {
+    "pr": 192,
+    "commit": "68799a41a367865649b833de649edcb26f77c0d3",
+    "scope": "Authority 2 candidate including temporary private initializer and retirement design"
+  },
+  "approved_public_config": {
+    "path": "authority2_public_role_20261116/AUTHORITY2_PUBLIC_QUALIFICATION_CONFIG_PROPOSED_20261116.json",
+    "sha256": "bc09d63349f611a71f0eef6c1ad1d00bd861454aeab7c41f9565056758f2f8e3",
+    "scope": "DISPOSABLE_AUTHORITY_QUALIFICATION_ONLY",
+    "public_config": {
+      "account_id": "67469478aa9349fa0a57fe3a72da200a",
+      "ledger_id": "axiom-b27-a2-qualification-20261116-6792c82b245cd450",
+      "namespace": "ax-a2-qualification-20261116-6792c82b245cd450",
+      "key_id": "a2-ed25519-6792c82b245cd450",
+      "public_key_jwk": {
+        "kty": "OKP",
+        "crv": "Ed25519",
+        "x": "9G3Dzw62h9a094zdQFLO5AfoI637Su8Y9mMT-k0ynrs"
+      }
+    },
+    "matching_consumer_pin": {
+      "account_id": "67469478aa9349fa0a57fe3a72da200a",
+      "ledger_id": "axiom-b27-a2-qualification-20261116-6792c82b245cd450",
+      "namespace": "ax-a2-qualification-20261116-6792c82b245cd450",
+      "key_id": "a2-ed25519-6792c82b245cd450",
+      "public_key_jwk": {
+        "kty": "OKP",
+        "crv": "Ed25519",
+        "x": "9G3Dzw62h9a094zdQFLO5AfoI637Su8Y9mMT-k0ynrs"
+      }
+    }
+  },
+  "public_signer_spki_sha256": "6792c82b245cd45051052cc1b00eb5f99a99489829c3f0567c7c15f741389d8a",
+  "approval_question_resolved_for_identical_source_and_config": true,
+  "actual_fresh_genesis_commitment_approved": false,
+  "actual_private_key_possession_or_custody_qualified": false,
+  "actual_hosted_initialization_retirement_or_destructive_acceptance_approved_as_pass": false,
+  "pr242_or_pr83_fullstack_acceptance_inferred": false,
+  "production_identity_or_migration_approved": false,
+  "merge_release_or_paid_spending_approved": false,
+  "cloudflare_mutation_performed": false,
+  "gate3_closed": false,
+  "release_status": "NOT_RELEASE"
+}

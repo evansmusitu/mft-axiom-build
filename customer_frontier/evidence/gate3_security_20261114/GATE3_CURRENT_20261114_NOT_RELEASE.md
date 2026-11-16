@@ -377,3 +377,21 @@ The freshly queried private operator service remains UNAVAILABLE with no externa
 or production authority. Actual key correspondence, custody, private hosted
 genesis/retirement, destructive recovery and full-stack acceptance remain open.
 Gate 2 stays CLOSED; Gate 3 remains OPEN/HOLD and NOT_RELEASE.
+
+
+## 16 November — scoped Authority 2 source/configuration approval received
+
+Evans replied exactly: "Approve" to the pinned review request at `12727c659b1337ee487d8a4924bc7505e41956c2`.
+`authority2_owner_source_config_approval_20261116.json` records approval of PR192 `68799a41a367865649b833de649edcb26f77c0d3`,
+the temporary initializer/retirement design and the exact disposable public
+configuration SHA-256 `bc09d63349f611a71f0eef6c1ad1d00bd861454aeab7c41f9565056758f2f8e3`. This source/configuration review
+step is complete; do not request it again for unchanged pins. The original
+review request, proposal, public key and earlier receipts remain preserved.
+
+`AUTHORITY2_APPROVED_OPERATOR_NEXT_STEP_20261116_NOT_RELEASE.md` identifies the next real dependency: owner access to the
+matching private signer and an operator-controlled Cloudflare execution path.
+The owner is on a phone; private-key availability on that phone versus only the
+Windows PC has not been established. Ask about access only, never private data.
+Actual custody, namespace non-use, fresh commitment, hosted genesis/retirement,
+destructive recovery and full-stack acceptance remain unqualified. No provider
+resource was changed. Gate 2 stays CLOSED; Gate 3 stays OPEN/HOLD and NOT_RELEASE.
