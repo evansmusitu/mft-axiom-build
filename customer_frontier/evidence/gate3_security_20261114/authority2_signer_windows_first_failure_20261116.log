@@ -1,0 +1,281 @@
+﻿2026-11-16T06:33:57.3063744Z Current runner version: '2.338.2'
+2026-11-16T06:33:57.3089807Z ##[group]Runner Image Provisioner
+2026-11-16T06:33:57.3090563Z Hosted Compute Agent
+2026-11-16T06:33:57.3091091Z Version: 20261103.629
+2026-11-16T06:33:57.3091665Z Commit: 15dbd9ccb5dbf34fae002b6ed1a2670f52df37bc
+2026-11-16T06:33:57.3092364Z Build Date: 2026-11-03T17:26:59Z
+2026-11-16T06:33:57.3092988Z Worker ID: {1bcf8ff1-6e84-4809-bab4-cd75e429c88b}
+2026-11-16T06:33:57.3093622Z Region: eastus2
+2026-11-16T06:33:57.3094111Z Cloud: Azure
+2026-11-16T06:33:57.3094570Z ##[endgroup]
+2026-11-16T06:33:57.3095914Z ##[group]Operating System
+2026-11-16T06:33:57.3096559Z Microsoft Windows Server 2022
+2026-11-16T06:33:57.3097227Z 10.0.20348
+2026-11-16T06:33:57.3097675Z Datacenter
+2026-11-16T06:33:57.3098141Z ##[endgroup]
+2026-11-16T06:33:57.3098606Z ##[group]Runner Image
+2026-11-16T06:33:57.3099146Z Image: windows-2022
+2026-11-16T06:33:57.3099629Z Version: 20261112.366.7
+2026-11-16T06:33:57.3100881Z Included Software: https://github.com/actions/runner-images/blob/win22/20261112.366/images/windows/Windows2022-Readme.md
+2026-11-16T06:33:57.3102301Z Image Release: https://github.com/actions/runner-images/releases/tag/win22%2F20261112.366
+2026-11-16T06:33:57.3103223Z ##[endgroup]
+2026-11-16T06:33:57.3104207Z ##[group]GITHUB_TOKEN Permissions
+2026-11-16T06:33:57.3105980Z Contents: read
+2026-11-16T06:33:57.3106519Z Metadata: read
+2026-11-16T06:33:57.3106992Z ##[endgroup]
+2026-11-16T06:33:57.3108956Z Secret source: Actions
+2026-11-16T06:33:57.3109795Z Cache mode: write
+2026-11-16T06:33:57.3110489Z Prepare workflow directory
+2026-11-16T06:33:57.3460626Z Prepare all required actions
+2026-11-16T06:33:57.3507112Z Getting action download info
+2026-11-16T06:33:57.5431710Z Download action repository 'actions/checkout@11d5960a326750d5838078e36cf38b85af677262' (SHA:11d5960a326750d5838078e36cf38b85af677262)
+2026-11-16T06:33:57.6588139Z Download action repository 'actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020' (SHA:49933ea5288caeca8642d1e84afbd3f7d6820020)
+2026-11-16T06:33:57.9466387Z Complete job name: windows-public-fixtures
+2026-11-16T06:33:58.1078119Z ##[group]Run actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+2026-11-16T06:33:58.1079751Z with:
+2026-11-16T06:33:58.1080291Z   persist-credentials: false
+2026-11-16T06:33:58.1080956Z   repository: evansmusitu/mft-axiom-build
+2026-11-16T06:33:58.1085986Z   token: ***
+2026-11-16T06:33:58.1086481Z   ssh-strict: true
+2026-11-16T06:33:58.1086912Z   ssh-user: git
+2026-11-16T06:33:58.1087326Z   clean: true
+2026-11-16T06:33:58.1087758Z   sparse-checkout-cone-mode: true
+2026-11-16T06:33:58.1088292Z   fetch-depth: 1
+2026-11-16T06:33:58.1088723Z   fetch-tags: false
+2026-11-16T06:33:58.1089175Z   show-progress: true
+2026-11-16T06:33:58.1089621Z   lfs: false
+2026-11-16T06:33:58.1090022Z   submodules: false
+2026-11-16T06:33:58.1090469Z   set-safe-directory: true
+2026-11-16T06:33:58.1090978Z   allow-unsafe-pr-checkout: false
+2026-11-16T06:33:58.1091729Z ##[endgroup]
+2026-11-16T06:33:58.2496514Z Syncing repository: evansmusitu/mft-axiom-build
+2026-11-16T06:33:58.2498436Z ##[group]Getting Git version info
+2026-11-16T06:33:58.2499160Z Working directory is 'D:\a\mft-axiom-build\mft-axiom-build'
+2026-11-16T06:33:58.3611362Z [command]"C:\Program Files\Git\bin\git.exe" version
+2026-11-16T06:33:58.6671699Z git version 2.56.1.windows.1
+2026-11-16T06:33:58.6714917Z ##[endgroup]
+2026-11-16T06:33:58.6733542Z Temporarily overriding HOME='D:\a\_temp\124f34ec-1a51-4a17-a588-4e68f042270e' before making global git config changes
+2026-11-16T06:33:58.6734831Z Adding repository directory to the temporary git global config as a safe directory
+2026-11-16T06:33:58.6744496Z [command]"C:\Program Files\Git\bin\git.exe" config --global --add safe.directory D:\a\mft-axiom-build\mft-axiom-build
+2026-11-16T06:33:58.7297854Z Deleting the contents of 'D:\a\mft-axiom-build\mft-axiom-build'
+2026-11-16T06:33:58.7303173Z ##[group]Initializing the repository
+2026-11-16T06:33:58.7312174Z [command]"C:\Program Files\Git\bin\git.exe" init D:\a\mft-axiom-build\mft-axiom-build
+2026-11-16T06:33:58.8112620Z Initialized empty Git repository in D:/a/mft-axiom-build/mft-axiom-build/.git/
+2026-11-16T06:33:58.8149069Z [command]"C:\Program Files\Git\bin\git.exe" remote add origin https://github.com/evansmusitu/mft-axiom-build
+2026-11-16T06:33:58.8709527Z ##[endgroup]
+2026-11-16T06:33:58.8710368Z ##[group]Disabling automatic garbage collection
+2026-11-16T06:33:58.8718468Z [command]"C:\Program Files\Git\bin\git.exe" config --local gc.auto 0
+2026-11-16T06:33:58.9004479Z ##[endgroup]
+2026-11-16T06:33:58.9005203Z ##[group]Setting up auth
+2026-11-16T06:33:58.9016877Z [command]"C:\Program Files\Git\bin\git.exe" config --local --name-only --get-regexp core\.sshCommand
+2026-11-16T06:33:58.9305631Z [command]"C:\Program Files\Git\bin\git.exe" submodule foreach --recursive "sh -c \"git config --local --name-only --get-regexp 'core\.sshCommand' && git config --local --unset-all 'core.sshCommand' || :\""
+2026-11-16T06:34:00.2130280Z [command]"C:\Program Files\Git\bin\git.exe" config --local --name-only --get-regexp http\.https\:\/\/github\.com\/\.extraheader
+2026-11-16T06:34:00.2415332Z [command]"C:\Program Files\Git\bin\git.exe" submodule foreach --recursive "sh -c \"git config --local --name-only --get-regexp 'http\.https\:\/\/github\.com\/\.extraheader' && git config --local --unset-all 'http.https://github.com/.extraheader' || :\""
+2026-11-16T06:34:00.7085771Z [command]"C:\Program Files\Git\bin\git.exe" config --local --name-only --get-regexp ^includeIf\.gitdir:
+2026-11-16T06:34:00.7383357Z [command]"C:\Program Files\Git\bin\git.exe" submodule foreach --recursive "git config --local --show-origin --name-only --get-regexp remote.origin.url"
+2026-11-16T06:34:01.2120757Z [command]"C:\Program Files\Git\bin\git.exe" config --local http.https://github.com/.extraheader "AUTHORIZATION: basic ***"
+2026-11-16T06:34:01.2412187Z ##[endgroup]
+2026-11-16T06:34:01.2412826Z ##[group]Fetching the repository
+2026-11-16T06:34:01.2426659Z [command]"C:\Program Files\Git\bin\git.exe" -c protocol.version=2 fetch --no-tags --prune --no-recurse-submodules --depth=1 origin +33e290f4a95b61733e421252ab3ebc9eda1428d3:refs/remotes/origin/review/axiom-step1-owner-sole-authority-policy-20261112-not-release
+2026-11-16T06:34:02.3342461Z From https://github.com/evansmusitu/mft-axiom-build
+2026-11-16T06:34:02.3344470Z  * [new ref]         33e290f4a95b61733e421252ab3ebc9eda1428d3 -> origin/review/axiom-step1-owner-sole-authority-policy-20261112-not-release
+2026-11-16T06:34:02.3372889Z ##[endgroup]
+2026-11-16T06:34:02.3373378Z ##[group]Determining the checkout info
+2026-11-16T06:34:02.3375862Z ##[endgroup]
+2026-11-16T06:34:02.3384551Z [command]"C:\Program Files\Git\bin\git.exe" sparse-checkout disable
+2026-11-16T06:34:02.3798241Z [command]"C:\Program Files\Git\bin\git.exe" config --local --unset-all extensions.worktreeConfig
+2026-11-16T06:34:02.4089859Z ##[group]Checking out the ref
+2026-11-16T06:34:02.4100302Z [command]"C:\Program Files\Git\bin\git.exe" checkout --progress --force -B review/axiom-step1-owner-sole-authority-policy-20261112-not-release refs/remotes/origin/review/axiom-step1-owner-sole-authority-policy-20261112-not-release
+2026-11-16T06:34:02.7180710Z Switched to a new branch 'review/axiom-step1-owner-sole-authority-policy-20261112-not-release'
+2026-11-16T06:34:02.7200706Z branch 'review/axiom-step1-owner-sole-authority-policy-20261112-not-release' set up to track 'origin/review/axiom-step1-owner-sole-authority-policy-20261112-not-release'.
+2026-11-16T06:34:02.7233626Z ##[endgroup]
+2026-11-16T06:34:02.7635478Z [command]"C:\Program Files\Git\bin\git.exe" log -1 --format=%H
+2026-11-16T06:34:02.7903145Z 33e290f4a95b61733e421252ab3ebc9eda1428d3
+2026-11-16T06:34:02.7932963Z ##[group]Removing auth
+2026-11-16T06:34:02.7940861Z [command]"C:\Program Files\Git\bin\git.exe" config --local --name-only --get-regexp core\.sshCommand
+2026-11-16T06:34:02.8222902Z [command]"C:\Program Files\Git\bin\git.exe" submodule foreach --recursive "sh -c \"git config --local --name-only --get-regexp 'core\.sshCommand' && git config --local --unset-all 'core.sshCommand' || :\""
+2026-11-16T06:34:03.2910624Z [command]"C:\Program Files\Git\bin\git.exe" config --local --name-only --get-regexp http\.https\:\/\/github\.com\/\.extraheader
+2026-11-16T06:34:03.3162581Z http.https://github.com/.extraheader
+2026-11-16T06:34:03.3198639Z [command]"C:\Program Files\Git\bin\git.exe" config --local --unset-all http.https://github.com/.extraheader
+2026-11-16T06:34:03.3492846Z [command]"C:\Program Files\Git\bin\git.exe" submodule foreach --recursive "sh -c \"git config --local --name-only --get-regexp 'http\.https\:\/\/github\.com\/\.extraheader' && git config --local --unset-all 'http.https://github.com/.extraheader' || :\""
+2026-11-16T06:34:03.8556910Z [command]"C:\Program Files\Git\bin\git.exe" config --local --name-only --get-regexp ^includeIf\.gitdir:
+2026-11-16T06:34:03.8847872Z [command]"C:\Program Files\Git\bin\git.exe" submodule foreach --recursive "git config --local --show-origin --name-only --get-regexp remote.origin.url"
+2026-11-16T06:34:04.3513851Z ##[endgroup]
+2026-11-16T06:34:04.3877677Z ##[group]Run actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+2026-11-16T06:34:04.3878139Z with:
+2026-11-16T06:34:04.3878328Z   node-version: 22
+2026-11-16T06:34:04.3878536Z   always-auth: false
+2026-11-16T06:34:04.3878739Z   check-latest: false
+2026-11-16T06:34:04.3881462Z   token: ***
+2026-11-16T06:34:04.3881651Z ##[endgroup]
+2026-11-16T06:34:04.5625886Z Found in cache @ C:\hostedtoolcache\windows\node\22.23.4\x64
+2026-11-16T06:34:04.5632744Z (node:7152) [DEP0040] DeprecationWarning: The `punycode` module is deprecated. Please use a userland alternative instead.
+2026-11-16T06:34:04.5633755Z (Use `node --trace-deprecation ...` to show where the warning was created)
+2026-11-16T06:34:04.5637238Z ##[group]Environment details
+2026-11-16T06:34:09.0562791Z node: v22.23.4
+2026-11-16T06:34:09.0563264Z npm: 10.9.9
+2026-11-16T06:34:09.0563596Z yarn: 1.22.22
+2026-11-16T06:34:09.0564390Z ##[endgroup]
+2026-11-16T06:34:09.0874562Z ##[group]Run node --check customer_frontier/qualification/step3_authority2_signer_possession.mjs
+2026-11-16T06:34:09.0875401Z [36;1mnode --check customer_frontier/qualification/step3_authority2_signer_possession.mjs[0m
+2026-11-16T06:34:09.0875916Z [36;1mif($LASTEXITCODE -ne 0){throw 'Syntax failed'}[0m
+2026-11-16T06:34:09.0876387Z [36;1mnode --test customer_frontier/tests/step3_authority2_signer_possession.test.mjs[0m
+2026-11-16T06:34:09.0876932Z [36;1mif($LASTEXITCODE -ne 0){throw 'Synthetic cryptography failed'}[0m
+2026-11-16T06:34:09.1004143Z shell: C:\Program Files\PowerShell\7\pwsh.EXE -command ". '{0}'"
+2026-11-16T06:34:09.1004590Z ##[endgroup]
+2026-11-16T06:34:09.6038865Z TAP version 13
+2026-11-16T06:34:09.8343929Z # Subtest: encrypted Ed25519 produces an independently verified public signature, no authority
+2026-11-16T06:34:09.8352681Z ok 1 - encrypted Ed25519 produces an independently verified public signature, no authority
+2026-11-16T06:34:09.8353905Z   ---
+2026-11-16T06:34:09.8354627Z   duration_ms: 60.5882
+2026-11-16T06:34:09.8355220Z   type: 'test'
+2026-11-16T06:34:09.8355723Z   ...
+2026-11-16T06:34:09.8378055Z # Subtest: signature cannot verify as an ordinary unprefixed runtime payload
+2026-11-16T06:34:09.8379520Z ok 2 - signature cannot verify as an ordinary unprefixed runtime payload
+2026-11-16T06:34:09.8380642Z   ---
+2026-11-16T06:34:09.8381013Z   duration_ms: 3.5174
+2026-11-16T06:34:09.8381575Z   type: 'test'
+2026-11-16T06:34:09.8382063Z   ...
+2026-11-16T06:34:09.8382822Z # Subtest: wrong passphrase refuses and clears input buffers
+2026-11-16T06:34:09.8383960Z ok 3 - wrong passphrase refuses and clears input buffers
+2026-11-16T06:34:09.8384663Z   ---
+2026-11-16T06:34:09.8385151Z   duration_ms: 3.5198
+2026-11-16T06:34:09.8391959Z   type: 'test'
+2026-11-16T06:34:09.8392929Z   ...
+2026-11-16T06:34:09.8393689Z # Subtest: different Ed25519 private key refuses the trusted pin
+2026-11-16T06:34:09.8395126Z ok 4 - different Ed25519 private key refuses the trusted pin
+2026-11-16T06:34:09.8395847Z   ---
+2026-11-16T06:34:09.8396290Z   duration_ms: 2.3068
+2026-11-16T06:34:09.8396779Z   type: 'test'
+2026-11-16T06:34:09.8397219Z   ...
+2026-11-16T06:34:09.8397941Z # Subtest: X25519 private key cannot be used as the signer
+2026-11-16T06:34:09.8398865Z ok 5 - X25519 private key cannot be used as the signer
+2026-11-16T06:34:09.8399531Z   ---
+2026-11-16T06:34:09.8399963Z   duration_ms: 2.1634
+2026-11-16T06:34:09.8400436Z   type: 'test'
+2026-11-16T06:34:09.8400930Z   ...
+2026-11-16T06:34:09.8401586Z # Subtest: unencrypted private PEM is refused
+2026-11-16T06:34:09.8403749Z ok 6 - unencrypted private PEM is refused
+2026-11-16T06:34:09.8404356Z   ---
+2026-11-16T06:34:09.8404736Z   duration_ms: 1.1356
+2026-11-16T06:34:09.8405565Z   type: 'test'
+2026-11-16T06:34:09.8405883Z   ...
+2026-11-16T06:34:09.8407679Z # Subtest: invalid public DER still clears supplied secrets
+2026-11-16T06:34:09.8409493Z ok 7 - invalid public DER still clears supplied secrets
+2026-11-16T06:34:09.8410535Z   ---
+2026-11-16T06:34:09.8410914Z   duration_ms: 1.6236
+2026-11-16T06:34:09.8411229Z   type: 'test'
+2026-11-16T06:34:09.8411525Z   ...
+2026-11-16T06:34:09.8413054Z # Subtest: expired challenge refuses without a signature
+2026-11-16T06:34:09.8414750Z ok 8 - expired challenge refuses without a signature
+2026-11-16T06:34:09.8415459Z   ---
+2026-11-16T06:34:09.8415784Z   duration_ms: 1.0323
+2026-11-16T06:34:09.8416152Z   type: 'test'
+2026-11-16T06:34:09.8416472Z   ...
+2026-11-16T06:34:09.8418128Z # Subtest: future challenge and excessive lifetime are refused
+2026-11-16T06:34:09.8420220Z ok 9 - future challenge and excessive lifetime are refused
+2026-11-16T06:34:09.8420668Z   ---
+2026-11-16T06:34:09.8420860Z   duration_ms: 1.9124
+2026-11-16T06:34:09.8421066Z   type: 'test'
+2026-11-16T06:34:09.8421245Z   ...
+2026-11-16T06:34:09.8422209Z # Subtest: modified nonce or signed statement cannot satisfy the issued challenge
+2026-11-16T06:34:09.8426009Z ok 10 - modified nonce or signed statement cannot satisfy the issued challenge
+2026-11-16T06:34:09.8426634Z   ---
+2026-11-16T06:34:09.8426968Z   duration_ms: 3.1841
+2026-11-16T06:34:09.8427318Z   type: 'test'
+2026-11-16T06:34:09.8427607Z   ...
+2026-11-16T06:34:09.8427998Z # Subtest: wrong public key, altered signature and private JWK fields refuse
+2026-11-16T06:34:09.8428651Z ok 11 - wrong public key, altered signature and private JWK fields refuse
+2026-11-16T06:34:09.8429230Z   ---
+2026-11-16T06:34:09.8429515Z   duration_ms: 3.0669
+2026-11-16T06:34:09.8429880Z   type: 'test'
+2026-11-16T06:34:09.8430207Z   ...
+2026-11-16T06:34:09.8430788Z # Subtest: wrong account/context, extra fields and runtime purpose refuse
+2026-11-16T06:34:09.8441942Z ok 12 - wrong account/context, extra fields and runtime purpose refuse
+2026-11-16T06:34:09.8442736Z   ---
+2026-11-16T06:34:09.8443024Z   duration_ms: 3.3963
+2026-11-16T06:34:09.8443337Z   type: 'test'
+2026-11-16T06:34:09.8443643Z   ...
+2026-11-16T06:34:09.8446341Z # Subtest: verification expiry and wrong issuer nonce cannot be replayed into a new request
+2026-11-16T06:34:09.8448177Z ok 13 - verification expiry and wrong issuer nonce cannot be replayed into a new request
+2026-11-16T06:34:09.8448787Z   ---
+2026-11-16T06:34:09.8449077Z   duration_ms: 2.222
+2026-11-16T06:34:09.8449388Z   type: 'test'
+2026-11-16T06:34:09.8449657Z   ...
+2026-11-16T06:34:09.8451693Z # Subtest: public proof write is create-only and does not overwrite an older file
+2026-11-16T06:34:09.8453313Z ok 14 - public proof write is create-only and does not overwrite an older file
+2026-11-16T06:34:09.8453958Z   ---
+2026-11-16T06:34:09.8454240Z   duration_ms: 5.5703
+2026-11-16T06:34:09.8454554Z   type: 'test'
+2026-11-16T06:34:09.8454807Z   ...
+2026-11-16T06:34:09.8456773Z # Subtest: real CLI refuses CI and redirected input before private file access
+2026-11-16T06:34:09.8458517Z ok 15 - real CLI refuses CI and redirected input before private file access
+2026-11-16T06:34:09.8459377Z   ---
+2026-11-16T06:34:09.8459667Z   duration_ms: 59.4671
+2026-11-16T06:34:09.8460002Z   type: 'test'
+2026-11-16T06:34:09.8460212Z   ...
+2026-11-16T06:34:09.8555672Z 1..15
+2026-11-16T06:34:09.8556199Z # tests 15
+2026-11-16T06:34:09.8557611Z # suites 0
+2026-11-16T06:34:09.8557992Z # pass 15
+2026-11-16T06:34:09.8559380Z # fail 0
+2026-11-16T06:34:09.8560147Z # cancelled 0
+2026-11-16T06:34:09.8561518Z # skipped 0
+2026-11-16T06:34:09.8563041Z # todo 0
+2026-11-16T06:34:09.8563811Z # duration_ms 302.4325
+2026-11-16T06:34:09.9828885Z ##[group]Run python scripts/build_authority2_possession_packet.py --out "$env:RUNNER_TEMP/a2-public-packet" --source-commit $env:GITHUB_SHA
+2026-11-16T06:34:09.9829961Z [36;1mpython scripts/build_authority2_possession_packet.py --out "$env:RUNNER_TEMP/a2-public-packet" --source-commit $env:GITHUB_SHA[0m
+2026-11-16T06:34:09.9830651Z [36;1mif($LASTEXITCODE -ne 0){throw 'Exact Git-byte packet failed'}[0m
+2026-11-16T06:34:09.9874205Z shell: C:\Program Files\PowerShell\7\pwsh.EXE -command ". '{0}'"
+2026-11-16T06:34:09.9874774Z ##[endgroup]
+2026-11-16T06:34:11.6618132Z {"archive": "D:\\a\\_temp\\MUSITU_AXIOM_A2_SIGNER_CHECK_WINDOWS_20261116_NOT_RELEASE.zip", "bytes": 10067, "sha256": "e4aa01e40826d47a282444d28c4fdfc6d5a61cc56f93ec60fbca2951c4625b9d", "members": 6, "challenge_expires_at_utc": "2026-11-17T06:17:47.524Z", "private_key_material_included": false, "gate3_closed": false}
+2026-11-16T06:34:11.7748267Z ##[group]Run $env:CI='true'
+2026-11-16T06:34:11.7748610Z [36;1m$env:CI='true'[0m
+2026-11-16T06:34:11.7749074Z [36;1m$entry=Join-Path $env:RUNNER_TEMP 'a2-public-packet/Run_MUSITU_AXIOM_Authority2_Signer_Check.ps1'[0m
+2026-11-16T06:34:11.7749633Z [36;1mforeach($exe in @('powershell.exe','pwsh')){[0m
+2026-11-16T06:34:11.7750053Z [36;1m  & $exe -NoProfile -NonInteractive -File $entry -PublicSelfTest[0m
+2026-11-16T06:34:11.7750558Z [36;1m  if($LASTEXITCODE -ne 0){throw ('Public packet/NTFS self-test failed: '+$exe)}[0m
+2026-11-16T06:34:11.7750976Z [36;1m}[0m
+2026-11-16T06:34:11.7751231Z [36;1m$log=Join-Path $env:RUNNER_TEMP 'a2-owner-cli-denial.log'[0m
+2026-11-16T06:34:11.7751588Z [36;1m$ErrorActionPreference='Continue'[0m
+2026-11-16T06:34:11.7751985Z [36;1m& powershell.exe -NoProfile -NonInteractive -File $entry 2> $log | Out-Null[0m
+2026-11-16T06:34:11.7752392Z [36;1m$denied=$LASTEXITCODE[0m
+2026-11-16T06:34:11.7752666Z [36;1m$ErrorActionPreference='Stop'[0m
+2026-11-16T06:34:11.7753200Z [36;1mif($denied -ne 2 -or (Get-Content $log -Raw) -notmatch 'OWNER_WINDOWS_CONSOLE_REQUIRED'){throw 'Real-key CI guard failed'}[0m
+2026-11-16T06:34:11.7753926Z [36;1mWrite-Output 'NATIVE_WINDOWS_PS51_PS7_PUBLIC_PACKET_NTFS_AND_OWNER_GUARD_PASS_NO_OWNER_KEY'[0m
+2026-11-16T06:34:11.7754360Z [36;1mexit 0[0m
+2026-11-16T06:34:11.7792113Z shell: C:\Program Files\PowerShell\7\pwsh.EXE -command ". '{0}'"
+2026-11-16T06:34:11.7792465Z ##[endgroup]
+2026-11-16T06:34:17.2627155Z [eval]:1
+2026-11-16T06:34:17.2628468Z process.versions.node.split(.)[0]
+2026-11-16T06:34:17.2628891Z                             ^
+2026-11-16T06:34:17.2629553Z Expression expected
+2026-11-16T06:34:17.2629845Z 
+2026-11-16T06:34:17.2630123Z SyntaxError: Unexpected token '.'
+2026-11-16T06:34:17.2630675Z     at makeContextifyScript (node:internal/vm:185:14)
+2026-11-16T06:34:17.2631416Z     at compileScript (node:internal/process/execution:383:10)
+2026-11-16T06:34:17.2632204Z     at evalTypeScript (node:internal/process/execution:256:22)
+2026-11-16T06:34:17.2632825Z     at node:internal/main/eval_string:74:3
+2026-11-16T06:34:17.2633151Z 
+2026-11-16T06:34:17.2633280Z Node.js v22.23.4
+2026-11-16T06:34:17.3647030Z A2_SIGNER_CHECK_STOPPED:A2_SIGNER_CHECK_STOPPED:NODE_20_PLUS_REQUIRED
+2026-11-16T06:34:17.6389393Z [31;1mException: [0mD:\a\_temp\9648dce1-db4b-443d-afff-263ce7572937.ps1:6[0m
+2026-11-16T06:34:17.6390412Z [31;1m[0m[36;1mLine |[0m
+2026-11-16T06:34:17.6391485Z [31;1m[0m[36;1m[36;1m   6 | [0m … EXITCODE -ne 0){[36;1mthrow ('Public packet/NTFS self-test failed: '+$exe)[0m}[0m
+2026-11-16T06:34:17.6393529Z [31;1m[0m[36;1m[36;1m[0m[36;1m[0m[36;1m     | [31;1m                   ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~[0m
+2026-11-16T06:34:17.6394377Z [31;1m[0m[36;1m[36;1m[0m[36;1m[0m[36;1m[31;1m[31;1m[36;1m     | [31;1mPublic packet/NTFS self-test failed: powershell.exe[0m
+2026-11-16T06:34:17.6826877Z ##[error]Process completed with exit code 1.
+2026-11-16T06:34:17.7058509Z Post job cleanup.
+2026-11-16T06:34:17.8984357Z [command]"C:\Program Files\Git\bin\git.exe" version
+2026-11-16T06:34:17.9276038Z git version 2.56.1.windows.1
+2026-11-16T06:34:17.9341862Z Temporarily overriding HOME='D:\a\_temp\cfce5523-dcbc-4893-a1db-9495e61f0889' before making global git config changes
+2026-11-16T06:34:17.9343342Z Adding repository directory to the temporary git global config as a safe directory
+2026-11-16T06:34:17.9353932Z [command]"C:\Program Files\Git\bin\git.exe" config --global --add safe.directory D:\a\mft-axiom-build\mft-axiom-build
+2026-11-16T06:34:17.9692947Z [command]"C:\Program Files\Git\bin\git.exe" config --local --name-only --get-regexp core\.sshCommand
+2026-11-16T06:34:18.0012467Z [command]"C:\Program Files\Git\bin\git.exe" submodule foreach --recursive "sh -c \"git config --local --name-only --get-regexp 'core\.sshCommand' && git config --local --unset-all 'core.sshCommand' || :\""
+2026-11-16T06:34:18.4691918Z [command]"C:\Program Files\Git\bin\git.exe" config --local --name-only --get-regexp http\.https\:\/\/github\.com\/\.extraheader
+2026-11-16T06:34:18.4979589Z [command]"C:\Program Files\Git\bin\git.exe" submodule foreach --recursive "sh -c \"git config --local --name-only --get-regexp 'http\.https\:\/\/github\.com\/\.extraheader' && git config --local --unset-all 'http.https://github.com/.extraheader' || :\""
+2026-11-16T06:34:18.9557933Z [command]"C:\Program Files\Git\bin\git.exe" config --local --name-only --get-regexp ^includeIf\.gitdir:
+2026-11-16T06:34:18.9841986Z [command]"C:\Program Files\Git\bin\git.exe" submodule foreach --recursive "git config --local --show-origin --name-only --get-regexp remote.origin.url"
+2026-11-16T06:34:19.4829719Z Cleaning up orphan processes
+2026-11-16T06:34:19.4926835Z ##[warning]Node.js 20 is deprecated. The following actions target Node.js 20 but are being forced to run on Node.js 24: actions/checkout@11d5960a326750d5838078e36cf38b85af677262, actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020. For more information see: https://github.blog/changelog/2025-09-19-deprecation-of-node-20-on-github-actions-runners/

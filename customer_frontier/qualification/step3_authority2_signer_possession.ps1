@@ -46,7 +46,8 @@ try{
   if($PublicSelfTest -and -not $env:CI -and -not $env:GITHUB_ACTIONS){Deny 'PUBLIC_FIXTURE_TEST_IS_CI_ONLY'}
   CheckPacket
   $node=Get-Command node.exe -ErrorAction Stop
-  $major=& $node.Source -p 'process.versions.node.split(".")[0]';if($LASTEXITCODE -ne 0 -or [int]$major -lt 20){Deny 'NODE_20_PLUS_REQUIRED'}
+  $version=& $node.Source --version
+  if($LASTEXITCODE -ne 0 -or $version -notmatch '^v([0-9]+)\.' -or [int]$Matches[1] -lt 20){Deny 'NODE_20_PLUS_REQUIRED'}
   $helper=Join-Path $PSScriptRoot 'step3_authority2_signer_possession.mjs'
   & $node.Source $helper --public-check;if($LASTEXITCODE -ne 0){Deny 'PUBLIC_PACKET_INVALID'}
   if($PublicSelfTest){

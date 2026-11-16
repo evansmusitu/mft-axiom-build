@@ -1,0 +1,17 @@
+{
+  "schema": "musitu.axiom.authority2.possession-windows-first-failure.v1",
+  "recorded_at_utc": "2026-11-16T06:37:31.218Z",
+  "run_id": 43817602892,
+  "job_id": 133133111145,
+  "source_commit": "33e290f4a95b61733e421252ab3ebc9eda1428d3",
+  "result": "FAIL_BEFORE_PRIVATE_KEY_OPERATION",
+  "node_cryptographic_tests_passed": 15,
+  "exact_git_byte_packet_build_passed": true,
+  "failing_boundary": "Windows PowerShell 5.1 native Node -p argument loses nested quote characters",
+  "observed_error": "SyntaxError: Unexpected token '.'; NODE_20_PLUS_REQUIRED",
+  "correction": "Use node --version and a PowerShell version regex; preserve Node 20+ requirement",
+  "real_owner_key_read": false,
+  "guard_weakened": false,
+  "gate3_closed": false,
+  "release_status": "NOT_RELEASE"
+}
