@@ -6,9 +6,9 @@ Evans Musitu replied **Approve** to the pinned source/configuration review reque
 
 The already downloaded Ed25519 public key is owner-confirmed as dedicated to Authority 2. Its SPKI SHA-256 is `6792c82b245cd45051052cc1b00eb5f99a99489829c3f0567c7c15f741389d8a`. The approved Worker and consumer configuration use the same account, qualification ledger, namespace, key ID and public JWK. These are approved qualification identities, not installed production state.
 
-## First unresolved input
+## Signer location resolved; owner-run operation pending
 
-The owner is using an Android phone and has no laptop currently available. It is not known whether he can access the matching Authority 2 private signing key on that phone or whether it exists only on the Windows PC. Ask for that access fact only. Do not ask him to upload or paste any private key, encrypted private-key backup, password, token or MFA into chat or builder CI.
+Evans answered exactly: **Windows PC and recovery USB drive**. The custody-location question is resolved by owner report. He has not supplied phone/cloud signer access, and no live owner-controlled PC operator session has been established in this chat. The next action requires the owner-controlled Windows PC and matching signer; the approved source/configuration is already prepared. Do not ask for another key, a private-key upload or a repeat of completed owner-key recovery. The private file, encrypted backup, password, token and MFA stay outside chat and builder CI.
 
 That determines the actual operator-owned execution path. The assistant has only the public key and no independently controlled Cloudflare management capability for the pinned authority. The connected AXIOM provider router reports UNAVAILABLE; its generic execution status is not a Cloudflare administration connection and cannot qualify custody. The owner continues private account operations in his own browser; do not retry agent-browser authentication.
 

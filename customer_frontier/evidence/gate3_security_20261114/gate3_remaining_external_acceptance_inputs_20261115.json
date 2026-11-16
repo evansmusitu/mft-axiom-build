@@ -1,7 +1,7 @@
 {
   "schema": "musitu.axiom.gate3.external-acceptance-inputs.v1",
-  "recorded_at_utc": "2026-11-16T05:15:42.915Z",
-  "status": "AUTHORITY2_SOURCE_AND_DISPOSABLE_PUBLIC_CONFIG_APPROVED_PRIVATE_OPERATOR_AND_HOSTED_ACCEPTANCE_PENDING",
+  "recorded_at_utc": "2026-11-16T05:59:20.828Z",
+  "status": "AUTHORITY2_CODE_CONFIG_APPROVED_PC_USB_SIGNER_LOCATION_RECORDED_OWNER_OPERATOR_AND_HOSTED_ACCEPTANCE_PENDING",
   "controller": "Evans Musitu",
   "already_completed_owner_steps": [
     "controller declaration",
@@ -139,8 +139,25 @@
     "review_decision": "APPROVE_AUTHORITY2_SOURCE_AND_DISPOSABLE_CONFIG_ONLY"
   },
   "next_owner_input": {
-    "question": "Can the owner access the matching Authority 2 private signing key from his phone, or is it only available on the Windows PC?",
+    "question": "Where can the matching Authority 2 private signer currently be accessed?",
     "private_key_upload_or_password_requested": false,
-    "answer_received": false
+    "answer_received": true,
+    "answer_exact": "Windows PC and recovery USB drive",
+    "owner_reported_locations": [
+      "Windows PC",
+      "recovery USB drive"
+    ],
+    "location_question_resolved": true,
+    "location_receipt_path": "authority2_owner_signer_location_20261116.json",
+    "next_execution_dependency": "An owner-controlled operator session on the Windows PC with access to the matching signer; no live session is established in this chat."
+  },
+  "signer_custody_location": {
+    "receipt_path": "authority2_owner_signer_location_20261116.json",
+    "owner_reported_locations": [
+      "Windows PC",
+      "recovery USB drive"
+    ],
+    "evidence_scope": "OWNER_REPORT_ONLY",
+    "live_operator_session_established": false
   }
 }

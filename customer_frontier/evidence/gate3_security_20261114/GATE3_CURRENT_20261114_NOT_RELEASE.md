@@ -395,3 +395,20 @@ Windows PC has not been established. Ask about access only, never private data.
 Actual custody, namespace non-use, fresh commitment, hosted genesis/retirement,
 destructive recovery and full-stack acceptance remain unqualified. No provider
 resource was changed. Gate 2 stays CLOSED; Gate 3 stays OPEN/HOLD and NOT_RELEASE.
+
+
+## 16 November — signer location reported by owner
+
+Evans answered exactly: "Windows PC and recovery USB drive". The location
+question is resolved and retained in `authority2_owner_signer_location_20261116.json`. This is an owner
+report of where the existing matching signer is kept, not a fresh private-key,
+physical-media, cryptographic-possession or provider-custody verification.
+No private file/passphrase was requested, retrieved or uploaded. No completed
+owner-key recovery or backup proof was repeated.
+
+The approved Authority 2 source and disposable public configuration remain
+unchanged. The next real dependency is an owner-controlled signer/operator
+session on the Windows PC with private Cloudflare administration outside builder
+custody. No live session is established here. Actual hosted genesis/retirement,
+destructive recovery and full-stack acceptance remain open. Gate 2 stays CLOSED;
+Gate 3 stays OPEN/HOLD and NOT_RELEASE.
