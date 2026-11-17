@@ -1,0 +1,25 @@
+name: AXIOM verification source readback (GET only)
+on:
+  push:
+    branches: [repair/axiom-independent-verification-20261118]
+    paths:
+      - .github/workflows/axiom-verification-source-readback.yml
+permissions:
+  contents: read
+jobs:
+  readback:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+      - name: Capture only existing Axiom verification sources
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          AXIOM_LEGACY_PAYLOAD_PASSPHRASE: ${{ secrets.AXIOM_LEGACY_PAYLOAD_PASSPHRASE }}
+        run: python3 ops/verification_source_readback.py
+      - uses: actions/upload-artifact@v4
+        with:
+          name: axiom-verification-source-readback
+          path: verification-readback/
+          retention-days: 1
+          if-no-files-found: error
