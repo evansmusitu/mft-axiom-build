@@ -3,7 +3,7 @@ const {applyIndependentVerification,configureVerificationOperations,CHECKER_VERS
 // A bounded checker, independent of the Python/SymPy/SciPy execution path.
 // All financial and LP comparisons use exact decimal-rational arithmetic.
 const CHECKER_VERSION='axiom-independent-v1';
-const CHECKER_SOURCE_SHA256='d5131e21d64ab6671ffa5a68e774e8c381ec1e43507636c9524e3f65dcc000b8';
+const CHECKER_SOURCE_SHA256='b56f45de07a8ec2f92a9bb87f1051ece5cada446509e69e4e80517a518681a8f';
 const ABS='0.0000001', REL='0.000000000001';
 const FEAS_ABS='0.00000001', FEAS_REL='0.0000000001';
 class Unsupported extends Error {}
@@ -123,9 +123,9 @@ async function applyIndependentVerification(rpc,call){
  let evidence;
  try{
   evidence=mismatch?{status:'failed',method:'response-binding',reason:'operation_mismatch'}:engine.ok!==true||rpc.result.isError?{status:'unverified',method:'unavailable',reason:'execution_not_successful'}:checkCalculation(operation,args,value);
-  evidence={...evidence,operation,checker_version:CHECKER_VERSION,checker_source_sha256:CHECKER_SOURCE_SHA256,tolerances:{absolute:ABS,relative:REL,feasibility_absolute:FEAS_ABS,feasibility_relative:FEAS_REL},input_digest:await digest({operation,args}),output_digest:await digest(value??null)};
+  evidence={...evidence,verified:evidence.status==='verified'?true:evidence.status==='failed'?false:null,operation,checker_version:CHECKER_VERSION,checker_source_sha256:CHECKER_SOURCE_SHA256,tolerances:{absolute:ABS,relative:REL,feasibility_absolute:FEAS_ABS,feasibility_relative:FEAS_REL},input_digest:await digest({operation,args}),output_digest:await digest(value??null)};
   evidence.evidence_digest=await digest(evidence);
- }catch{evidence={status:'unverified',method:'unavailable',reason:'independent_checker_unavailable',checker_version:CHECKER_VERSION,checker_source_sha256:CHECKER_SOURCE_SHA256};}
+ }catch{evidence={status:'unverified',verified:null,method:'unavailable',reason:'independent_checker_unavailable',checker_version:CHECKER_VERSION,checker_source_sha256:CHECKER_SOURCE_SHA256};}
  // Never reuse a certificate or verification flag supplied by the upstream result.
  delete engine.certificate;engine.verification=evidence;engine.verified=evidence.status==='verified'?true:evidence.status==='failed'?false:null;
  if(wrapped&&typeof wrapped==='object'&&own(wrapped,'verification'))wrapped.verification=evidence;

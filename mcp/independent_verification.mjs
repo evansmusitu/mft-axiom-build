@@ -121,9 +121,9 @@ export async function applyIndependentVerification(rpc,call){
  let evidence;
  try{
   evidence=mismatch?{status:'failed',method:'response-binding',reason:'operation_mismatch'}:engine.ok!==true||rpc.result.isError?{status:'unverified',method:'unavailable',reason:'execution_not_successful'}:checkCalculation(operation,args,value);
-  evidence={...evidence,operation,checker_version:CHECKER_VERSION,checker_source_sha256:CHECKER_SOURCE_SHA256,tolerances:{absolute:ABS,relative:REL,feasibility_absolute:FEAS_ABS,feasibility_relative:FEAS_REL},input_digest:await digest({operation,args}),output_digest:await digest(value??null)};
+  evidence={...evidence,verified:evidence.status==='verified'?true:evidence.status==='failed'?false:null,operation,checker_version:CHECKER_VERSION,checker_source_sha256:CHECKER_SOURCE_SHA256,tolerances:{absolute:ABS,relative:REL,feasibility_absolute:FEAS_ABS,feasibility_relative:FEAS_REL},input_digest:await digest({operation,args}),output_digest:await digest(value??null)};
   evidence.evidence_digest=await digest(evidence);
- }catch{evidence={status:'unverified',method:'unavailable',reason:'independent_checker_unavailable',checker_version:CHECKER_VERSION,checker_source_sha256:CHECKER_SOURCE_SHA256};}
+ }catch{evidence={status:'unverified',verified:null,method:'unavailable',reason:'independent_checker_unavailable',checker_version:CHECKER_VERSION,checker_source_sha256:CHECKER_SOURCE_SHA256};}
  // Never reuse a certificate or verification flag supplied by the upstream result.
  delete engine.certificate;engine.verification=evidence;engine.verified=evidence.status==='verified'?true:evidence.status==='failed'?false:null;
  if(wrapped&&typeof wrapped==='object'&&own(wrapped,'verification'))wrapped.verification=evidence;
