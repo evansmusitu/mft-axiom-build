@@ -1,5 +1,5 @@
 name: AXIOM verification source readback (GET only)
-# Retain encrypted diagnostic detail if existing provider file-read access fails.
+# Pin the active app from the actual adapter binding and retain encrypted diagnostics.
 on:
   push:
     branches: [repair/axiom-independent-verification-20261118]

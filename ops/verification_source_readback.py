@@ -82,7 +82,10 @@ except Exception as e:
 modal_stage='lookup'
 try:
     import modal
-    app_name='mft-axiom-v3-modal-staging'
+    adapter_settings=json.loads((PRIVATE/'workers/mft-axiom-modal-adapter/settings.json').read_text())
+    target=next(b['text'] for b in adapter_settings['bindings'] if b.get('name')=='MODAL_BASE_URL')
+    assert target=='https://evansmusitu--musitu-axiom-v3-modal-staging-axiom-kernel.modal.run','Runtime target drifted'
+    app_name='musitu-axiom-v3-modal-staging'
     deployed_app=modal.App.lookup(app_name,create_if_missing=False)
     app_id=deployed_app.app_id
     modal_stage='existing_runtime_probe'
@@ -107,7 +110,7 @@ try:
     captured=[]
     for cid in container_ids[:2]:
         modal_stage='fixed_source_file_read'
-        result=subprocess.run(['modal','container','exec','--no-pty',cid,'python','-c',code],check=True,capture_output=True,text=True,timeout=60)
+        result=subprocess.run(['modal','container','exec','--no-pty',cid,'--','python','-c',code],check=True,capture_output=True,text=True,timeout=60)
         value=json.loads(result.stdout)
         body=base64.b64decode(value.pop('source_base64'));assert hashlib.sha256(body).hexdigest()==value['sha256']
         (PRIVATE/('modal-main-'+cid+'.py')).write_bytes(body)
