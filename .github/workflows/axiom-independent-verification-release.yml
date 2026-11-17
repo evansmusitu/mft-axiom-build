@@ -1,0 +1,73 @@
+name: AXIOM guarded verification gateway release
+on:
+  push:
+    branches: [repair/axiom-independent-verification-20261118]
+    paths: [.github/workflows/axiom-independent-verification-release.yml]
+permissions:
+  contents: read
+  actions: read
+concurrency:
+  group: musitu-axiom-public-plugin-cutover
+  cancel-in-progress: false
+jobs:
+  release:
+    if: github.event_name == 'push' && github.ref == 'refs/heads/repair/axiom-independent-verification-20261118'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: 6ab9961906329722d19fbb1f614ca14f89e8e224
+      - uses: actions/checkout@v4
+        with:
+          ref: c6bd56c03f8f2d86315abcbe6a8a2e8c148e9e08
+          path: .verification-baseline
+      - name: Require successful exact-source acceptance and existing readiness
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          python3 - <<'PY'
+          import json,os,urllib.request
+          sha='6ab9961906329722d19fbb1f614ca14f89e8e224'
+          url='https://api.github.com/repos/evansmusitu/mft-axiom-build/actions/runs?head_sha='+sha+'&per_page=100'
+          req=urllib.request.Request(url,headers={'Authorization':'Bearer '+os.environ['GH_TOKEN'],'Accept':'application/vnd.github+json'})
+          with urllib.request.urlopen(req,timeout=30) as r:runs=json.load(r)['workflow_runs']
+          required={'AXIOM independent verification acceptance (NO DEPLOY)','MUSITU Axiom current plugin readiness'}
+          for name in required:
+              matches=[r for r in runs if r['head_sha']==sha and r['name']==name]
+              assert matches and matches[0]['status']=='completed' and matches[0]['conclusion']=='success',name+' has not passed'
+          assert not any(r['head_sha']==sha and r['conclusion'] in ['failure','cancelled','timed_out'] for r in runs),'A candidate gate failed'
+          print('exact_source_acceptance_and_readiness=PASS')
+          PY
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: npm install --no-save --no-audit --no-fund miniflare@4.20260730.0
+      - name: Validate exact pinned release bytes and rerun deployment acceptance
+        env:
+          AXIOM_BASE_GATEWAY_FILE: .verification-baseline/mcp/musitu_axiom_plugin_gate_v4.mjs
+        run: |
+          mkdir -p verification-release-evidence
+          python3 ops/bundle_axiom_plugin_gate.py
+          git diff --exit-code -- mcp/musitu_axiom_plugin_gate_v4.mjs
+          python3 - <<'PY'
+          import hashlib,pathlib
+          pins={'mcp/musitu_axiom_plugin_gate_v4.mjs':'cf3e999deab721532ef584715fbdccc3699849ba40365bedccd961982779ece9','mcp/independent_verification.mjs':'b56f45de07a8ec2f92a9bb87f1051ece5cada446509e69e4e80517a518681a8f'}
+          for name,pin in pins.items():assert hashlib.sha256(pathlib.Path(name).read_bytes()).hexdigest()==pin,name+' differs'
+          PY
+          set -o pipefail
+          node --test mcp/tests/plugin_gate.test.mjs mcp/tests/independent_verification.test.mjs mcp/tests/verification_workerd.test.mjs | tee verification-release-evidence/tests.txt
+          python3 ops/verify_enterprise_numerics.py --output verification-release-evidence/independent-comparison.json
+      - name: Apply only the single guarded gateway source correction
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+        run: |
+          set -o pipefail
+          python3 ops/deploy_axiom_verification_gateway.py --apply | tee verification-release-evidence/deployment.jsonl
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: axiom-verification-gateway-release
+          path: verification-release-evidence/
+          retention-days: 30
+          if-no-files-found: error
