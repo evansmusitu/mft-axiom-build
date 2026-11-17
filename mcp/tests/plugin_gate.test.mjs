@@ -57,7 +57,7 @@ test('generic executor and verification validate the selected operation',async()
  for(const [name,args] of [['musitu_axiom_execute',{operation:'finance.npv',args:{cash_flows:[],rate:.1}}],['verify_calculation',{args:{operation:'finance.npv',args:{cash_flows:[],rate:.1}}}]]){
   const r=await h.request('tools/call',{name,arguments:args});assert.equal(r.result.isError,true);assert.match(JSON.stringify(r.result),/cashflows/);
  }assert.equal(h.calls.length,0);
- const r=await h.request('tools/call',{name:'verify_calculation',arguments:{args:{operation:'arithmetic.evaluate',args:{expression:'40+2'}}}});assert.notEqual(r.result.isError,true);
+ const r=await harness({ok:true,operation:'verify.crosscheck',result:{result:'42',verification:{verified:null,method:'not-applicable'}},verified:null}).request('tools/call',{name:'verify_calculation',arguments:{args:{operation:'arithmetic.evaluate',args:{expression:'40+2'}}}});assert.notEqual(r.result.isError,true);
 });
 test('calculation envelopes omit plan, usage, and timing while preserving mathematical fields',async()=>{
  const result={ok:true,operation:'arithmetic.evaluate',result:{plan:'a legitimate calculation field',usage:3,elapsed_ms:9,verified:false},verified:null,kernel_version:'1.0.0',elapsed_ms:12,axiom:{plan:'developer',compute_units:2,usage:{used:4,limit:1000}}};
@@ -82,7 +82,7 @@ test('crosschecked infinite limits and interval enclosures retain valid mathemat
 test('valid boundary shapes continue to reach computation',async()=>{
  const h=harness();
  for(const [name,args] of [['axiom_linear_solve',{A:[[2,0],[0,4]],b:[[4,8],[8,16]]}],['least_squares',{A:[[1,0],[0,1],[1,1]],b:[[1,2],[2,4],[3,6]]}],['linear_optimization',{c:[1],bounds:null}],['axiom_statistics_ttest_ind',{x:[1],y:[2,3,4],equal_var:true}],['axiom_numeric_optimize_scalar',{expression:'x**2',a:1,b:1}],['axiom_numeric_integrate',{expression:'x',a:0,b:1,epsabs:0}]]){
-  const before=h.calls.length,r=await h.request('tools/call',{name,arguments:{args}});assert.notEqual(r.result.isError,true,name);assert.equal(h.calls.length,before+1,name);
+  const target=name==='linear_optimization'?harness({ok:true,operation:'optimization.linear_program',result:{x:[0],fun:0,success:true,status:0},verified:null}):h;const before=target.calls.length,r=await target.request('tools/call',{name,arguments:{args}});assert.notEqual(r.result.isError,true,name);assert.equal(target.calls.length,before+1,name);
  }
 });
 test('bad complex bins and impossible implied-volatility prices identify input fields',async()=>{

@@ -35,7 +35,7 @@ def json_get(path):
 manifest={'schema':'musitu.axiom.reviewer-fixes.readback.v1','mutation_performed':False,'workers':{},'zone_reads':{}}
 def capture_worker(name):
     if name in manifest['workers']:return
-    if not (name.startswith('musitu-axiom-') or name=='mft-axiom-modal-edge-stage'):raise RuntimeError('Worker outside Axiom source scope')
+    if not (name.startswith('musitu-axiom-') or name in ['mft-axiom-modal-edge-stage','mft-axiom-modal-adapter']):raise RuntimeError('Worker outside Axiom source scope')
     path='/accounts/'+ACCOUNT+'/workers/scripts/'+urllib.parse.quote(name,safe='')
     c,h,raw=get(path)
     if c!=200:manifest['workers'][name]={'http':c};return
@@ -55,9 +55,9 @@ def capture_worker(name):
     sc,settings=json_get(path+'/settings')
     if settings is not None:(folder/'settings.json').write_text(json.dumps(settings,indent=2)+'\n')
     manifest['workers'][name]={'http':c,'modules':{n:{'sha256':hashlib.sha256(v).hexdigest(),'bytes':len(v)} for n,v in modules.items()},'settings_http':sc,'settings_sha256':hashlib.sha256(json.dumps(settings,sort_keys=True,separators=(',',':')).encode()).hexdigest() if settings is not None else None,'binding_names':[{'name':b.get('name'),'type':b.get('type'),'service':b.get('service')} for b in (settings or {}).get('bindings',[])]}
-    if name in ['musitu-axiom-mcp','musitu-axiom-mcp-core']:
+    if name in ['musitu-axiom-mcp','musitu-axiom-mcp-core','musitu-axiom-modal-edge-stage','mft-axiom-modal-edge-stage']:
         for binding in (settings or {}).get('bindings',[]):
-            if binding.get('name') in ['MCP_CORE','AXIOM_SERVICE'] and binding.get('type')=='service':capture_worker(binding['service'])
+            if binding.get('name') in ['MCP_CORE','AXIOM_SERVICE','LEGACY_EDGE','AXIOM_KERNEL'] and binding.get('type')=='service':capture_worker(binding['service'])
 
 capture_worker('musitu-axiom-mcp')
 # The retired global key is used only as the historical archive's offline password.
@@ -76,6 +76,41 @@ try:
     manifest['kernel_archive']={'verified':True,'plaintext_tar_sha256':m['plaintext_tar_sha256']}
 except Exception as e:
     manifest['kernel_archive']={'verified':False,'failure_type':type(e).__name__}
+
+# Inspect the already deployed Modal image; never deploy, create a token, or
+# read customer records. All source bytes remain inside this encrypted capture.
+try:
+    import modal
+    app_name='mft-axiom-v3-modal-staging'
+    deployed_app=modal.App.lookup(app_name,create_if_missing=False)
+    app_id=deployed_app.app_id
+    probe=modal.Function.from_name(app_name,'runtime_probe').remote()
+    (PRIVATE/'modal-probe.json').write_text(json.dumps(probe,indent=2)+'\n')
+    def cli_json(*parts):
+        result=subprocess.run(['modal',*parts],check=True,capture_output=True,text=True,timeout=90)
+        return json.loads(result.stdout)
+    history=cli_json('app','history',app_id,'--json')
+    (PRIVATE/'modal-history.json').write_text(json.dumps(history,indent=2)+'\n')
+    containers=cli_json('container','list','--app-id',app_id,'--json')
+    def ids(value):
+        if isinstance(value,str) and value.startswith('ta-'):return [value]
+        if isinstance(value,dict):return [x for v in value.values() for x in ids(v)]
+        if isinstance(value,list):return [x for v in value for x in ids(v)]
+        return []
+    container_ids=sorted(set(ids(containers)))
+    assert container_ids,'No running source container after existing runtime probe'
+    code="import pathlib,json,base64,hashlib; p=pathlib.Path('/opt/axiom/kernel/app/main.py'); b=p.read_bytes(); print(json.dumps({'path':str(p),'sha256':hashlib.sha256(b).hexdigest(),'source_base64':base64.b64encode(b).decode()}))"
+    captured=[]
+    for cid in container_ids[:2]:
+        result=subprocess.run(['modal','container','exec','--no-pty',cid,'python','-c',code],check=True,capture_output=True,text=True,timeout=60)
+        value=json.loads(result.stdout)
+        body=base64.b64decode(value.pop('source_base64'));assert hashlib.sha256(body).hexdigest()==value['sha256']
+        (PRIVATE/('modal-main-'+cid+'.py')).write_bytes(body)
+        captured.append({'container_id':cid,**value})
+    assert len({x['sha256'] for x in captured})==1,'Deployed source images disagree'
+    manifest['modal_runtime']={'app':app_name,'app_id':app_id,'source_captures':captured,'history_captured':True,'new_deployment':False}
+except Exception as e:
+    manifest['modal_runtime']={'captured':False,'failure_type':type(e).__name__}
 
 pub=PRIVATE/'recipient-public.pem';pub.write_text(PUB)
 key=PRIVATE/'transport-password';key.write_text(secrets.token_hex(32));os.chmod(key,0o600)
