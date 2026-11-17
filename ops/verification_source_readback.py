@@ -79,18 +79,22 @@ except Exception as e:
 
 # Inspect the already deployed Modal image; never deploy, create a token, or
 # read customer records. All source bytes remain inside this encrypted capture.
+modal_stage='lookup'
 try:
     import modal
     app_name='mft-axiom-v3-modal-staging'
     deployed_app=modal.App.lookup(app_name,create_if_missing=False)
     app_id=deployed_app.app_id
+    modal_stage='existing_runtime_probe'
     probe=modal.Function.from_name(app_name,'runtime_probe').remote()
     (PRIVATE/'modal-probe.json').write_text(json.dumps(probe,indent=2)+'\n')
     def cli_json(*parts):
         result=subprocess.run(['modal',*parts],check=True,capture_output=True,text=True,timeout=90)
         return json.loads(result.stdout)
+    modal_stage='deployment_history'
     history=cli_json('app','history',app_id,'--json')
     (PRIVATE/'modal-history.json').write_text(json.dumps(history,indent=2)+'\n')
+    modal_stage='scoped_container_inventory'
     containers=cli_json('container','list','--app-id',app_id,'--json')
     def ids(value):
         if isinstance(value,str) and value.startswith('ta-'):return [value]
@@ -102,6 +106,7 @@ try:
     code="import pathlib,json,base64,hashlib; p=pathlib.Path('/opt/axiom/kernel/app/main.py'); b=p.read_bytes(); print(json.dumps({'path':str(p),'sha256':hashlib.sha256(b).hexdigest(),'source_base64':base64.b64encode(b).decode()}))"
     captured=[]
     for cid in container_ids[:2]:
+        modal_stage='fixed_source_file_read'
         result=subprocess.run(['modal','container','exec','--no-pty',cid,'python','-c',code],check=True,capture_output=True,text=True,timeout=60)
         value=json.loads(result.stdout)
         body=base64.b64decode(value.pop('source_base64'));assert hashlib.sha256(body).hexdigest()==value['sha256']
@@ -110,7 +115,9 @@ try:
     assert len({x['sha256'] for x in captured})==1,'Deployed source images disagree'
     manifest['modal_runtime']={'app':app_name,'app_id':app_id,'source_captures':captured,'history_captured':True,'new_deployment':False}
 except Exception as e:
-    manifest['modal_runtime']={'captured':False,'failure_type':type(e).__name__}
+    manifest['modal_runtime']={'captured':False,'failure_type':type(e).__name__,'stage':modal_stage}
+    if isinstance(e,subprocess.CalledProcessError):
+        (PRIVATE/'modal-read-error.txt').write_text(str(e.stderr or '')[:8000])
 
 pub=PRIVATE/'recipient-public.pem';pub.write_text(PUB)
 key=PRIVATE/'transport-password';key.write_text(secrets.token_hex(32));os.chmod(key,0o600)

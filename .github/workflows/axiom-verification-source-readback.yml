@@ -1,4 +1,5 @@
 name: AXIOM verification source readback (GET only)
+# Retain encrypted diagnostic detail if existing provider file-read access fails.
 on:
   push:
     branches: [repair/axiom-independent-verification-20261118]
