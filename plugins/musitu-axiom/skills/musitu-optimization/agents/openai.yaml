@@ -1,0 +1,4 @@
+interface:
+  display_name: "MUSITU Axiom — Optimization"
+  short_description: "Solve constrained optimization, resource allocation, capital allocation, scheduling, an..."
+  default_prompt: "Use MUSITU Axiom's Optimization workflow for this task."

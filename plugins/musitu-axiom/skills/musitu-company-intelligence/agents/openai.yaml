@@ -1,0 +1,4 @@
+interface:
+  display_name: "MUSITU Axiom — Company Intelligence"
+  short_description: "Analyze companies, securities, sectors, business models, financial performance, peer po..."
+  default_prompt: "Use MUSITU Axiom's Company Intelligence workflow for this task."

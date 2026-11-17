@@ -1,0 +1,4 @@
+interface:
+  display_name: "MUSITU Axiom — Cfo Fpa"
+  short_description: "Run CFO, FP&A, budgeting, runway, profitability, pricing, unit-economics, variance, and..."
+  default_prompt: "Use MUSITU Axiom's Cfo Fpa workflow for this task."

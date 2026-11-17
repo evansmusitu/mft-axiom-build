@@ -1,0 +1,4 @@
+interface:
+  display_name: "MUSITU Axiom — Risk Stress"
+  short_description: "Measure portfolio, market, concentration, drawdown, exposure, liquidity, and scenario r..."
+  default_prompt: "Use MUSITU Axiom's Risk Stress workflow for this task."

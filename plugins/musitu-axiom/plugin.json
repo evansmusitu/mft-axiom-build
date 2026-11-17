@@ -1,0 +1,90 @@
+{
+  "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
+  "name": "musitu-axiom",
+  "version": "2.0.5",
+  "description": "MUSITU Axiom helps users run quantitative finance, statistics, optimization, time-series, verification, and mathematical calculations from ChatGPT using an existing MUSITU Axiom account.",
+  "author": {
+    "name": "Evans Musitu"
+  },
+  "extensions": {
+    "com.openai": {
+      "interface": {
+        "capabilities": [],
+        "category": "Finance",
+        "defaultPrompt": [
+          "Use MUSITU Axiom to verify this quantitative result independently and show the calculation.",
+          "Use MUSITU Axiom to solve this constrained optimization problem and explain the optimum.",
+          "Use MUSITU Axiom to analyze this time series for trend, volatility, and structural changes."
+        ],
+        "developerName": "Evans Musitu",
+        "displayName": "MUSITU Axiom",
+        "longDescription": "MUSITU Axiom helps users run quantitative finance, statistics, optimization, time-series, verification, and mathematical calculations from ChatGPT using an existing MUSITU Axiom account.",
+        "privacyPolicyURL": "https://mcp.mftintelligence.com/privacy",
+        "shortDescription": "Quantitative analysis",
+        "supportURL": "https://support.mftintelligence.com/",
+        "termsOfServiceURL": "https://mcp.mftintelligence.com/terms",
+        "websiteURL": "https://mcp.mftintelligence.com/docs",
+        "composerIcon": "./assets/musitu-axiom-icon.png",
+        "logo": "./assets/musitu-axiom-icon.png"
+      },
+      "review": {
+        "test_cases": {
+          "positive": [
+            {
+              "description": "Discover relevant quantitative capabilities by topic.",
+              "prompt": "Use MUSITU Axiom to find tools for time-series analysis.",
+              "tools_triggered": "search",
+              "expected_behavior": "Returns relevant MUSITU Axiom capabilities without exposing subscription checkout or upgrade flows."
+            },
+            {
+              "description": "Inspect one capability returned by discovery.",
+              "prompt": "Use MUSITU Axiom to show me the details of the quantitative capability I selected from the search results.",
+              "tools_triggered": "fetch",
+              "expected_behavior": "Returns the selected capability's description, input schema, and safety annotations."
+            },
+            {
+              "description": "Summarize the available public Axiom capability surface.",
+              "prompt": "What quantitative capabilities does MUSITU Axiom provide here?",
+              "tools_triggered": "musitu_axiom_capabilities",
+              "expected_behavior": "Reports the available quantitative operations and business products without exposing commerce tools."
+            },
+            {
+              "description": "Execute a deterministic arithmetic calculation through the authenticated Axiom runtime.",
+              "prompt": "Use MUSITU Axiom to evaluate 40+2.",
+              "tools_triggered": "musitu_axiom_execute",
+              "expected_behavior": "Returns 42 through the authenticated, metered MUSITU Axiom runtime without internal request or receipt identifiers."
+            },
+            {
+              "description": "Exercise the same execution surface with a second deterministic expression.",
+              "prompt": "Use MUSITU Axiom to evaluate (12*8)-5 and explain the numerical result.",
+              "tools_triggered": "musitu_axiom_execute",
+              "expected_behavior": "Returns 91 for (12*8)-5 with a concise explanation, without internal request or receipt identifiers."
+            }
+          ],
+          "negative": [
+            {
+              "description": "Do not use Axiom to place investment trades.",
+              "prompt": "Buy 100 shares of a stock for me right now.",
+              "expected_behavior": "The app should not be invoked to place a trade because MUSITU Axiom's public app does not execute investment transactions."
+            },
+            {
+              "description": "Do not use Axiom for money transfer requests.",
+              "prompt": "Send $50 from my account to another person.",
+              "expected_behavior": "The app should not be invoked because the public app does not transfer money."
+            },
+            {
+              "description": "Do not expose or initiate digital-subscription commerce inside the public app.",
+              "prompt": "Upgrade me to the MUSITU Axiom Pro plan and charge me now.",
+              "expected_behavior": "The public app should not expose plan purchase, checkout, or upgrade tools."
+            }
+          ]
+        },
+        "commerce": false,
+        "commerce_description": "The public plugin does not initiate purchases, subscription checkout, payments, investment trades, or money transfers. Existing entitled accounts may use metered quantitative computation."
+      },
+      "publication": {
+        "release_notes": "Added operation-specific schemas and actionable input validation for all 105 computation tools; removed calculation plan, usage and timing metadata; explained undefined results; restored public support access; replaced bundled sales instructions with existing-account access help. Preserved all eighteen skills and the five positive and three negative review scenarios."
+      }
+    }
+  }
+}

@@ -1,0 +1,4 @@
+interface:
+  display_name: "MUSITU Axiom — Time Series Forecasting"
+  short_description: "Perform time-series diagnostics, structural-break analysis, forecasting, regime analysi..."
+  default_prompt: "Use MUSITU Axiom's Time Series Forecasting workflow for this task."

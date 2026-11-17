@@ -1,0 +1,4 @@
+interface:
+  display_name: "MUSITU Axiom — Financial Modeling"
+  short_description: "Build, repair, audit, and stress-test financial models and valuations using MUSITU Axiom"
+  default_prompt: "Use MUSITU Axiom's Financial Modeling workflow for this task."
