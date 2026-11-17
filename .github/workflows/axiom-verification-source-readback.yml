@@ -1,5 +1,5 @@
 name: AXIOM verification source readback (GET only)
-# Pin the active app from the actual adapter binding and retain encrypted diagnostics.
+# Pin the active app from its binding; parse remote JSON independently of CLI notices.
 on:
   push:
     branches: [repair/axiom-independent-verification-20261118]

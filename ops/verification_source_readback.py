@@ -111,7 +111,16 @@ try:
     for cid in container_ids[:2]:
         modal_stage='fixed_source_file_read'
         result=subprocess.run(['modal','container','exec','--no-pty',cid,'--','python','-c',code],check=True,capture_output=True,text=True,timeout=60)
-        value=json.loads(result.stdout)
+        (PRIVATE/('modal-exec-'+cid+'.txt')).write_text(result.stdout+'\nSTDERR\n'+result.stderr)
+        # The CLI may emit connection notices around the remote JSON line.
+        value=None
+        for line in (result.stdout+'\n'+result.stderr).splitlines():
+            start=line.find('{')
+            if start<0:continue
+            try:parsed=json.JSONDecoder().raw_decode(line[start:])[0]
+            except ValueError:continue
+            if isinstance(parsed,dict) and 'source_base64' in parsed:value=parsed;break
+        assert value is not None,'No source JSON in provider execution output'
         body=base64.b64decode(value.pop('source_base64'));assert hashlib.sha256(body).hexdigest()==value['sha256']
         (PRIVATE/('modal-main-'+cid+'.py')).write_bytes(body)
         captured.append({'container_id':cid,**value})
