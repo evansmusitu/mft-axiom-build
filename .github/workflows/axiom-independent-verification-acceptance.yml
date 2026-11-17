@@ -6,6 +6,8 @@ on:
       - mcp/**
       - ops/bundle_axiom_plugin_gate.py
       - ops/verify_enterprise_numerics.py
+      - ops/verify_axiom_live_public.py
+      - ops/deploy_axiom_verification_gateway.py
       - .github/workflows/axiom-independent-verification-acceptance.yml
 permissions:
   contents: read

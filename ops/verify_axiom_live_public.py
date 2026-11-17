@@ -1,5 +1,5 @@
 """Read-only current public plugin checks; no credential provisioning or claims."""
-import json
+import hashlib,json,os
 from pathlib import Path
 import urllib.request
 from jsonschema import Draft202012Validator
@@ -10,7 +10,14 @@ def get(url,body=None):
     with urllib.request.urlopen(urllib.request.Request(url,headers=h,data=json.dumps(body).encode() if body is not None else None),timeout=40) as r:return r.status,dict(r.headers),r.read()
 def rpc(method,params=None):return json.loads(get('https://mcp.mftintelligence.com/mcp',{'jsonrpc':'2.0','id':1,'method':method,'params':params or {}})[2])
 def main():
-    health=json.loads(get('https://mcp.mftintelligence.com/health')[2]);assert health['ok'] is True and health['server_version']=='4.0.2' and health['oauth_enforced'] is True
+    health=json.loads(get('https://mcp.mftintelligence.com/health')[2]);assert health['ok'] is True and health['server_version'] in {'4.0.2','4.0.3'} and health['oauth_enforced'] is True
+    expected=os.environ.get('AXIOM_EXPECTED_GATEWAY_VERSION')
+    if expected:assert health['server_version']==expected,'Unexpected deployed gateway version'
+    if health['server_version']=='4.0.3':
+        checker=health.get('independent_verification') or {}
+        assert checker.get('version')=='axiom-independent-v1'
+        assert checker.get('source_sha256')==hashlib.sha256((ROOT/'mcp/independent_verification.mjs').read_bytes()).hexdigest()
+        assert checker.get('scope')==['arithmetic.evaluate','finance.npv','optimization.linear_program']
     tools=rpc('tools/list')['result']['tools'];assert len(tools)==108 and len({t['name'] for t in tools})==108
     hidden={'musitu_axiom_plans','musitu_axiom_recommend_plan','musitu_axiom_start_checkout','musitu_axiom_checkout_status'};assert not (hidden & {t['name'] for t in tools})
     examples=json.loads((ROOT/'mcp/tests/fixtures/operation-examples.json').read_text());count=0
