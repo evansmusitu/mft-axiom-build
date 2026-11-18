@@ -1,0 +1,248 @@
+{
+  "note": "Actual connected published MUSITU Axiom responses collected in this investigation; the connector does not return per-call server timestamps.",
+  "cases": [
+    {
+      "id": "old_base",
+      "operation": "finance.npv",
+      "args": {
+        "cashflows": [
+          -12000000,
+          3000000,
+          3200000,
+          3400000,
+          3600000,
+          3800000
+        ],
+        "rate": 0.18
+      },
+      "response": {
+        "content": [
+          {
+            "type": "text",
+            "text": "MUSITU Axiom completed finance.npv."
+          }
+        ],
+        "structuredContent": {
+          "operation": "finance.npv",
+          "result": {
+            "ok": true,
+            "operation": "finance.npv",
+            "result": -1572237.0040747477,
+            "verified": null
+          }
+        },
+        "isError": false
+      }
+    },
+    {
+      "id": "old_up",
+      "operation": "finance.npv",
+      "args": {
+        "cashflows": [
+          -12000000,
+          3450000,
+          3680000,
+          3910000,
+          4140000,
+          4370000
+        ],
+        "rate": 0.16
+      },
+      "response": {
+        "content": [
+          {
+            "type": "text",
+            "text": "MUSITU Axiom completed finance.npv."
+          }
+        ],
+        "structuredContent": {
+          "operation": "finance.npv",
+          "result": {
+            "ok": true,
+            "operation": "finance.npv",
+            "result": 581047.9339797134,
+            "verified": null
+          }
+        },
+        "isError": false
+      }
+    },
+    {
+      "id": "old_down",
+      "operation": "finance.npv",
+      "args": {
+        "cashflows": [
+          -12000000,
+          2400000,
+          2560000,
+          2720000,
+          2880000,
+          3040000
+        ],
+        "rate": 0.22
+      },
+      "response": {
+        "content": [
+          {
+            "type": "text",
+            "text": "MUSITU Axiom completed finance.npv."
+          }
+        ],
+        "structuredContent": {
+          "operation": "finance.npv",
+          "result": {
+            "ok": true,
+            "operation": "finance.npv",
+            "result": -4390069.300102226,
+            "verified": null
+          }
+        },
+        "isError": false
+      }
+    },
+    {
+      "id": "ggf_a",
+      "operation": "finance.npv",
+      "args": {
+        "cashflows": [
+          -60000,
+          24000,
+          27000,
+          30000
+        ],
+        "rate": 0.1
+      },
+      "response": {
+        "content": [
+          {
+            "type": "text",
+            "text": "MUSITU Axiom completed finance.npv."
+          }
+        ],
+        "structuredContent": {
+          "operation": "finance.npv",
+          "result": {
+            "ok": true,
+            "operation": "finance.npv",
+            "result": 6671.675432005995,
+            "verified": null
+          }
+        },
+        "isError": false
+      }
+    },
+    {
+      "id": "ggf_b",
+      "operation": "finance.npv",
+      "args": {
+        "cashflows": [
+          -80000,
+          24000,
+          40000,
+          52000
+        ],
+        "rate": 0.1
+      },
+      "response": {
+        "content": [
+          {
+            "type": "text",
+            "text": "MUSITU Axiom completed finance.npv."
+          }
+        ],
+        "structuredContent": {
+          "operation": "finance.npv",
+          "result": {
+            "ok": true,
+            "operation": "finance.npv",
+            "result": 13944.402704733264,
+            "verified": null
+          }
+        },
+        "isError": false
+      }
+    },
+    {
+      "id": "ggf_lp",
+      "operation": "optimization.linear_program",
+      "args": {
+        "c": [
+          -6671.675432006003,
+          -13944.402704733286
+        ],
+        "A_ub": [
+          [
+            60000,
+            80000
+          ]
+        ],
+        "b_ub": [
+          100000
+        ],
+        "bounds": [
+          [
+            0,
+            1
+          ],
+          [
+            0,
+            1
+          ]
+        ]
+      },
+      "response": {
+        "content": [
+          {
+            "type": "text",
+            "text": "MUSITU Axiom completed optimization.linear_program."
+          }
+        ],
+        "structuredContent": {
+          "operation": "optimization.linear_program",
+          "result": {
+            "ok": true,
+            "operation": "optimization.linear_program",
+            "result": {
+              "x": [
+                0.3333333333333333,
+                1
+              ],
+              "fun": -16168.294515401953,
+              "success": true,
+              "status": 0,
+              "message": "Optimization terminated successfully. (HiGHS Status 7: Optimal)"
+            },
+            "verified": null
+          }
+        },
+        "isError": false
+      }
+    },
+    {
+      "id": "arithmetic",
+      "operation": "arithmetic.evaluate",
+      "args": {
+        "expression": "40+2"
+      },
+      "response": {
+        "content": [
+          {
+            "type": "text",
+            "text": "MUSITU Axiom completed arithmetic.evaluate."
+          }
+        ],
+        "structuredContent": {
+          "operation": "arithmetic.evaluate",
+          "result": {
+            "ok": true,
+            "operation": "arithmetic.evaluate",
+            "result": "42.000000000000000000000000000000000000000000000000",
+            "verified": null
+          }
+        },
+        "isError": false
+      }
+    }
+  ],
+  "observed_date_utc": "2026-11-17"
+}

@@ -1,8 +1,10 @@
 // Public schemas and pre-metering validation. Bundled into the gateway at build time.
 import OPERATION_CONTRACTS from './operation_contracts.json' with {type:'json'};
 import TOOL_OPERATION_MAP from './operation_tool_map.json' with {type:'json'};
+import {applyIndependentVerification,configureVerificationOperations} from './independent_verification.mjs';
 const TOOL_OPERATIONS={...TOOL_OPERATION_MAP};
 TOOL_OPERATIONS.ewma_forecast='timeseries.ewma';
+configureVerificationOperations(TOOL_OPERATIONS);
 const OPERATION_NAMES=Object.keys(OPERATION_CONTRACTS);
 const copy=x=>JSON.parse(JSON.stringify(x));
 const own=(o,k)=>Object.prototype.hasOwnProperty.call(o,k);
