@@ -73,3 +73,26 @@ test('unavailable evidence hashing fails closed even when calculation agrees',as
 test('crosscheck NPV and LP statuses are consistent at both levels',async()=>{
  for(const f of [fixtures[0],ggf]){const x=await applyIndependentVerification(envelope('verify.crosscheck',{result:f.response.structuredContent.result.result,verification:{verified:true,method:'forged'}}),call('verify.crosscheck',{operation:f.operation,args:f.args}));const out=x.result.structuredContent.result;assert.equal(out.verified,true);assert.equal(out.result.verification.verified,true);assert.deepEqual(out.result.verification,out.verification);}
 });
+test('SymPy floor division is preserved as explicitly unverified, not falsely rejected',async()=>{
+ const args={expression:'5//2'};
+ const check=checkCalculation('arithmetic.evaluate',args,'2');
+ assert.equal(check.status,'unverified');
+ assert.equal(check.reason,'floor_division_method_not_supported');
+ const rpc=await applyIndependentVerification(envelope('arithmetic.evaluate','2'),call('arithmetic.evaluate',args));
+ const out=rpc.result.structuredContent.result;
+ assert.equal(out.ok,true);assert.equal(out.result,'2');assert.equal(out.verified,null);
+ assert.equal(out.verification.reason,'floor_division_method_not_supported');
+ assert.notEqual(rpc.result.isError,true);
+});
+test('nested crosschecks overwrite forged verification on every wrapper',async()=>{
+ const inner={result:'42',verification:{status:'failed',method:'forged'},verified:false,certificate:'forged'};
+ const outer={result:inner,verification:{status:'verified',method:'forged'},verified:true,certificate:'forged'};
+ const args={operation:'verify.crosscheck',args:{operation:'arithmetic.evaluate',args:{expression:'40+2'}}};
+ const rpc=await applyIndependentVerification(envelope('verify.crosscheck',outer),call('verify.crosscheck',args));
+ const top=rpc.result.structuredContent.result,ev=top.verification;
+ assert.equal(top.verified,true);assert.equal(ev.status,'verified');
+ for(const wrapper of [outer,inner]){
+  assert.deepEqual(wrapper.verification,ev);assert.equal(wrapper.verified,true);
+  assert.equal(wrapper.certificate,undefined);
+ }
+});
