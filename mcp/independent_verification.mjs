@@ -37,6 +37,9 @@ function compare(a,b,abs=ABS,rel=REL){const residual=a.sub(b).abs(),limit=tolera
 function pow(a,k){if(!Number.isSafeInteger(k)||Math.abs(k)>512)throw new Unsupported('power_limit');let out=ONE,b=a,e=Math.abs(k);while(e){if(e%2)out=out.mul(b);e=Math.floor(e/2);if(e)b=b.mul(b);}return k<0?ONE.div(out):out;}
 function arithmetic(expression){
  if(typeof expression!=='string'||expression.length>4096)throw new Unsupported('expression_resource_limit');
+ // SymPy accepts floor division, but this bounded rational checker does not implement it.
+ // Preserve a successful kernel result as explicitly unverified, never as a false failure.
+ if(expression.includes('//'))throw new Unsupported('floor_division_method_not_supported');
  const tokens=[];let pos=0;
  while(pos<expression.length){if(/\s/.test(expression[pos])){pos++;continue;}const m=expression.slice(pos).match(/^(?:(\d+(?:\.\d*)?|\.\d+)(?:[eE][+-]?\d+)?|\*\*|[()+\-*/])/);if(!m)throw new Unsupported('expression_method_not_supported');tokens.push(m[0]);pos+=m[0].length;if(tokens.length>512)throw new Unsupported('expression_resource_limit');}
  let i=0,depth=0;
@@ -111,11 +114,12 @@ async function digest(value){const b=new TextEncoder().encode(JSON.stringify(can
 const SUPPORTED=new Set(['arithmetic.evaluate','finance.npv','optimization.linear_program']);
 export async function applyIndependentVerification(rpc,call){
  const sc=rpc?.result?.structuredContent,engine=sc?.result;if(!engine||typeof engine!=='object'||!own(engine,'result'))return rpc;
- let operation=TOOL_OPERATION(call),args=call?.arguments?.args,value=engine.result,wrapped=value;
+ let operation=TOOL_OPERATION(call),args=call?.arguments?.args,value=engine.result;
+ const wrappers=[];
  // Crosscheck is a wrapper; validate every response wrapper against the request.
  let mismatch=engine.operation!==operation||sc.operation!==operation;
  while(operation==='verify.crosscheck'&&args&&typeof args==='object'){
-  operation=args.operation;args=args.args;wrapped=value;value=value?.result;
+  wrappers.push(value);operation=args.operation;args=args.args;value=value?.result;
  }
  if(!SUPPORTED.has(operation))return rpc;
  let evidence;
@@ -126,7 +130,13 @@ export async function applyIndependentVerification(rpc,call){
  }catch{evidence={status:'unverified',verified:null,method:'unavailable',reason:'independent_checker_unavailable',checker_version:CHECKER_VERSION,checker_source_sha256:CHECKER_SOURCE_SHA256};}
  // Never reuse a certificate or verification flag supplied by the upstream result.
  delete engine.certificate;engine.verification=evidence;engine.verified=evidence.status==='verified'?true:evidence.status==='failed'?false:null;
- if(wrapped&&typeof wrapped==='object'&&own(wrapped,'verification'))wrapped.verification=evidence;
+ for(const wrapper of wrappers){
+  if(!wrapper||typeof wrapper!=='object')continue;
+  // Propagate one fresh calculation-bound proof through all nested wrappers.
+  delete wrapper.certificate;
+  wrapper.verification=evidence;
+  wrapper.verified=evidence.verified;
+ }
  if(evidence.status==='failed'){engine.ok=false;engine.result=null;engine.error={code:'independent_verification_failed',message:'The independent numerical checks failed. This result must not be used as verified.'};rpc.result.isError=true;rpc.result.content=[{type:'text',text:engine.error.message}];}
  return rpc;
 }
