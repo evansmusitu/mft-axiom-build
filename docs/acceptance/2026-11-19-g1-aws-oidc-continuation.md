@@ -1,6 +1,7 @@
 # G1 AWS integration continuation — 19 November 2026
 
-**Status: REVIEWABLE SOURCE ONLY; AWS NOT CONNECTED; G1 NO-GO.**
+**Status: MAIN BRANCH PROTECTION ACTIVE; AWS WORKFLOWS DRAFT / NOT CONNECTED;
+G1 NO-GO.**
 
 This is a narrow main-targeted security bootstrap. It reuses the STS-first,
 fixed-operation and sanitized-output approach of draft PR #239 without merging
@@ -28,11 +29,12 @@ unmerged Axiom feature stacks. Starting main SHA is
 
 | Control | Native observation on 19 November | Result |
 |---|---|---|
-| GitHub main | Branch endpoint returns `protected:false` | FAILED / activation needed |
+| GitHub main | Initially `protected:false`; after ruleset creation, native readback `protected:true` | ACTIVE protection verified at 05:07 UTC / 07:07 Africa/Harare |
 | Existing rule | Rule 27261118, “Protect MUSITU AXIOM Main”, is active but targets **tags**, all tags | Does not protect main; preserve tag protection |
 | Branch administration API | Connected GitHub integration receives HTTP 403 | Cannot activate protections through that connector |
-| Browser administration | GitHub settings is signed out; secure login page reached | Owner authentication required |
-| Independent reviewer | No confirmed independent human reviewer found | Required before environment/privileged PR approval |
+| Browser administration | Secure request timed out, but a fresh authorized GitHub tab confirmed authenticated settings access | Branch rule activated in the signed-in UI |
+| Independent reviewer | Native Manage access shows **zero collaborators**, only the owner | Owner must designate and authorize an independent human reviewer |
+| Administrator environment | Native environments inventory has no `g1-aws-admin` | Creation held until its independent approval gate can be complete |
 | AWS console | Billing Credits page returned “Site Unavailable”, unchanged after one reload | Balance/expiration/eligibility NOT VERIFIED |
 | AWS API identity | No authenticated AWS invocation | NOT VERIFIED |
 | Neon G1 staging | PostgreSQL 17, AWS Ohio, protected default main, public blocked, VPC allowed, Scale organization | Public block preserved |
@@ -42,16 +44,24 @@ unmerged Axiom feature stacks. Starting main SHA is
 
 Other Neon projects are separate; this task does not change their access
 policies. No database policy, role, grant, schema, source endpoint, provider
-credential, Cloudflare/Modal deployment or production setting was changed.
+credential, Cloudflare/Modal deployment or production runtime setting was changed.
 
-## Proposed GitHub protection configuration
+## Activated GitHub main protection
 
-Apply `.github/policies/g1-main-ruleset.json` as a **new branch rule**, targeting
+Created in the browser and verified through the GitHub API: ruleset **27611672**, targeting
 only `refs/heads/main`, with active enforcement, no bypass actors, blocked
 deletion/force pushes, mandatory PR approval, dismissal of stale reviews,
 approval of the latest push by someone else, code-owner review, resolved
-threads, and strict `g1-aws-source` status checks. That check runs on every
-main-targeted PR to avoid path-filter deadlocks. Preserve the existing tag rule.
+threads, and strict `g1-aws-source` status checks pinned to GitHub Actions app
+15368. The native readback reports `current_user_can_bypass:never`. The proposed
+source policy now matches those live settings, including GitHub's additional
+approval for unattributed changes. The existing tag rule **27261118** is unchanged.
+
+The native source/audit record is
+`docs/acceptance/evidence/2026-11-19-g1-github-protection-readback.json`.
+It is unsigned provider readback, not independent security certification.
+The new offline check runs on every main-targeted PR to avoid path-filter
+deadlocks after it is reviewed and merged. No privileged workflow was merged.
 
 The new CODEOWNERS protects `.github/`, the executor code, tests and this
 runbook. It currently names the existing owner only. **Before merging this
@@ -78,7 +88,9 @@ All new AWS execution is manual, owner-triggered, immutable-repository-ID
 checked, protected-main-only, and routed through the protected environment.
 No new workflow reads persistent AWS keys or accepts arbitrary commands.
 
-1. Independent human review approves this narrow PR. Merge only after native
+1. Owner designates an independent human reviewer and authorizes the necessary
+   repository access; no collaborator was invited by this continuation.
+   Independent human review then approves this narrow PR. Merge only after native
    branch and environment protections are verified. `workflow_dispatch` cannot
    be used for these new files until they exist on default main.
 2. Run **G1 AWS OIDC subject and identity preflight**, operation `discover`.
