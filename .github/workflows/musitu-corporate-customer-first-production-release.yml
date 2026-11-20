@@ -201,7 +201,7 @@ jobs:
           checks={
             '/experiences/lab/':b'published',
             '/sitemap/':b'33',
-            '/status/':b'monitoring',
+            '/status/':b'SERVICE INFORMATION',
             '/contact/':b'Contact',
             '/experiences/intelligence/':b'Intelligence'
           }
