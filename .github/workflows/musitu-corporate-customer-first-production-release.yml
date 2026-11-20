@@ -178,9 +178,26 @@ jobs:
                      b'Published integration distinction',b'What was not established',
                      b'has not been independently confirmed',b'Publication gate',
                      b'Staging-only review. No public release approval.')
-          for path in ('/','/products/axiom/','/products/','/developers/','/news/','/status/','/contact/'):
-            _,_,_,page=public(root+path+'?release=41')
-            assert not any(phrase in page for phrase in forbidden),'Warning or staging gate still live: '+path
+          marketing_markers={
+            '/':b"Explore Axiom's 74 documented operations across 18 disciplines",
+            '/products/axiom/':b'axiom-explore-cta',
+            '/products/':b'Search by name, capability or purpose, and find detailed product pages',
+            '/developers/':b'Explore the technology. Build with confidence.',
+            '/news/':b'On 20 November 2026, we expanded the ',
+            '/status/':b'Information about MUSITU services.',
+            '/contact/':b'Corporate contact',
+            '/evidence/':b'Discover the release records, demonstrations and technical context',
+            '/resources/':b'Start with our six technology families for product introductions',
+            '/trust/':b'Our engineering practices evolve through review'
+          }
+          for path,expected_marker in marketing_markers.items():
+            for attempt in range(48):
+              status,_,_,page=public(root+path+'?release=41')
+              old_copy=[phrase for phrase in forbidden if phrase in page]
+              if status==200 and expected_marker in page and not old_copy:break
+              time.sleep(5)
+            else:raise AssertionError('Page still serving old content or warnings after propagation window: '+path)
+          print('Ten public marketing routes refreshed; old warning language and review gates absent')
           for path,marker in (('/legal/privacy/',b'Privacy Policy'),('/legal/terms/',b'Terms of Use')):
             status,_,head,page=public(root+path+'?release=41')
             assert status==200 and marker in page,'Legal notice unavailable at '+path
