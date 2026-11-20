@@ -59,7 +59,7 @@ jobs:
         run: |
           set -euo pipefail
           git clone --quiet --depth 1 --branch feature/customer-first-copy-20261120 https://github.com/evansmusitu/evansmusitu.github.io.git /tmp/musitu-pr41
-          test "$(git -C /tmp/musitu-pr41 rev-parse HEAD)" = "ca958e241d34f0ff1c32aedfff458cba33ec587b"
+          test "$(git -C /tmp/musitu-pr41 rev-parse HEAD)" = "6c8b4161908d27505c42c7f4bf27ae6461752d11"
           curl --fail --silent --show-error --location --retry 3 https://mftintelligence.com/assets/studio-demo-82s.mp4 --output /tmp/musitu-pr41/corporate/assets/studio-demo-82s.mp4
           curl --fail --silent --show-error --location --retry 3 https://mftintelligence.com/assets/studio-poster.png --output /tmp/musitu-pr41/corporate/assets/studio-poster.png
           printf '%s  %s\n' \
@@ -101,7 +101,7 @@ jobs:
           python scripts/build.py
           python -m pytest -q tests/test_production_build.py tests/test_axiom_catalog.py tests/test_customer_first_copy.py
           python tests/test_public_artifact_boundary.py
-          printf '%s  %s\n' '704d7df09d282885011814d1865226d096bb2208d298d5551f5314d20d1fa763' 'dist/manifest.json' | sha256sum --check
+          printf '%s  %s\n' 'c56b7d4cbb402f69d6f9116412b34b3a007c5a6620e1aaa6a45c585845f4a02d' 'dist/manifest.json' | sha256sum --check
           python - <<'PY'
           from pathlib import Path
           import json
@@ -124,7 +124,7 @@ jobs:
           npx --yes wrangler@4 pages deploy /tmp/musitu-pr41/corporate/dist \
             --project-name=musitu-corporate \
             --branch=main \
-            --commit-hash=ca958e241d34f0ff1c32aedfff458cba33ec587b \
+            --commit-hash=6c8b4161908d27505c42c7f4bf27ae6461752d11 \
             --commit-message="MUSITU customer-first website copy; remove release warnings, preserve legal and Axiom catalogue"
       - name: Independent hosted route, video, legal, canonical, header and preservation verification
         id: verify
@@ -177,7 +177,7 @@ jobs:
           forbidden=(b'Availability and maturity',b'What the evidence does not establish',
                      b'Published integration distinction',b'What was not established',
                      b'has not been independently confirmed',b'Publication gate',
-                     b'Staging-only review. No public release approval.')
+                     b'Staging-only review. No public release approval.',b'<p>NaN</p>')
           marketing_markers={
             '/':b"Explore Axiom's 74 documented operations across 18 disciplines",
             '/products/axiom/':b'axiom-explore-cta',
@@ -185,7 +185,7 @@ jobs:
             '/developers/':b'Explore the technology. Build with confidence.',
             '/news/':b'On 20 November 2026, we expanded the ',
             '/status/':b'Information about MUSITU services.',
-            '/contact/':b'Corporate contact',
+            '/contact/':b'Start a meaningful conversation.',
             '/evidence/':b'Discover the release records, demonstrations and technical context',
             '/resources/':b'Start with our six technology families for product introductions',
             '/trust/':b'Our engineering practices evolve through review'
@@ -211,7 +211,7 @@ jobs:
           assert 'max-age=86400' in headers.get('strict-transport-security',''),'Staged 24h HSTS not served by live host'
           md=(ds[0].get('deployment_trigger') or {}).get('metadata') or {}
           source_hash=md.get('commit_hash') or (ds[0].get('source') or {}).get('commit_hash') or ''
-          assert not source_hash or source_hash=='ca958e241d34f0ff1c32aedfff458cba33ec587b','Unexpected production source hash'
+          assert not source_hash or source_hash=='6c8b4161908d27505c42c7f4bf27ae6461752d11','Unexpected production source hash'
           code,_,headers,studio=public(root+'/products/foundry/studio/')
           assert code==200 and b'PUBLIC STUDIO RECORDING' in studio and b'STAGING-ONLY MEDIA' not in studio
           assert 'content-security-policy' in headers and 'max-age=86400' in headers.get('strict-transport-security','')
@@ -272,7 +272,7 @@ jobs:
           assert latest.get('id'),'Cannot identify active production; refusing broad rollback'
           md=(latest.get('deployment_trigger') or {}).get('metadata') or {}
           source_hash=md.get('commit_hash') or (latest.get('source') or {}).get('commit_hash') or ''
-          if source_hash and source_hash!='ca958e241d34f0ff1c32aedfff458cba33ec587b':
+          if source_hash and source_hash!='6c8b4161908d27505c42c7f4bf27ae6461752d11':
             raise SystemExit('Concurrent unrelated deployment observed; refusing to roll back another operator')
           req=urllib.request.Request(base+'/'+old+'/rollback',headers=dict(h,**{'Content-Type':'application/json'}),
            data=b'{}',method='POST')
