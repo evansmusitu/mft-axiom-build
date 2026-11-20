@@ -132,7 +132,7 @@ jobs:
           account=os.environ['CLOUDFLARE_ACCOUNT_ID']
           old=os.environ['OLD_ID']
           def public(url):
-            req=urllib.request.Request(url,headers={'User-Agent':'MUSITU-PR41-Release-Acceptance/1.0'})
+            req=urllib.request.Request(url,headers={'User-Agent':'MUSITU-PR41-Release-Acceptance/1.0','Cache-Control':'no-cache'})
             with urllib.request.urlopen(req,timeout=20) as r:
               return r.status,r.url,{k.lower():v for k,v in r.headers.items()},r.read(8000000)
           def deployed():
@@ -141,13 +141,16 @@ jobs:
             assert d.get('success') is True
             return [v for v in d['result'] if v.get('environment')=='production' and (v.get('latest_stage') or {}).get('status')=='success']
           # Wait for the direct-upload release to reach both Pages control plane and public hostname.
-          for attempt in range(36):
+          for attempt in range(60):
             ds=deployed()
-            code,_,headers,home=public(root+'/')
-            axiom_status,_,axiom_headers,axiom=public(root+'/products/axiom/')
+            code,_,headers,home=public(root+'/?release=41')
+            axiom_status,_,axiom_headers,axiom=public(root+'/products/axiom/?release=41')
             if (ds and ds[0]['id']!=old and b'Technology that makes' in home
               and b'href="/products/axiom/#axiom-full-capabilities"' in home
-              and b'id="axiom-full-capabilities"' in axiom):break
+              and b'id="axiom-full-capabilities"' in axiom
+              and b'class="axiom-explore-cta"' in axiom
+              and b'class="axiom-product-cta"' in axiom
+              and b'aria-label="Explore Axiom in ChatGPT (opens in a new tab)"' in axiom):break
             time.sleep(5)
           assert ds and ds[0]['id']!=old,'New production deployment not confirmed'
           assert b'Technology that makes' in home and b'complex work clearer.' in home,'Redesigned homepage not live'
