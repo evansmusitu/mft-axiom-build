@@ -95,7 +95,7 @@ jobs:
           assert m['phase03_publication_indexable'] is False
           assert m['production_approved'] is False
           assert len(list(p.rglob('index.html')))==34
-          assert sum('<loc>' in line for line in (p/'sitemap.xml').read_text().splitlines())==33
+          assert (p/'sitemap.xml').read_text().count('<loc>')==33
           assert 'Strict-Transport-Security: max-age=86400' in (p/'_headers').read_text()
           assert not (p/'fr').exists()
           print('Exact 34-route artifact, 33-url sitemap, HSTS policy and Phase03 HOLD verified')
