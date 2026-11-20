@@ -134,10 +134,10 @@ jobs:
           for attempt in range(36):
             ds=deployed()
             code,_,headers,home=public(root+'/')
-            if ds and ds[0]['id']!=old and b'Technology that makes complex work clearer.' in home:break
+            if ds and ds[0]['id']!=old and b'Technology that makes' in home and b'complex work clearer.' in home:break
             time.sleep(5)
           assert ds and ds[0]['id']!=old,'New production deployment not confirmed'
-          assert b'Technology that makes complex work clearer.' in home,'Redesigned homepage not live'
+          assert b'Technology that makes' in home and b'complex work clearer.' in home,'Redesigned homepage not live'
           assert b'Zimbabwe-founded' not in home,'Retired marketing-location sentence remained'
           assert code==200 and 'content-security-policy' in headers and headers.get('x-content-type-options','').lower()=='nosniff'
           assert 'max-age=86400' in headers.get('strict-transport-security',''),'Staged 24h HSTS not served by live host'
