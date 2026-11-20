@@ -179,12 +179,13 @@ jobs:
                      b'has not been independently confirmed',b'Publication gate',
                      b'Staging-only review. No public release approval.')
           for path in ('/','/products/axiom/','/products/','/developers/','/news/','/status/','/contact/'):
-            _,_,_,page=public(root+path)
+            _,_,_,page=public(root+path+'?release=41')
             assert not any(phrase in page for phrase in forbidden),'Warning or staging gate still live: '+path
-          for path in ('/legal/privacy/','/legal/terms/'):
-            _,_,_,page=public(root+path)
-            assert b'support@mftintelligence.com' in page,'Legal support contact missing'
-          _,_,_,public_js=public(root+'/assets/site.js')
+          for path,marker in (('/legal/privacy/',b'Privacy Policy'),('/legal/terms/',b'Terms of Use')):
+            status,_,head,page=public(root+path+'?release=41')
+            assert status==200 and marker in page,'Legal notice unavailable at '+path
+            assert 'content-security-policy' in head,'Legal notice security headers missing'
+          _,_,_,public_js=public(root+'/assets/site.js?release=41')
           assert b'Scope of this record' in public_js and b'Technology focus' in public_js
           assert b'What was not established' not in public_js
           assert 'max-age=86400' in axiom_headers.get('strict-transport-security',''),'Axiom route missing HSTS'
