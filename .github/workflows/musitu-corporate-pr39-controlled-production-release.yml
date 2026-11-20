@@ -59,7 +59,7 @@ jobs:
             'afd6dfd3c73668e544f3f8a857697fed0abaadccd4927202bb3a185612c2dea0' '/tmp/musitu-pr39/corporate/assets/studio-demo-82s.mp4' \
             '0ea5e961d916375029010dbae01bf8a1783e5fd6b90f74c006dc852df1c285d0' '/tmp/musitu-pr39/corporate/assets/studio-poster.png' | sha256sum --check
           # The candidate is scoped to corporate site source and verification workflows.
-          git -C /tmp/musitu-pr39 fetch --quiet --depth 1 origin main
+          git -C /tmp/musitu-pr39 fetch --quiet --depth 1 origin main:refs/remotes/origin/main
           python3 - <<'PY'
           import subprocess
           files=subprocess.check_output(['git','-C','/tmp/musitu-pr39','diff','--name-only','origin/main','HEAD'],text=True).splitlines()
