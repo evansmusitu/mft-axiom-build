@@ -45,7 +45,15 @@ jobs:
           # Read the actual latest successful deployment; it becomes the rollback target.
           # Fail if the production domain or project provenance differs from the prior release.
           assert len(old)==36,'Unexpected production deployment ID'
-          assert old=='0d66416c-bbe3-420f-9f4e-2186a5928b0c','Unexpected live release — refuse to replace concurrent deployment'
+          expected='0d66416c-bbe3-420f-9f4e-2186a5928b0c'
+          if old!=expected:
+            print('CURRENT PRODUCTION SNAPSHOT ID:',old)
+            for item in successful[:4]:
+              meta=(item.get('deployment_trigger') or {}).get('metadata') or {}
+              print('LATEST DEPLOYMENT:',item.get('id'),
+                    'source_commit:',meta.get('commit_hash') or (item.get('source') or {}).get('commit_hash') or 'unknown',
+                    'created_at:',item.get('created_on') or 'unknown')
+            raise AssertionError('Production changed since expected baseline; no deployment attempted')
           with open(os.environ['GITHUB_OUTPUT'],'a') as f:f.write('old_id='+old+'\n')
           print('Production Pages project and domain verified, rollback snapshot ID:',old)
           PY
