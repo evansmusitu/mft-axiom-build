@@ -1,0 +1,298 @@
+name: MUSITU Corporate PR43 Exact-Artifact Controlled Production Release
+
+on:
+  push:
+    branches: [ops/axiom-conversion-release-20261121]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: musitu-corporate-production-deploy
+  cancel-in-progress: false
+
+jobs:
+  deploy-exact-qualified-source:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 35
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: 93f395f5121954671f92fffa453d6b61
+      WRANGLER_SEND_METRICS: 'false'
+    steps:
+      - name: Snapshot successful prior corporate production deployment and fail closed on drift
+        id: baseline
+        run: |
+          python3 - <<'PY'
+          import os,json,urllib.request,urllib.error
+          tok=os.environ['CLOUDFLARE_API_TOKEN']
+          assert tok,'Missing Cloudflare token'
+          acc=os.environ['CLOUDFLARE_ACCOUNT_ID']
+          h={'Authorization':'Bearer '+tok,'Accept':'application/json'}
+          def get(p):
+            with urllib.request.urlopen(urllib.request.Request('https://api.cloudflare.com/client/v4'+p,headers=h),timeout=20) as r: d=json.loads(r.read(400000))
+            assert d.get('success') is True,p
+            return d['result']
+          project=get('/accounts/'+acc+'/pages/projects/musitu-corporate')
+          assert project.get('name')=='musitu-corporate'
+          assert project.get('production_branch')=='main'
+          assert 'mftintelligence.com' in project.get('domains',[])
+          assert not (project.get('source') or {}).get('type'),'Unexpected Git-integrated Pages source: refuse direct upload'
+          entries=get('/accounts/'+acc+'/pages/projects/musitu-corporate/deployments?per_page=10')
+          successful=[d for d in entries if d.get('environment')=='production' and (d.get('latest_stage') or {}).get('status')=='success']
+          assert successful,'No restore point'
+          active=project.get('canonical_deployment') or {}
+          old=active.get('id')
+          # Rollbacks can make the ACTIVE production deployment older than the most RECENT upload.
+          # Use the canonical deployment pointer, not the deployment list sorting.
+          assert old and len(old)==36,'Cloudflare canonical production pointer unavailable'
+          assert any(d['id']==old for d in successful),'Active deployment missing from recent successful list'
+          meta=(active.get('deployment_trigger') or {}).get('metadata') or {}
+          source_hash=meta.get('commit_hash') or (active.get('source') or {}).get('commit_hash') or ''
+          print('Cloudflare active canonical deployment:',old,'source SHA:',source_hash)
+          expected='9ed24d24-bf49-4dd5-985f-416c3b935635'
+          assert old==expected and source_hash=='6c8b4161908d27505c42c7f4bf27ae6461752d11','Unexpected active production; refuse to deploy'
+          with open(os.environ['GITHUB_OUTPUT'],'a') as f:f.write('old_id='+old+'\n')
+          print('Verified actual active corporate deployment and rollback target:',old)
+          PY
+      - name: Fetch exact PR43 source and hash-pin previously approved Studio media
+        run: |
+          set -euo pipefail
+          git clone --quiet --depth 1 --branch feature/axiom-conversion-onboarding-20261121 https://github.com/evansmusitu/evansmusitu.github.io.git /tmp/musitu-pr43
+          test "$(git -C /tmp/musitu-pr43 rev-parse HEAD)" = "e94fb9b3d2adb68304218cbae61d45522a33017c"
+          curl --fail --silent --show-error --location --retry 3 https://mftintelligence.com/assets/studio-demo-82s.mp4 --output /tmp/musitu-pr43/corporate/assets/studio-demo-82s.mp4
+          curl --fail --silent --show-error --location --retry 3 https://mftintelligence.com/assets/studio-poster.png --output /tmp/musitu-pr43/corporate/assets/studio-poster.png
+          printf '%s  %s\n' \
+            'afd6dfd3c73668e544f3f8a857697fed0abaadccd4927202bb3a185612c2dea0' '/tmp/musitu-pr43/corporate/assets/studio-demo-82s.mp4' \
+            '0ea5e961d916375029010dbae01bf8a1783e5fd6b90f74c006dc852df1c285d0' '/tmp/musitu-pr43/corporate/assets/studio-poster.png' | sha256sum --check
+          # The candidate is scoped to corporate site source and verification workflows.
+          git -C /tmp/musitu-pr43 fetch --quiet --depth 1 origin main:refs/remotes/origin/main
+          python3 - <<'PY'
+          import subprocess
+          files=subprocess.check_output(['git','-C','/tmp/musitu-pr43','diff','--name-only','origin/main','HEAD'],text=True).splitlines()
+          assert files and all(x.startswith(('corporate/','.github/workflows/')) for x in files), 'Non-corporate source changes; refuse deployment'
+          assert not any(x.startswith(('.github/workflows/musitu-website-pages.yml','index.html','assets/')) for x in files), 'Intelligence origin source changed'
+          print('Exact PR43 source, unchanged Intelligence source and checksum-approved Studio media PASS')
+          PY
+          python3 - <<'PY'
+          import json,subprocess
+          repo='/tmp/musitu-pr43'
+          older=json.loads(subprocess.check_output(['git','-C',repo,'show','origin/main:corporate/content/pages.json'],text=True))
+          newer=json.load(open(repo+'/corporate/content/pages.json'))
+          for route in ('/legal/privacy/','/legal/terms/'):
+            assert older[route]==newer[route], 'Legal notice source changed; refuse non-legal copy deployment'
+          print('Privacy Policy and Terms remain identical in source')
+          PY
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Recreate hash-locked 34-route production artifact, Phase03 unpublished
+        run: |
+          set -euo pipefail
+          python -m pip install -q pytest beautifulsoup4
+          cd /tmp/musitu-pr43/corporate
+          export MUSITU_BUILD_MODE=production
+          export MUSITU_CANONICAL_ORIGIN=https://mftintelligence.com
+          export MUSITU_INCLUDE_STUDIO_MEDIA=1
+          export MUSITU_PUBLISH_PHASE03=0
+          python scripts/build.py
+          python -m pytest -q tests/test_production_build.py tests/test_axiom_catalog.py tests/test_axiom_conversion.py tests/test_customer_first_copy.py
+          python tests/test_public_artifact_boundary.py
+          printf '%s  %s\n' '68f768736844a9cadbc5ca398224d0612ba437760b4d5213cf81d00f6a63cd44' 'dist/manifest.json' | sha256sum --check
+          python - <<'PY'
+          from pathlib import Path
+          import json
+          p=Path('dist')
+          m=json.loads((p/'manifest.json').read_text())
+          assert m['route_count']==34 and m['phase03_publication_routes']==[]
+          assert m['phase03_publication_indexable'] is False
+          assert m['production_approved'] is False
+          assert len(list(p.rglob('index.html')))==34
+          assert (p/'sitemap.xml').read_text().count('<loc>')==33
+          assert 'Strict-Transport-Security: max-age=86400' in (p/'_headers').read_text()
+          assert not (p/'fr').exists()
+          print('Exact 34-route artifact, 33-url sitemap, HSTS policy and Phase03 HOLD verified')
+          PY
+          echo 'Production manifest and full release artifact match qualified candidate'
+      - name: Deploy immutable PR43 artifact to pre-existing Cloudflare Pages project
+        id: deploy
+        run: |
+          set -euo pipefail
+          npx --yes wrangler@4 pages deploy /tmp/musitu-pr43/corporate/dist \
+            --project-name=musitu-corporate \
+            --branch=main \
+            --commit-hash=e94fb9b3d2adb68304218cbae61d45522a33017c \
+            --commit-message="MUSITU Axiom onboarding with real examples and searchable 74-operation directory; Phase03 off"
+      - name: Independent hosted route, video, legal, canonical, header and preservation verification
+        id: verify
+        env:
+          OLD_ID: ${{ steps.baseline.outputs.old_id }}
+        run: |
+          python3 - <<'PY'
+          import os,json,time,urllib.request,urllib.error,hashlib,re,xml.etree.ElementTree as ET
+          root='https://mftintelligence.com'
+          h={'Authorization':'Bearer '+os.environ['CLOUDFLARE_API_TOKEN'],'Accept':'application/json'}
+          account=os.environ['CLOUDFLARE_ACCOUNT_ID']
+          old=os.environ['OLD_ID']
+          def public(url):
+            req=urllib.request.Request(url,headers={'User-Agent':'MUSITU-PR43-Release-Acceptance/1.0','Cache-Control':'no-cache'})
+            with urllib.request.urlopen(req,timeout=20) as r:
+              return r.status,r.url,{k.lower():v for k,v in r.headers.items()},r.read(8000000)
+          def deployed():
+            p='/accounts/'+account+'/pages/projects/musitu-corporate'
+            with urllib.request.urlopen(urllib.request.Request('https://api.cloudflare.com/client/v4'+p,headers=h),timeout=20) as r:d=json.loads(r.read())
+            assert d.get('success') is True
+            current=(d['result'] or {}).get('canonical_deployment')
+            assert current and current.get('environment')=='production','Cloudflare active deployment unavailable'
+            return [current]
+          # Wait for the direct-upload release to reach both Pages control plane and public hostname.
+          for attempt in range(60):
+            ds=deployed()
+            code,_,headers,home=public(root+'/?release=43')
+            axiom_status,_,axiom_headers,axiom=public(root+'/products/axiom/?release=43')
+            if (ds and ds[0]['id']!=old and b'Technology that makes' in home
+              and b'href="/products/axiom/#axiom-start"' in home
+              and b'id="axiom-start"' in axiom
+              and b'id="axiom-capability-search"' in axiom
+              and b'aria-label="Open Axiom in ChatGPT (opens in a new tab)"' in axiom):break
+            time.sleep(5)
+          assert ds and ds[0]['id']!=old,'New production deployment not confirmed'
+          assert b'Technology that makes' in home and b'complex work clearer.' in home,'Redesigned homepage not live'
+          assert b'href="/products/axiom/#axiom-start"' in home,'Homepage does not link to Axiom onboarding'
+          assert axiom_status==200 and b'id="axiom-full-capabilities"' in axiom,'New Axiom directory not live'
+          operations=re.findall(rb'<li data-axiom-operation[^>]*>.*?<code>([a-z][a-z0-9_]*\.[a-z][a-z0-9_]*)</code>',axiom,re.S)
+          assert len(operations)==len(set(operations))==74,'Axiom must display all 74 unique operations'
+          assert axiom.count(b'id="axiom-domain-')==18,'Axiom must display all 18 discipline sections'
+          assert axiom.count(b'class="axiom-demo-card"')==4,'Four Axiom examples missing'
+          assert b'+721.26 units' in axiom and b'Maximum 36' in axiom,'Axiom example outputs missing'
+          assert b'id="axiom-capability-search"' in axiom and b'id="axiom-capability-count"' in axiom
+          assert b'id="axiom-start"' in axiom and b'axiom-start-steps' in axiom
+          assert b'aria-label="Open Axiom in ChatGPT (opens in a new tab)"' in axiom
+          for op in (b'finance.npv',b'finance.black_scholes',b'numeric.ode',
+                     b'algebra.solve',b'transforms.ifft',b'verified.interval_eval'):
+            assert op in operations,'Missing cross-domain representative Axiom operation'
+          assert b'AXIOM_CAPABILITY_DIRECTORY' not in axiom,'Unrendered capability directory'
+          assert b'class="axiom-explore-cta"' in axiom,'Positive Axiom CTA missing'
+          assert b'class="axiom-product-cta"' in axiom,'Axiom product CTA missing'
+          assert b'aria-label="Explore Axiom in ChatGPT (opens in a new tab)"' in axiom,'Axiom accessible label mismatch'
+          forbidden=(b'Availability and maturity',b'What the evidence does not establish',
+                     b'Published integration distinction',b'What was not established',
+                     b'has not been independently confirmed',b'Publication gate',
+                     b'Staging-only review. No public release approval.',b'<p>NaN</p>')
+          marketing_markers={
+            '/':b'Try MUSITU Axiom',
+            '/products/axiom/':b'axiom-onboarding-section',
+            '/products/':b'Explore MUSITU technologies.',
+            '/developers/':b'Explore the technology. Build with confidence.',
+            '/news/':b'On 20 November 2026, we expanded the ',
+            '/status/':b'Information about MUSITU services.',
+            '/contact/':b'Start a meaningful conversation.',
+            '/evidence/':b'Discover the release records, demonstrations and technical context',
+            '/resources/':b'Start with our six technology families for product introductions',
+            '/trust/':b'Our engineering practices evolve through review'
+          }
+          for path,expected_marker in marketing_markers.items():
+            for attempt in range(48):
+              status,_,_,page=public(root+path+'?release=43')
+              old_copy=[phrase for phrase in forbidden if phrase in page]
+              if status==200 and expected_marker in page and not old_copy:break
+              time.sleep(5)
+            else:raise AssertionError('Page still serving old content or warnings after propagation window: '+path)
+          print('Ten public marketing routes refreshed; old warning language and review gates absent')
+          for path,marker in (('/legal/privacy/',b'Privacy Policy'),('/legal/terms/',b'Terms of Use')):
+            status,_,head,page=public(root+path+'?release=43')
+            assert status==200 and marker in page,'Legal notice unavailable at '+path
+            assert 'content-security-policy' in head,'Legal notice security headers missing'
+          _,_,_,public_js=public(root+'/assets/site.js?release=43')
+          assert b'Scope of this record' in public_js and b'Technology focus' in public_js
+          assert b'What was not established' not in public_js
+          assert b'axiom-capability-search' in public_js
+          assert b'mailto:support@mftintelligence.com?subject=' in public_js
+          status,url,head,contact_page=public(root+'/contact/?release=43')
+          assert status==200 and b'id="enquiry-compose"' in contact_page,'Local enquiry builder missing'
+          assert b'mailto:support@mftintelligence.com' in contact_page,'Enquiry fallback missing'
+          assert 'max-age=86400' in axiom_headers.get('strict-transport-security',''),'Axiom route missing HSTS'
+          assert b'Zimbabwe-founded' not in home,'Retired marketing-location sentence remained'
+          assert code==200 and 'content-security-policy' in headers and headers.get('x-content-type-options','').lower()=='nosniff'
+          assert 'max-age=86400' in headers.get('strict-transport-security',''),'Staged 24h HSTS not served by live host'
+          md=(ds[0].get('deployment_trigger') or {}).get('metadata') or {}
+          source_hash=md.get('commit_hash') or (ds[0].get('source') or {}).get('commit_hash') or ''
+          assert not source_hash or source_hash=='e94fb9b3d2adb68304218cbae61d45522a33017c','Unexpected production source hash'
+          code,_,headers,studio=public(root+'/products/foundry/studio/')
+          assert code==200 and b'PUBLIC STUDIO RECORDING' in studio and b'STAGING-ONLY MEDIA' not in studio
+          assert 'content-security-policy' in headers and 'max-age=86400' in headers.get('strict-transport-security','')
+          checks={
+            '/experiences/lab/':b'published',
+            '/sitemap/':b'33',
+            '/status/':b'SERVICE INFORMATION',
+            '/contact/':b'Contact',
+            '/experiences/intelligence/':b'Intelligence'
+          }
+          for path,expected in checks.items():
+            status,url,head,body=public(root+path)
+            assert status==200 and expected.lower() in body.lower(),path
+            assert b'noindex,nofollow' not in body,path
+          status,url,hh,robots=public(root+'/robots.txt')
+          assert status==200 and b'Allow: /' in robots and b'sitemap.xml' in robots
+          status,url,hh,sm=public(root+'/sitemap.xml')
+          locs=[e.text for e in ET.fromstring(sm).findall('{http://www.sitemaps.org/schemas/sitemap/0.9}url/{http://www.sitemaps.org/schemas/sitemap/0.9}loc')]
+          assert len(locs)==33
+          assert not any('/fr/' in loc or '/research/articles/' in loc for loc in locs),'Phase03 accidentally published'
+          for path in locs:
+            st,where,head,body=public(path)
+            assert st==200 and where.rstrip('/')==path.rstrip('/'),path
+          st,where,hh,body=public('https://www.mftintelligence.com/legal/privacy/?release=43')
+          assert where==root+'/legal/privacy/?release=43'
+          try:
+            public(root+'/__musitu-negative-release-pr43-404/')
+            raise AssertionError('Unknown corporate URL returned HTTP 200')
+          except urllib.error.HTTPError as e:
+            assert e.code==404,'Unknown corporate URL did not return real HTTP 404'
+          st,where,hh,body=public('https://evansmusitu.github.io/')
+          assert st==200 and b'MUSITU' in body,'Existing Intelligence origin regression'
+          st,where,hh,video=public(root+'/assets/studio-demo-82s.mp4')
+          assert hashlib.sha256(video).hexdigest()=='afd6dfd3c73668e544f3f8a857697fed0abaadccd4927202bb3a185612c2dea0'
+          print('PASS: PR43 Axiom onboarding with four executed examples, searchable 74-operation catalog and local enquiry composer live. Legal, HSTS, 404, sitemap, Studio and Intelligence preserved.')
+          print('New production deployment ID:',ds[0]['id'])
+          PY
+      - name: Roll back changed corporate production only if new release failed acceptance
+        if: failure()
+        env:
+          OLD_ID: ${{ steps.baseline.outputs.old_id }}
+        run: |
+          python3 - <<'PY'
+          import os,json,urllib.request
+          old=os.environ.get('OLD_ID','')
+          if not old:
+            print('No rollback baseline created; release should have stopped before deploy.');raise SystemExit(0)
+          account=os.environ['CLOUDFLARE_ACCOUNT_ID'];token=os.environ['CLOUDFLARE_API_TOKEN']
+          base='https://api.cloudflare.com/client/v4/accounts/'+account+'/pages/projects/musitu-corporate/deployments'
+          h={'Authorization':'Bearer '+token,'Accept':'application/json'}
+          project_url='https://api.cloudflare.com/client/v4/accounts/'+account+'/pages/projects/musitu-corporate'
+          with urllib.request.urlopen(urllib.request.Request(project_url,headers=h),timeout=20) as r: data=json.loads(r.read())
+          assert data.get('success')
+          latest=(data['result'] or {}).get('canonical_deployment') or {}
+          if latest.get('id')==old:
+            print('Production is already serving the preserved rollback target; no action needed.')
+            raise SystemExit(0)
+          assert latest.get('id'),'Cannot identify active production; refusing broad rollback'
+          md=(latest.get('deployment_trigger') or {}).get('metadata') or {}
+          source_hash=md.get('commit_hash') or (latest.get('source') or {}).get('commit_hash') or ''
+          if source_hash and source_hash!='e94fb9b3d2adb68304218cbae61d45522a33017c':
+            raise SystemExit('Concurrent unrelated deployment observed; refusing to roll back another operator')
+          req=urllib.request.Request(base+'/'+old+'/rollback',headers=dict(h,**{'Content-Type':'application/json'}),
+           data=b'{}',method='POST')
+          with urllib.request.urlopen(req,timeout=25) as r:answer=json.loads(r.read())
+          assert answer.get('success'),'Cloudflare rollback API refused prior deployment'
+          print('Emergency rollback API accepted restoring:',old)
+          import time
+          for attempt in range(12):
+            with urllib.request.urlopen(urllib.request.Request(project_url,headers=h),timeout=20) as r:d=json.loads(r.read())
+            if (d.get('result') or {}).get('canonical_deployment',{}).get('id')==old:break
+            time.sleep(3)
+          else:raise RuntimeError('Cloudflare canonical rollback pointer did not return to prior deployment')
+          print('Emergency rollback confirmed active canonical deployment:',old)
+          PY
