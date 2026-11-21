@@ -173,7 +173,8 @@ jobs:
           assert b'href="/products/axiom/#axiom-full-capabilities"' in home,'Homepage does not link to full Axiom directory'
           assert axiom_status==200 and b'id="axiom-full-capabilities"' in axiom,'New Axiom directory not live'
           operations=re.findall(rb'<code>([a-z][a-z0-9_]*\.[a-z][a-z0-9_]*)</code>',axiom)
-          assert len(operations)==len(set(operations))==74,'Axiom must display all 74 unique operations'
+          assert len(set(operations))==74 and len(operations)>=74,'Axiom must preserve all 74 unique operation identifiers'
+          assert axiom.count(b'class="axiom-operation" data-search=')==74,'Axiom library must contain exactly 74 searchable entries'
           assert axiom.count(b'id="axiom-domain-')==18,'Axiom must display all 18 discipline sections'
           for op in (b'finance.npv',b'finance.black_scholes',b'numeric.ode',
                      b'algebra.solve',b'transforms.ifft',b'verified.interval_eval'):
