@@ -1,0 +1,22 @@
+name: G1 AWS source security checks
+on:
+  push:
+    branches: [security/g1-aws-oidc-20261119, main]
+    paths: ['ops/g1_aws/**', 'tests/g1_aws/**', '.github/workflows/g1-aws-*', '.github/policies/g1-*', '.github/CODEOWNERS']
+  pull_request:
+    branches: [main]
+permissions:
+  contents: read
+jobs:
+  g1-aws-source:
+    name: g1-aws-source
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+        with:
+          persist-credentials: false
+      - name: Install pinned YAML parser for offline source checks
+        run: python3 -m pip install --disable-pip-version-check 'PyYAML==6.0.3'
+      - name: Run offline negative security and plan tests
+        run: python3 -m unittest discover -s tests/g1_aws -p 'test_*.py' -v

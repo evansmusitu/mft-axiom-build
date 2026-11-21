@@ -1,0 +1,20 @@
+name: G1 AWS Ohio and credits read-only inventory
+on:
+  workflow_dispatch:
+    inputs:
+      confirm_read_only:
+        description: Review identity result first; inventory cannot provision or accept G1
+        type: boolean
+        default: false
+        required: true
+permissions:
+  contents: read
+jobs:
+  inventory:
+    if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main' && github.ref_protected == true && inputs.confirm_read_only == true
+    permissions:
+      contents: read
+      id-token: write
+    uses: ./.github/workflows/g1-aws-oidc-executor.yml
+    with:
+      mode: inventory

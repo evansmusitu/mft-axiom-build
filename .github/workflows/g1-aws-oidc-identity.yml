@@ -1,0 +1,24 @@
+name: G1 AWS OIDC subject and identity preflight
+on:
+  workflow_dispatch:
+    inputs:
+      operation:
+        type: choice
+        options: [discover, identity]
+        default: discover
+        required: true
+      confirm_read_only:
+        type: boolean
+        default: false
+        required: true
+permissions:
+  contents: read
+jobs:
+  identity:
+    if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main' && github.ref_protected == true && inputs.confirm_read_only == true
+    permissions:
+      contents: read
+      id-token: write
+    uses: ./.github/workflows/g1-aws-oidc-executor.yml
+    with:
+      mode: ${{ inputs.operation }}

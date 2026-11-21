@@ -1,0 +1,86 @@
+name: G1 protected OIDC read executor
+
+on:
+  workflow_call:
+    inputs:
+      mode:
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: g1-aws-protected-read
+  cancel-in-progress: false
+
+jobs:
+  protected-read:
+    if: >-
+      github.event_name == 'workflow_dispatch' &&
+      github.repository == 'evansmusitu/mft-axiom-build' &&
+      github.repository_id == '1356837528' &&
+      github.ref == 'refs/heads/main' && github.ref_protected == true &&
+      github.actor_id == '285482095' && github.triggering_actor == 'evansmusitu' &&
+      (inputs.mode == 'discover' || inputs.mode == 'identity' || inputs.mode == 'inventory')
+    environment: g1-aws-admin
+    runs-on: ubuntu-24.04
+    timeout-minutes: 6
+    permissions:
+      contents: read
+      id-token: write
+    env:
+      G1_MODE: ${{ inputs.mode }}
+      G1_AWS_ROLE_ARN: ${{ vars.AWS_G1_ADMIN_ROLE_ARN }}
+      G1_AWS_ACCOUNT_ID: ${{ vars.AWS_G1_ACCOUNT_ID }}
+      AWS_REGION: us-east-2
+      AWS_DEFAULT_REGION: us-east-2
+      AWS_EC2_METADATA_DISABLED: 'true'
+      AWS_PAGER: ''
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - name: Observe allowlisted OIDC claims without AWS access
+        if: inputs.mode == 'discover'
+        run: python3 -m ops.g1_aws.discover
+      - name: Validate protected AWS configuration
+        if: inputs.mode != 'discover'
+        run: python3 -m ops.g1_aws.readonly validate-config
+      - name: Load a fixed restrictive session policy
+        if: inputs.mode != 'discover'
+        id: policy
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import json, os, pathlib
+          choices = {'identity': 'g1-aws-identity-session.json', 'inventory': 'g1-aws-inventory-session.json'}
+          source = pathlib.Path('.github/policies') / choices[os.environ['G1_MODE']]
+          policy = json.dumps(json.loads(source.read_text()), separators=(',', ':'))
+          with open(os.environ['GITHUB_OUTPUT'], 'a') as f:
+              f.write('policy=' + policy + '\n')
+          PY
+      - name: Assume reviewed role with temporary restricted credentials
+        if: inputs.mode != 'discover'
+        uses: aws-actions/configure-aws-credentials@61815dcd50bd041e203e49132bacad1fd04d2708 # v5.1.1
+        with:
+          role-to-assume: ${{ vars.AWS_G1_ADMIN_ROLE_ARN }}
+          allowed-account-ids: ${{ vars.AWS_G1_ACCOUNT_ID }}
+          aws-region: us-east-2
+          audience: sts.amazonaws.com
+          role-duration-seconds: 900
+          role-session-name: g1-${{ github.run_id }}-${{ github.run_attempt }}
+          inline-session-policy: ${{ steps.policy.outputs.policy }}
+          mask-aws-account-id: true
+          unset-current-credentials: true
+          output-credentials: false
+          retry-max-attempts: 2
+          action-timeout-s: 90
+      - name: Perform only the fixed read operation
+        if: inputs.mode != 'discover'
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -m ops.g1_aws.readonly "$G1_MODE"

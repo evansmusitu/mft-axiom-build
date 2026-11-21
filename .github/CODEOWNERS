@@ -1,0 +1,6 @@
+# Add the owner-approved independent human security reviewer before merging an
+# owner-authored privileged-workflow PR. A bot is not an independent reviewer.
+/.github/ @evansmusitu
+/ops/g1_aws/ @evansmusitu
+/tests/g1_aws/ @evansmusitu
+/docs/acceptance/2026-11-19-g1-aws-oidc-continuation.md @evansmusitu
