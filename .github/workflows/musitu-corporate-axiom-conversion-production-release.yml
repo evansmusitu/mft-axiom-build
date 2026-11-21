@@ -213,7 +213,7 @@ jobs:
           assert b'mailto:support@mftintelligence.com?subject=' in public_js
           status,url,head,contact_page=public(root+'/contact/?release=43')
           assert status==200 and b'id="enquiry-compose"' in contact_page,'Local enquiry builder missing'
-          assert b'mailto:support@mftintelligence.com' in contact_page,'Enquiry fallback missing'
+          assert b'Prepare email in my app' in contact_page,'Enquiry handoff action missing'
           assert 'max-age=86400' in axiom_headers.get('strict-transport-security',''),'Axiom route missing HSTS'
           assert b'Zimbabwe-founded' not in home,'Retired marketing-location sentence remained'
           assert code==200 and 'content-security-policy' in headers and headers.get('x-content-type-options','').lower()=='nosniff'
