@@ -60,7 +60,6 @@ class Gate56LedgerTests(unittest.TestCase):
         self.assertEqual(a["id"],b["id"])
         with self.assertRaisesRegex(Conflict,"IDEMPOTENCY_KEY_PAYLOAD_CONFLICT"):
             self.admit(payload_sha256=HASH_B)
-        self.assertEqual(self.ledger._credit_usage_next_for_test_only(),0) if False else None
         self.assertEqual(self.admit("second")["state"],"QUEUED")
         with self.assertRaisesRegex(GateClosed,"TENANT_CONCURRENCY_CAP"):
             self.admit("third")
@@ -123,7 +122,7 @@ class Gate56LedgerTests(unittest.TestCase):
         self.assertEqual(record["state"],"CANCEL_REQUESTED")
         self.assertTrue(record["provider_cancel_required"])
         self.assertEqual(self.ledger.get("tenantA",a["id"])["credit_charge"],None)
-        with self.assertRaisesRegex(GateClosed,"CANCELED_JOB_CANNOT_COMPLETE"):
+        with self.assertRaisesRegex(GateClosed,"PROVIDER_COST_EVIDENCE_REQUIRED"):
             self.ledger.confirm_terminal(
               tenant="tenantA",jid=a["id"],fence=claimed["fence"],
               result="COMPLETED",actual_cents=0,charged_credit_units=0,
@@ -141,6 +140,70 @@ class Gate56LedgerTests(unittest.TestCase):
             self.ledger.confirm_terminal(tenant="tenantA",jid=a["id"],
                  fence="forged",result="FAILED",actual_cents=3,
                  charged_credit_units=0,provider_evidence="verified:offline-fake")
+
+    def test_verified_provider_bill_settles_once_without_double_credits(self):
+        self.ledger.set_emergency_stop(False)
+        a=self.admit()
+        claim=self.ledger.claim(worker="w")
+        self.ledger.cost_verifier=lambda tenant,jid,fence,state,cents,units,receipt: (
+            tenant=="tenantA" and jid==a["id"] and
+            fence==claim["fence"] and state=="FAILED" and
+            cents==12 and units==1 and receipt=="offline-verifier-receipt"
+        )
+        result=self.ledger.confirm_terminal(
+           tenant="tenantA",jid=a["id"],fence=claim["fence"],
+           result="FAILED",actual_cents=12,charged_credit_units=1,
+           provider_evidence="offline-verifier-receipt")
+        self.assertEqual(result["state"],"FAILED")
+        self.assertEqual(result["charged_cents"],12)
+        self.assertEqual(result["credit_charge"],1)
+        with self.assertRaisesRegex(Conflict,"STALE_FENCE"):
+            self.ledger.confirm_terminal(
+               tenant="tenantA",jid=a["id"],fence=claim["fence"],
+               result="FAILED",actual_cents=12,charged_credit_units=1,
+               provider_evidence="offline-verifier-receipt")
+        self.assertEqual(self.ledger.get("tenantA",a["id"])["charged_cents"],12)
+
+    def test_retry_requires_trusted_provider_termination_and_cannot_exceed_two(self):
+        self.ledger.set_emergency_stop(False)
+        a=self.admit()
+        claim1=self.ledger.claim(worker="w1",lease_seconds=10)
+        self.ledger.mark_dispatch_uncertain(
+             tenant="tenantA",jid=a["id"],fence=claim1["fence"])
+        with self.assertRaisesRegex(GateClosed,"TERMINATION_PROOF"):
+            self.ledger.allow_retry_after_authoritative_stop(
+             tenant="tenantA",jid=a["id"],fence=claim1["fence"],
+             provider_proof="verified-terminated:forged")
+        self.ledger.termination_verifier=lambda tenant,jid,fence,proof:(
+             tenant=="tenantA" and jid==a["id"] and
+             fence==claim1["fence"] and proof=="offline-terminated-call"
+        )
+        self.ledger.allow_retry_after_authoritative_stop(
+             tenant="tenantA",jid=a["id"],fence=claim1["fence"],
+             provider_proof="offline-terminated-call")
+        claim2=self.ledger.claim(worker="w2")
+        self.assertEqual(claim2["job"]["attempts"],2)
+        self.ledger.mark_dispatch_uncertain(
+             tenant="tenantA",jid=a["id"],fence=claim2["fence"])
+        self.ledger.termination_verifier=lambda *args:True
+        with self.assertRaisesRegex(GateClosed,"RETRY_CEILING"):
+            self.ledger.allow_retry_after_authoritative_stop(
+               tenant="tenantA",jid=a["id"],fence=claim2["fence"],
+               provider_proof="offline-confirmed")
+
+    def test_verifier_required_even_if_artifact_names_and_hashes_look_valid(self):
+        self.ledger.set_emergency_stop(False)
+        a=self.admit()
+        claim=self.ledger.claim(worker="w")
+        self.ledger.cost_verifier=lambda *args:True
+        forged=tuple((filename,HASH_A,4096,
+                     f"private/tenantA/{a['id']}/{filename}")
+            for filename in ("scene.blend","scene.glb","preview.png"))
+        with self.assertRaisesRegex(GateClosed,"ARTIFACT_PROOF_REQUIRED"):
+            self.ledger.confirm_terminal(
+              tenant="tenantA",jid=a["id"],fence=claim["fence"],
+              result="COMPLETED",actual_cents=10,charged_credit_units=1,
+              provider_evidence="fake-cost",verified_artifacts=forged)
 
     def test_budget_evidence_staleness_fails_closed(self):
         self.ledger.set_emergency_stop(False)
