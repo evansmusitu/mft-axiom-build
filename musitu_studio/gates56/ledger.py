@@ -52,13 +52,15 @@ class StudioG56Ledger:
     """
 
     def __init__(self, db_path, *, provider_guard=None, authorization=None, now=None,
-                 cost_verifier=None, termination_verifier=None, artifact_verifier=None):
+                 cost_verifier=None, termination_verifier=None, artifact_verifier=None,
+                 quote_verifier=None):
         self.db_path = Path(db_path)
         self.provider_guard = provider_guard
         self.authorization = authorization
         self.cost_verifier = cost_verifier
         self.termination_verifier = termination_verifier
         self.artifact_verifier = artifact_verifier
+        self.quote_verifier = quote_verifier
         self.now = now or (lambda: int(time.time()))
         self.db_path.parent.mkdir(parents=True, exist_ok=True)
         with self._connection() as db:
@@ -203,6 +205,10 @@ class StudioG56Ledger:
             db.execute("UPDATE g56_control SET killed=?,changed_at=? WHERE id=1",
                        (int(bool(enabled)),self.now()))
 
+    def is_stopped(self):
+        with self._connection() as db:
+            return bool(db.execute('SELECT killed FROM g56_control WHERE id=1').fetchone()[0])
+
     def _admit_open(self, db, minimum_cents=0):
         if db.execute("SELECT killed FROM g56_control WHERE id=1").fetchone()[0]:
             raise GateClosed("STUDIO_COMPUTE_KILL_SWITCH_ON")
@@ -258,6 +264,12 @@ class StudioG56Ledger:
                     ("max_attempts",max_attempts)))):
                     raise Conflict("IDEMPOTENCY_KEY_PAYLOAD_CONFLICT")
                 return dict(old)
+            # Do not trust a client-declared cost as a provider upper bound.
+            # Quote verifier must independently bound ALL attempts + retries.
+            if (self.quote_verifier is None or
+                self.quote_verifier(tenant,project,payload_sha256,
+                                    max_cost_cents,max_attempts) is not True):
+                raise GateClosed('PROVIDER_WORST_CASE_QUOTE_REQUIRED')
             cap=self._admit_open(db,max_cost_cents)
             limits=db.execute("SELECT * FROM g56_tenants WHERE tenant=?",(tenant,)).fetchone()
             if not limits:raise GateClosed("TENANT_NOT_APPROVED")
