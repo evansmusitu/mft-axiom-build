@@ -214,6 +214,17 @@ class StudioG56Ledger:
             raise GateClosed("STUDIO_COMPUTE_KILL_SWITCH_ON")
         return self._cap(minimum_cents)
 
+    def _provider_outstanding_reservations(self, db):
+        """All tenants' outstanding worst-case exposure across billing periods.
+
+        Provider remaining balance is already net of completed actual charges.
+        NEEDS_REVIEW remains reserved until independently reconciled.
+        """
+        row=db.execute("""SELECT COALESCE(SUM(reserved_cents),0) AS cents
+          FROM g56_jobs WHERE state IN
+          ('QUEUED','RUNNING','CANCEL_REQUESTED','NEEDS_REVIEW')""").fetchone()
+        return int(row["cents"])
+
     def _spend(self, db, tenant, since):
         row=db.execute("""SELECT
           COALESCE(SUM(CASE WHEN state IN ('QUEUED','RUNNING','CANCEL_REQUESTED',
@@ -271,6 +282,9 @@ class StudioG56Ledger:
                                     max_cost_cents,max_attempts) is not True):
                 raise GateClosed('PROVIDER_WORST_CASE_QUOTE_REQUIRED')
             cap=self._admit_open(db,max_cost_cents)
+            if (self._provider_outstanding_reservations(db)+max_cost_cents>
+                    cap.remaining_cents):
+                raise GateClosed("PROVIDER_GLOBAL_UNSETTLED_CAP")
             limits=db.execute("SELECT * FROM g56_tenants WHERE tenant=?",(tenant,)).fetchone()
             if not limits:raise GateClosed("TENANT_NOT_APPROVED")
             day,month=self._day_and_month(now)
@@ -317,7 +331,9 @@ class StudioG56Ledger:
                            ORDER BY created,id LIMIT 1""").fetchone()
             if not row:return None
             # Require a fresh provider cap before each chargeable attempt.
-            self._cap(row["reserved_cents"])
+            cap=self._cap(row["reserved_cents"])
+            if self._provider_outstanding_reservations(db)>cap.remaining_cents:
+                raise GateClosed("PROVIDER_GLOBAL_UNSETTLED_CAP")
             if row["attempts"]>=row["max_attempts"]:
                 raise Conflict("RETRY_CEILING_REACHED")
             fence=secrets.token_hex(24)
