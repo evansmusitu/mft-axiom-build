@@ -203,7 +203,7 @@ class StudioG56Ledger:
             db.execute("UPDATE g56_control SET killed=?,changed_at=? WHERE id=1",
                        (int(bool(enabled)),self.now()))
 
-    def _admit_open(self, db, minimum_cents):
+    def _admit_open(self, db, minimum_cents=0):
         if db.execute("SELECT killed FROM g56_control WHERE id=1").fetchone()[0]:
             raise GateClosed("STUDIO_COMPUTE_KILL_SWITCH_ON")
         return self._cap(minimum_cents)
