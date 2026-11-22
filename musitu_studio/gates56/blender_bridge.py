@@ -180,10 +180,10 @@ class IsolatedBlenderBridge:
                 began=time.monotonic()
                 while proc.poll() is None:
                     state=self.ledger.get(tenant,jid)["state"]
-                    if state=="CANCEL_REQUESTED":
+                    if state=="CANCEL_REQUESTED" or self.ledger.is_stopped():
                         self._stop_group(proc)
                         self.ledger.mark_dispatch_uncertain(tenant=tenant,jid=jid,fence=fence)
-                        return {"job_id":jid,"state":"CANCELLED_COST_UNRECONCILED"}
+                        return {"job_id":jid,"state":"HALTED_COST_UNRECONCILED"}
                     if time.monotonic()-began>self.max_seconds+15:
                         self._stop_group(proc)
                         self.ledger.mark_dispatch_uncertain(tenant=tenant,jid=jid,fence=fence)
