@@ -48,7 +48,7 @@ class LocalPrivateArtifactsTests(unittest.TestCase):
     def test_symlink_and_path_traversal_fail_closed(self):
         with self.assertRaisesRegex(GateClosed,"PATH_DENIED"):
             self.store.put("../tenant","G56_abc","scene.blend",self.source)
-        with self.assertRaisesRegex(GateClosed,"PATH_DENIED"):
+        with self.assertRaisesRegex(GateClosed,"UNVERIFIED_ASSET_SOURCE"):
             self.store.put("tenantA","G56_abc","../../secret",self.source)
         link=self.root/"alias"
         link.symlink_to(self.source)
