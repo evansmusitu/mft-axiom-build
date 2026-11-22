@@ -27,6 +27,7 @@ class Gate56LedgerTests(unittest.TestCase):
         self.ledger=StudioG56Ledger(Path(self.temp.name)/"g56.sqlite",
                   provider_guard=fake_cap,
                   authorization=lambda action: action in ("CONFIGURE_TENANT","ARM_COMPUTE"),
+                  quote_verifier=lambda *args: True,  # fake offline only
                   now=lambda: self.now)
         self.ledger.configure_tenant("tenantA",daily_cents=150,monthly_cents=450,
                                       max_active=2,total_credit_units=10)
@@ -39,6 +40,18 @@ class Gate56LedgerTests(unittest.TestCase):
                  max_cost_cents=kw.pop("max_cost_cents",60),
                  credit_units=kw.pop("credit_units",3),
                  max_attempts=kw.pop("max_attempts",2),**kw)
+
+    def test_missing_independent_all_attempt_quote_blocks_admission(self):
+        self.ledger.set_emergency_stop(False)
+        self.ledger.quote_verifier=None
+        with self.assertRaisesRegex(GateClosed,"WORST_CASE_QUOTE"):
+            self.admit()
+
+    def test_emergency_stop_is_visible_to_running_worker(self):
+        self.ledger.set_emergency_stop(False)
+        self.assertFalse(self.ledger.is_stopped())
+        self.ledger.set_emergency_stop(True)
+        self.assertTrue(self.ledger.is_stopped())
 
     def test_kill_switch_defaults_on_and_no_provider_never_opens(self):
         with self.assertRaisesRegex(GateClosed,"KILL_SWITCH"):
