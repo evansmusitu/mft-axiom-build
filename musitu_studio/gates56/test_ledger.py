@@ -136,6 +136,7 @@ class Gate56LedgerTests(unittest.TestCase):
             self.ledger.confirm_terminal(tenant="tenantA",jid=a["id"],
                  fence=claim["fence"],result="FAILED",actual_cents=3,
                  charged_credit_units=0,provider_evidence="anything")
+        self.ledger.cost_verifier=lambda *args:True
         with self.assertRaisesRegex(Conflict,"STALE_FENCE"):
             self.ledger.confirm_terminal(tenant="tenantA",jid=a["id"],
                  fence="forged",result="FAILED",actual_cents=3,
