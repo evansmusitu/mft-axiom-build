@@ -219,6 +219,29 @@ class Gate56LedgerTests(unittest.TestCase):
               result="COMPLETED",actual_cents=10,charged_credit_units=1,
               provider_evidence="fake-cost",verified_artifacts=forged)
 
+    def test_global_provider_reservations_cannot_oversubscribe_hard_cap(self):
+        self.ledger.set_emergency_stop(False)
+        def provider_cap():
+            return VerifiedProviderCap(provider="MODAL",control_id="offline-global",
+                  monthly_cap_cents=100,remaining_cents=100,
+                  checked_unix=self.now,hard_enforced=True)
+        self.ledger.provider_guard=provider_cap
+        a=self.admit("global-a",max_cost_cents=60,credit_units=2)
+        self.assertEqual(a["state"],"QUEUED")
+        with self.assertRaisesRegex(GateClosed,"PROVIDER_GLOBAL_UNSETTLED_CAP"):
+            self.ledger.submit(tenant="tenantB",project="projectB",
+                 submission_key="global-b",payload_sha256=HASH_B,
+                 max_cost_cents=60,credit_units=2,max_attempts=1)
+        b=self.ledger.submit(tenant="tenantB",project="projectB",
+                 submission_key="global-b",payload_sha256=HASH_B,
+                 max_cost_cents=40,credit_units=2,max_attempts=1)
+        self.assertEqual(b["state"],"QUEUED")
+        # An administrative hard-cap reduction must stop dispatch as well.
+        self.ledger.provider_guard=lambda:VerifiedProviderCap(
+             "MODAL","offline-global",70,70,self.now,True)
+        with self.assertRaisesRegex(GateClosed,"PROVIDER_GLOBAL_UNSETTLED_CAP"):
+            self.ledger.claim(worker="worker-oversubscription")
+
     def test_budget_evidence_staleness_fails_closed(self):
         self.ledger.set_emergency_stop(False)
         self.now+=61
