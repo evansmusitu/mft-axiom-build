@@ -51,10 +51,14 @@ class StudioG56Ledger:
     Durable Object/transactional store and preserve these invariants.
     """
 
-    def __init__(self, db_path, *, provider_guard=None, authorization=None, now=None):
+    def __init__(self, db_path, *, provider_guard=None, authorization=None, now=None,
+                 cost_verifier=None, termination_verifier=None, artifact_verifier=None):
         self.db_path = Path(db_path)
         self.provider_guard = provider_guard
         self.authorization = authorization
+        self.cost_verifier = cost_verifier
+        self.termination_verifier = termination_verifier
+        self.artifact_verifier = artifact_verifier
         self.now = now or (lambda: int(time.time()))
         self.db_path.parent.mkdir(parents=True, exist_ok=True)
         with self._connection() as db:
@@ -362,7 +366,7 @@ class StudioG56Ledger:
     def quarantine_stale(self):
         """Lease expiry is NOT proof provider work stopped or costs are zero."""
         with self._write() as db:
-            rows=db.execute("""SELECT id FROM g56_jobs WHERE state='RUNNING'
+            rows=db.execute("""SELECT id FROM g56_jobs WHERE state IN ('RUNNING','CANCEL_REQUESTED')
                        AND lease_until<?""",(self.now(),)).fetchall()
             for row in rows:
                 db.execute("""UPDATE g56_jobs SET state='NEEDS_REVIEW',
@@ -381,8 +385,9 @@ class StudioG56Ledger:
         """
         if result not in ("COMPLETED","FAILED","CANCELED"):
             raise ValueError("INVALID_TERMINAL_RESULT")
-        if (not isinstance(provider_evidence,str) or
-                not provider_evidence.startswith("verified:") or len(provider_evidence)>300):
+        if (self.cost_verifier is None or
+                self.cost_verifier(tenant,jid,fence,result,actual_cents,
+                                   charged_credit_units,provider_evidence) is not True):
             raise GateClosed("PROVIDER_COST_EVIDENCE_REQUIRED")
         for n in (actual_cents,charged_credit_units):
             if isinstance(n,bool) or not isinstance(n,int) or n<0:
@@ -391,6 +396,9 @@ class StudioG56Ledger:
         if result=="COMPLETED" and set(a[0] for a in artifacts)!={
             "scene.blend","scene.glb","preview.png"}:
             raise GateClosed("VERIFIED_ARTIFACT_SET_INCOMPLETE")
+        if result=="COMPLETED" and (self.artifact_verifier is None or
+                self.artifact_verifier(tenant,jid,artifacts) is not True):
+            raise GateClosed("INDEPENDENT_PRIVATE_ARTIFACT_PROOF_REQUIRED")
         if result!="COMPLETED" and artifacts:
             raise GateClosed("UNVERIFIED_TERMINAL_ASSETS")
         with self._write() as db:
@@ -412,13 +420,14 @@ class StudioG56Ledger:
                       progress=?,outcome_code=?,updated=? WHERE id=?""",
                        (result,actual_cents,charged_credit_units,
                         100 if result=="COMPLETED" else row["progress"],
-                        provider_evidence[:120],self.now(),jid))
+                        'PROVIDER_BILL_VERIFIED',self.now(),jid))
             self._event(db,jid,"TERMINAL_RECONCILED",result)
             return dict(db.execute("SELECT * FROM g56_jobs WHERE id=?",(jid,)).fetchone())
 
     def allow_retry_after_authoritative_stop(self, *, tenant, jid, fence, provider_proof):
         """Manual recovery; no retry on timeout or ambiguous dispatch alone."""
-        if not isinstance(provider_proof,str) or not provider_proof.startswith("verified-terminated:"):
+        if (self.termination_verifier is None or
+                self.termination_verifier(tenant,jid,fence,provider_proof) is not True):
             raise GateClosed("INDEPENDENT_PROVIDER_TERMINATION_PROOF_REQUIRED")
         with self._write() as db:
             row=self._locked_job(db,tenant,jid,fence,("NEEDS_REVIEW",))
@@ -428,3 +437,12 @@ class StudioG56Ledger:
                 provider_call_id=NULL,lease_until=NULL,progress=0,updated=? WHERE id=?""",
                 (self.now(),jid))
             self._event(db,jid,"MANUAL_RETRY_AUTHORIZED")
+
+    def mark_dispatch_uncertain(self, *, tenant, jid, fence):
+        """Spawn timeout/HTTP uncertainty must block a second provider call."""
+        with self._write() as db:
+            self._locked_job(db,tenant,jid,fence,("RUNNING",))
+            db.execute("""UPDATE g56_jobs SET state='NEEDS_REVIEW',
+                outcome_code='PROVIDER_DISPATCH_UNKNOWN',updated=? WHERE id=?""",
+                (self.now(),jid))
+            self._event(db,jid,"DISPATCH_AMBIGUOUS_NO_AUTO_RETRY")
