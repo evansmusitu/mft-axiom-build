@@ -343,8 +343,8 @@ class StudioG56Ledger:
         with self._write() as db:
             row=self._locked_job(db,tenant,jid,fence,("RUNNING","CANCEL_REQUESTED"))
             if percent<row["progress"]:raise Conflict("PROGRESS_NOT_MONOTONIC")
-            db.execute("UPDATE g56_jobs SET progress=?,updated=? WHERE id=?",
-                       (percent,self.now(),jid))
+            db.execute("UPDATE g56_jobs SET progress=?,lease_until=?,updated=? WHERE id=?",
+                       (percent,max(row['lease_until'] or 0,self.now()+30),self.now(),jid))
             self._event(db,jid,"OBSERVED_PROGRESS",str(percent))
 
     def cancel(self, *, tenant, jid):
@@ -441,7 +441,7 @@ class StudioG56Ledger:
     def mark_dispatch_uncertain(self, *, tenant, jid, fence):
         """Spawn timeout/HTTP uncertainty must block a second provider call."""
         with self._write() as db:
-            self._locked_job(db,tenant,jid,fence,("RUNNING",))
+            self._locked_job(db,tenant,jid,fence,("RUNNING","CANCEL_REQUESTED"))
             db.execute("""UPDATE g56_jobs SET state='NEEDS_REVIEW',
                 outcome_code='PROVIDER_DISPATCH_UNKNOWN',updated=? WHERE id=?""",
                 (self.now(),jid))
