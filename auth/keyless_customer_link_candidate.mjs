@@ -13,14 +13,14 @@ export async function assertCanonicalOAuthLink(env,link){
  if(canonical.customer_id!==link.customer_id||canonical.tenant_id!==link.tenant_id)deny('canonical_mapping_mismatch');
  return canonical;
 }
-export async function resolveVerifiedOAuthCustomer({request,env,db,flowId,now=Date.now()}={}){
+export async function resolveVerifiedOAuthCustomer({request,env,db,flowId,handoff,now=Date.now()}={}){
  if(env?.OAUTH_KEYLESS_QUALIFIED!=='qualified_private_binding')deny('keyless_not_qualified');
  if(!db?.prepare||typeof flowId!=='string'||!/^flow_[A-Za-z0-9_-]{16,155}$/.test(flowId))deny('oauth_flow_invalid');
  if(!Number.isSafeInteger(now))deny('oauth_time_invalid');
  if(env.OAUTH_IDENTITY_ISSUER!==env.CUSTOMER_IDENTITY_ISSUER)deny('identity_issuer_not_qualified');
  const {proof,context}=await requestIdentityAssertion(request,env,{binding:env.OAUTH_SESSION_VERIFIER,
   qualification:env.OAUTH_KEYLESS_QUALIFIED,audience:'axiom-chatgpt-oauth',purpose:'oauth-existing-customer-link',
-  path:'/identity/verify-oauth-session',bindingContext:{flow_id:flowId}});
+  path:'/identity/verify-oauth-session',bindingContext:{flow_id:flowId,...(handoff?{handoff_id:handoff.handoff_id,handoff_grant:handoff.handoff_grant}:{})}});
  const principal=validateSessionAssertion(proof,{...context,now});
  if(proof.production_qualified!==true||proof.flow_id!==flowId)deny('identity_assurance_denied');
  // Preserve PR65's stronger recent-authentication bound for OAuth consent.

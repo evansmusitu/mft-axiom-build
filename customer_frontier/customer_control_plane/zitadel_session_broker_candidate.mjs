@@ -1,5 +1,6 @@
 // Isolated STAGING candidate. No route/config deployment or live admission here.
 // Its host-only cookie cannot authenticate the production OAuth origin.
+import {readHandoffText} from './oauth_handoff_contract_candidate.mjs';
 import {ZITADEL_STAGING,parseIdentityJson,exchangeZitadelAuthorizationCode,verifyZitadelCodeTokens} from './zitadel_provider_tokens_candidate.mjs';
 import {sha256} from './identity_session.mjs';
 const ORIGIN=new URL(ZITADEL_STAGING.redirect_uri).origin;
@@ -54,16 +55,25 @@ async function unseal(key,flow){
  const iv=decode(parts[0]);if(iv.length!==12)deny();
  const bytes=await crypto.subtle.decrypt({name:'AES-GCM',iv,additionalData:aad(flow.state_hash,flow.browser_hash)},key,decode(parts[1]));
  const p=parseIdentityJson(new TextDecoder('utf-8',{fatal:true}).decode(bytes));
- if(!opaque(p?.nonce)||!opaque(p?.verifier)||Object.keys(p).length!==2)deny();return p;
+ if(!opaque(p?.nonce)||!opaque(p?.verifier)||Object.keys(p).some(k=>!['nonce','verifier','oauth_handoff'].includes(k))||
+  (p.oauth_handoff!==undefined&&!opaque(p.oauth_handoff)))deny();return p;
 }
 function query(url,allowed){
  for(const key of url.searchParams.keys())if(!allowed.includes(key)||url.searchParams.getAll(key).length!==1)deny();
 }
+async function inspectHandoff(env,id){
+ if(!opaque(id)||env.OAUTH_HANDOFF_QUALIFIED!=='qualified_private_binding'||!env.OAUTH_HANDOFF_INSPECTOR?.fetch)deny();
+ const r=await env.OAUTH_HANDOFF_INSPECTOR.fetch(new Request('https://axiom-internal/oauth/handoff/inspect',{method:'POST',
+  headers:{'content-type':'application/json'},body:JSON.stringify({handoff_id:id}),redirect:'manual',signal:AbortSignal.timeout(5000)}));
+ if(r.status!==200)deny();const p=parseIdentityJson(await readHandoffText(r,1024));
+ if(p.handoff_id!==id||Object.keys(p).sort().join(',')!=='expires_at_ms,handoff_id'||!Number.isSafeInteger(p.expires_at_ms))deny();
+}
 async function start(request,url,env,now){
- query(url,['intent']);if(url.searchParams.has('intent')&&!['login','register'].includes(url.searchParams.get('intent')))deny();
+ query(url,['intent','oauth_handoff']);if(url.searchParams.has('intent')&&!['login','register'].includes(url.searchParams.get('intent')))deny();
+ const handoff=url.searchParams.get('oauth_handoff');if(handoff!==null)await inspectHandoff(env,handoff);
  const key=await flowKey(env),db=env.IDP_SESSION_DB,state=random(),browser=random(),nonce=random(),verifier=random();
  const stateHash=await sha256(state),browserHash=await sha256(browser),created=now();
- const payload=await seal(key,{nonce,verifier},stateHash,browserHash);
+ const payload=await seal(key,{nonce,verifier,...(handoff?{oauth_handoff:handoff}:{})},stateHash,browserHash);
  // Qualification-stage lifetime cap bounds anonymous durable writes. No cleanup
  // or paid capacity expansion is authorized by this candidate.
  const saved=await db.prepare(`INSERT INTO customer_idp_flows_v1(state_hash,browser_hash,sealed_payload,created_at_ms,expires_at_ms)
@@ -90,6 +100,7 @@ async function callback(request,url,env,now,fetcher){
  try{
   if(url.searchParams.has('error')||!url.searchParams.has('code')||(url.searchParams.has('iss')&&url.searchParams.get('iss')!==ZITADEL_STAGING.issuer))deny();
   const secret=await unseal(await flowKey(env),flow);
+  if(secret.oauth_handoff)await inspectHandoff(env,secret.oauth_handoff);
   const tokens=await exchangeZitadelAuthorizationCode({code:url.searchParams.get('code'),code_verifier:secret.verifier},{fetcher});
   const p=await verifyZitadelCodeTokens({...tokens,expected_nonce:secret.nonce},{fetcher,clock:now});
   const created=now(),expires=Math.min(p.token_expires_at_ms,p.auth_time_ms+TTL);
@@ -103,7 +114,7 @@ async function callback(request,url,env,now,fetcher){
   if(result.length!==statements.length||result.at(-1)?.meta?.changes!==1||result.at(-2)?.meta?.changes!==1)deny();
   const finished=now(),seconds=Math.floor((expires-finished)/1000);
   if(finished>=flow.expires_at_ms||seconds<1)deny();
-  return redirect(ORIGIN+'/',[cookie(SESSION_COOKIE,raw,seconds),cookie(FLOW_COOKIE,'',0)]);
+  return redirect(ORIGIN+(secret.oauth_handoff?'/auth/oauth/authorize?handoff='+secret.oauth_handoff:'/'),[cookie(SESSION_COOKIE,raw,seconds),cookie(FLOW_COOKIE,'',0)]);
  }catch{
   if(mintedHash)await db.prepare("UPDATE customer_idp_sessions_v1 SET status='revoked',session_version=session_version+1 WHERE session_hash=? AND status='active'").bind(mintedHash).run();
   // Ambiguous provider redemption is never retried, including worker crashes.

@@ -9,7 +9,8 @@ export const customer='5328af0f-8545-48b5-96ed-196627a2c334';
 export const sha=s=>createHash('sha256').update(s).digest('hex');
 const host='https://auth.mftintelligence.com',resource='https://mcp.mftintelligence.com',redirect='https://chatgpt.com/connector/oauth/axiom';
 const verifier='V'.repeat(43),challenge=createHash('sha256').update(verifier).digest('base64url');
-export function setupContinuity({portalCustomer=customer}={}){
+export function setupContinuity({portalCustomer=customer,principal=identity}={}){
+ const identity=principal;
  const schema=new URL('../customer_control_plane/schema.sql',import.meta.url);
  const portal=openTestDB(schema),db=openTestDB(schema);
  db._sqlite.exec(`CREATE TABLE customers(id TEXT PRIMARY KEY,status TEXT NOT NULL,email TEXT,plan TEXT);

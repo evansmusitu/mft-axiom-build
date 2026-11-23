@@ -1,0 +1,57 @@
+{
+  "schema": "musitu.axiom.gate4.idp-oauth-handoff-local.v1",
+  "status": "CANDIDATE_LOCAL_TESTS_PASS_NOT_RELEASE",
+  "observed_at": "2026-11-23T12:22:42.218048+00:00",
+  "parent_pr": 246,
+  "parent_sha": "ce6a8cb96450a43949c66c8186c1e476fe312a84",
+  "fresh_main_sha": "c3c5aaab90e94f1ca84ac9903f9d481c23c4f350",
+  "fresh_pr1_sha": "8fc1fbb7c5ebbcc1604ecf24c5f4594f2d5667e3",
+  "fresh_pr1_state": "OPEN_DRAFT_UNMERGED",
+  "node": {
+    "tests": 557,
+    "passed": 557,
+    "failed": 0,
+    "skipped": 0
+  },
+  "python": {
+    "tests": 348,
+    "passed": 348,
+    "failed": 0
+  },
+  "workerd_d1": {
+    "tests": 33,
+    "passed": 33,
+    "failed": 0,
+    "skipped": 0
+  },
+  "new_handoff_tests": {
+    "node": 37,
+    "python_schema": 4,
+    "workerd_d1": 9
+  },
+  "syntax_and_diff_checks": "PASS",
+  "provider_status": "UNAVAILABLE",
+  "provider_execution_authority": false,
+  "production_authority": false,
+  "hosted_identity_activation": false,
+  "actual_customer_ownership": "NOT_ACCEPTED",
+  "actual_chatgpt_website_acceptance": "NOT_RUN",
+  "gate3": "OPEN_HOLD",
+  "gate4": "OPEN",
+  "B27": "FAILED_IN_SYNTHETIC_ATTACK",
+  "parity_superiority": "NOT_CERTIFIED",
+  "unavailable_final_usage": "UNKNOWN",
+  "evidence_limits": [
+    "All IdP, ownership and executor fixtures are synthetic; local Workers/D1 are real runtime only.",
+    "No hosted database migration, customer mapping, secret or public route was changed.",
+    "D1 primary reads do not supply distributed atomicity or cancel operations admitted before revocation.",
+    "Portal logout revokes portal sessions and pending handoffs. Established OAuth grants require OAuth revocation or canonical revocation; portal logout alone is not global OAuth signout.",
+    "Live source review/CI and qualified private bindings, per-account ownership receipt and Gate3 are required before hosted acceptance."
+  ],
+  "log_sha256": {
+    "baseline_missing_handoff.log": "55b286fd06a8b4e255b241b0598052f323cd275a898b0cb652af701595717460",
+    "node_full.log": "f52eb710cf770ac11f9111a274586b08471cabab3b7189819c6b1ce211bc3eec",
+    "python_full.log": "27de379b9e4b771258d19c76ed597adf828f8a90732b49cc5f3601c88b7426b0",
+    "workerd_full.log": "0f652d5bdbe4720911b9603e564be4246f8e23d56f34981341ddd8a1a59be984"
+  }
+}
