@@ -105,6 +105,26 @@ class Gate56LedgerTests(unittest.TestCase):
             self.ledger.heartbeat(tenant="tenantA",jid=a["id"],
                                   fence="bad-fence",percent=50)
 
+    def test_expired_lease_blocks_late_heartbeat_and_provider_call_before_sweep(self):
+        """A zombie cannot revive its lease or dispatch after expiry."""
+        self.ledger.set_emergency_stop(False)
+        job=self.admit("expired-lease")
+        ticket=self.ledger.claim(worker="worker1",lease_seconds=10)
+        self.now+=11
+        with self.assertRaisesRegex(Conflict,"WORKER_LEASE_EXPIRED"):
+            self.ledger.heartbeat(tenant="tenantA",jid=job["id"],
+                                  fence=ticket["fence"],percent=20)
+        with self.assertRaisesRegex(Conflict,"WORKER_LEASE_EXPIRED"):
+            self.ledger.attach_provider_call(tenant="tenantA",jid=job["id"],
+                                               fence=ticket["fence"],call_id="late-provider-call")
+        self.assertEqual(self.ledger.quarantine_stale(),1)
+        record=self.ledger.get("tenantA",job["id"])
+        self.assertEqual(record["state"],"NEEDS_REVIEW")
+        self.assertIsNone(record["provider_call_id"])
+        self.assertEqual(record["reserved_cents"],60)
+        self.assertEqual(record["credit_hold"],3)
+        self.assertIsNone(self.ledger.claim(worker="worker2"))
+
     def test_worker_loss_never_auto_retries_and_keeps_hold(self):
         self.ledger.set_emergency_stop(False)
         a=self.admit()
