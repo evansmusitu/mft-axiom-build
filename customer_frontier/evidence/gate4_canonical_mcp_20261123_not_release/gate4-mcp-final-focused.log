@@ -1,0 +1,27 @@
+✔ published test dependency is byte-exact and is not a replacement gateway (1.682338ms)
+✔ active canonical OAuth customer reaches the supplied published gateway executor (47.681417ms)
+✔ revoked membership denies direct MCP while OAuth token is still active (18.534279ms)
+✔ revoked canonical link denies direct MCP while OAuth token is still active (13.911733ms)
+✔ revoked tenant denies direct MCP while OAuth token is still active (15.507997ms)
+✔ a previously successful dispatch is never a cached authorization after canonical revocation (18.096762ms)
+✔ canonical database absent or unavailable cannot fall back to OAuth-only access (26.160889ms)
+✔ unqualified staging admission cannot execute even with a valid token and mapping (57.375218ms)
+✔ a different canonical customer database cannot authenticate the OAuth customer (13.871128ms)
+✔ unqualified identity issuer drift denies even if both database rows are active (10.377792ms)
+✔ an OAuth token with no identity-token linkage cannot become canonical by browser headers (16.679675ms)
+✔ cross-customer OAuth access-token and key pairing denies at MCP dispatch (10.383496ms)
+✔ canonical revocation during the gateway OAuth read is observed before executor dispatch (11.277935ms)
+✔ OAuth revocation committed during the canonical read is checked again before dispatch (9.528976ms)
+✔ MCP qualification does not substitute for missing keyless identity admission (8.64993ms)
+✔ modern MCP canonical denial preserves OAuth challenge metadata (9.487464ms)
+✔ private non-tool RPC forwarding also requires canonical admission (12.201769ms)
+✔ malformed batch forwarding cannot bypass canonical admission (10.623778ms)
+✔ public discovery remains available without customer qualification or bearer credentials (11.249207ms)
+ℹ tests 19
+ℹ suites 0
+ℹ pass 19
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 488.077925

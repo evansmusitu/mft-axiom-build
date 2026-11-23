@@ -1,0 +1,9 @@
+{
+  "source_commit": "6ab9961906329722d19fbb1f614ca14f89e8e224",
+  "source_path": "mcp/musitu_axiom_plugin_gate_v4.mjs",
+  "git_blob_sha1": "7ccb2ed4ef8cac5a297396ea0c2acda168e9a8aa",
+  "sha256": "cf3e999deab721532ef584715fbdccc3699849ba40365bedccd961982779ece9",
+  "bytes": 101122,
+  "purpose": "UNMODIFIED_TEST_DEPENDENCY_ONLY_NOT_INTEGRATED_OR_DEPLOYED",
+  "hosted_source_attestation_claimed": false
+}
