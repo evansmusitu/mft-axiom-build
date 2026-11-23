@@ -1,11 +1,14 @@
 name: AXIOM Authority2 signer possession Windows SYNTHETIC ONLY (NOT RELEASE)
 on:
   push:
-    branches: [review/axiom-step1-owner-sole-authority-policy-20261112-not-release]
+    branches:
+      - review/axiom-step1-owner-sole-authority-policy-20261112-not-release
+      - build/axiom-gate3-proof-renewal-20261123
     paths:
       - .github/workflows/axiom-step3-a2-signer-possession-windows-20261116.yml
       - customer_frontier/qualification/step3_authority2_signer_possession.*
       - customer_frontier/tests/step3_authority2_signer_possession.test.mjs
+      - customer_frontier/tests/test_authority2_possession_packet_renewal.py
       - customer_frontier/tests/step3_authority2_signer_packet_windows.test.ps1
       - customer_frontier/qualification/STEP3_AUTHORITY2_SIGNER_POSSESSION_20261116_NOT_RELEASE.md
       - customer_frontier/evidence/gate3_security_20261114/authority2_signer_possession_20261116/**
@@ -21,6 +24,8 @@ jobs:
         with: {persist-credentials: false}
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
         with: {node-version: '22'}
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065
+        with: {python-version: '3.12'}
       - name: Real cryptography with synthetic ephemeral keys only
         shell: pwsh
         run: |
@@ -33,6 +38,10 @@ jobs:
         run: |
           python scripts/build_authority2_possession_packet.py --out "$env:RUNNER_TEMP/a2-public-packet" --source-commit $env:GITHUB_SHA
           if($LASTEXITCODE -ne 0){throw 'Exact Git-byte packet failed'}
+          python -m unittest discover -s customer_frontier/tests -p test_authority2_possession_packet_renewal.py -v
+          if($LASTEXITCODE -ne 0){throw 'Public challenge renewal tests failed'}
+          python scripts/build_authority2_possession_packet.py --out "$env:RUNNER_TEMP/a2-renewed-packet" --source-commit $env:GITHUB_SHA --renew-challenge
+          if($LASTEXITCODE -ne 0){throw 'Renewed public packet failed'}
       - name: Native PowerShell 5.1 and 7 packet and NTFS checks
         shell: pwsh
         run: |
@@ -41,6 +50,8 @@ jobs:
           foreach($exe in @('powershell.exe','pwsh')){
             & $exe -NoProfile -NonInteractive -File $entry -PublicSelfTest
             if($LASTEXITCODE -ne 0){throw ('Public packet/NTFS self-test failed: '+$exe)}
+            & $exe -NoProfile -NonInteractive -File (Join-Path $env:RUNNER_TEMP 'a2-renewed-packet/Run_MUSITU_AXIOM_Authority2_Signer_Check.ps1') -PublicSelfTest
+            if($LASTEXITCODE -ne 0){throw ('Renewed packet/NTFS self-test failed: '+$exe)}
           }
           $log=Join-Path $env:RUNNER_TEMP 'a2-owner-cli-denial.log'
           $ErrorActionPreference='Continue'
@@ -55,3 +66,5 @@ jobs:
         run: |
           powershell.exe -NoProfile -NonInteractive -File customer_frontier/tests/step3_authority2_signer_packet_windows.test.ps1 -Packet "$env:RUNNER_TEMP/a2-public-packet"
           if($LASTEXITCODE -ne 0){throw 'Public packet negative checks failed'}
+          powershell.exe -NoProfile -NonInteractive -File customer_frontier/tests/step3_authority2_signer_packet_windows.test.ps1 -Packet "$env:RUNNER_TEMP/a2-renewed-packet"
+          if($LASTEXITCODE -ne 0){throw 'Renewed public packet negative checks failed'}
