@@ -1,0 +1,23 @@
+{
+  "schema": "musitu.axiom.github-ci-observed.v1",
+  "status": "PASS_AT_RECORDED_INITIAL_TREE_NOT_RELEASE",
+  "source_sha": "e3ade2f12c0b005182607781079cdfdb73d10db9",
+  "source_tree": "9fc659bb9e020b384c202bc373b682e6dcc5481b",
+  "checkout_merge_sha": "92a35f8edd73315699c6de0170429a1aff59dfa6",
+  "checkout_tree": "9fc659bb9e020b384c202bc373b682e6dcc5481b",
+  "workflow_run_id": 45173942479,
+  "job_id": 137690223199,
+  "node": {
+    "passed": 557,
+    "failed": 0,
+    "skipped": 0
+  },
+  "python_passed": 348,
+  "workerd_d1": {
+    "passed": 33,
+    "failed": 0,
+    "skipped": 0
+  },
+  "url": "https://github.com/evansmusitu/mft-axiom-build/actions/runs/45173942479",
+  "scope": "Initial handoff implementation. Later malformed-response guards and two new tests require their own exact-tree CI receipt, recorded on PR247. This receipt does not certify a later tree or hosted authority."
+}

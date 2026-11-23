@@ -1,0 +1,51 @@
+npm warn Unknown env config "http-proxy". This will stop working in the next major version of npm. See `npm help npmrc` for supported config options.
+
+> axiom-idp-local-runtime-qualification@0.0.0 test
+> node --test idp_runtime.test.mjs review_adversarial.test.mjs gate4_canonical_mcp_runtime.test.mjs gate4_idp_oauth_handoff_runtime.test.mjs
+
+✔ workerd: current published gateway dispatches the active canonical fixture (2348.32881ms)
+✔ workerd: canonical membership revocation blocks a still-active OAuth token (1135.659882ms)
+✔ workerd: canonical canonical link revocation blocks a still-active OAuth token (1064.581114ms)
+✔ workerd: canonical tenant revocation blocks a still-active OAuth token (1136.731413ms)
+✔ workerd: qualification denial survives an otherwise valid token and mapping (914.307634ms)
+✔ workerd: canonical revocation remains effective after a real runtime restart (1390.796815ms)
+✔ workerd: private RPC forwarding and batch requests cannot bypass admission (920.297199ms)
+✔ workerd: public discovery is preserved while canonical admission is disabled (997.597437ms)
+✔ workerd: signed IdP callback -> private handoff -> real OAuth code -> same canonical MCP customer (2573.022128ms)
+✔ workerd: missing real ownership admission is denied despite signed IdP and existing mappings (1274.649944ms)
+✔ workerd: racing handoff redemptions have one winner; private paths stay unavailable publicly (1401.336151ms)
+✔ workerd: wrong browser, foreign Origin and cookie duplication cannot consume a grant (1263.572896ms)
+✔ workerd: granted handoff persists across restart, remains single-use after a second restart (2220.681007ms)
+✔ workerd: portal logout revocation before redemption survives restart (1588.29098ms)
+✔ workerd: canonical membership revocation before redemption survives restart (1571.592635ms)
+✔ workerd: ownership decision revocation before redemption survives restart (1332.539507ms)
+✔ workerd: new-namespace transaction failure rolls back approval without losing customer rows (1193.222021ms)
+✔ actual WorkerEntrypoint wrapper starts with isolated D1 and refuses public private paths (1358.519855ms)
+✔ server login and Paynow catalog read work, but synthetic PSP settlement is denied (527.70002ms)
+✔ test process denies external network even if a client accidentally follows a redirect (6.003958ms)
+✔ unmodified schemas, real D1 claim RETURNING, RSA callback and named binding reach customer API (958.565351ms)
+✔ real D1 racing callbacks have one winner and one provider exchange (646.596997ms)
+✔ wrong browser and provider redirect are denied without redeeming a flow twice (695.440643ms)
+✔ D1 batch failure rolls back session mint and prior-session rotation together (903.989542ms)
+✔ persisted D1 session and replay denial survive complete workerd restart (1058.124702ms)
+✔ local logout is terminal across workerd restart and private binding reads (1251.82737ms)
+✔ canonical revocation and cross-tenant requests cannot use an otherwise active session (764.217015ms)
+✔ private verifier rejects production OAuth audience and public headers cannot create a private route (668.899608ms)
+✔ all server private transports reject redirect responses before parsing or forwarding (433.264248ms)
+✔ checkout transport only returns an authorized fixture destination and never settles synthetic orders (734.056371ms)
+{"case":"provider307","endpoint":"https://musitu-whatsapp-staging-mpqgsc.eu1.zitadel.cloud/oauth/v2/token","observedUrls":["https://musitu-whatsapp-staging-mpqgsc.eu1.zitadel.cloud/oauth/v2/token"],"status":400,"browserCookieForwarded":false}
+{"case":"provider307","endpoint":"https://musitu-whatsapp-staging-mpqgsc.eu1.zitadel.cloud/oauth/v2/keys","observedUrls":["https://musitu-whatsapp-staging-mpqgsc.eu1.zitadel.cloud/oauth/v2/token","https://musitu-whatsapp-staging-mpqgsc.eu1.zitadel.cloud/oauth/v2/keys"],"status":400,"browserCookieForwarded":false}
+{"case":"provider307","endpoint":"https://musitu-whatsapp-staging-mpqgsc.eu1.zitadel.cloud/oidc/v1/userinfo","observedUrls":["https://musitu-whatsapp-staging-mpqgsc.eu1.zitadel.cloud/oauth/v2/token","https://musitu-whatsapp-staging-mpqgsc.eu1.zitadel.cloud/oauth/v2/keys","https://musitu-whatsapp-staging-mpqgsc.eu1.zitadel.cloud/oidc/v1/userinfo"],"status":400,"browserCookieForwarded":false}
+✔ independent: each provider endpoint denies307 before following or forwarding browser cookies (3639.514966ms)
+{"case":"private-transport-browser-header-isolation","status":202,"observedUrls":["https://axiom-internal/identity/start-login","https://payments.mftintelligence.com/billing/healthz","https://payments.mftintelligence.com/billing/catalog","https://axiom-internal/payments/create"],"browserCredentialsForwarded":false}
+✔ independent: browser credentials do not leak into login billing or checkout service requests (841.481765ms)
+{"case":"identity-service302","status":401,"observedUrls":["https://axiom-internal/session/verify"]}
+✔ independent: private identity verifier redirect cannot authenticate a customer (1151.952562ms)
+ℹ tests 33
+ℹ suites 0
+ℹ pass 33
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 15684.518139

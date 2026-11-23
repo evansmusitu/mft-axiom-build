@@ -1,6 +1,7 @@
 // Staging-only ingress adapter for the already-reviewed, separate ZITADEL
 // browser Worker. This does not activate or qualify an IdP, customer link,
 // website, ChatGPT OAuth session, or Cloudflare service binding.
+import {oauthHandoffRoute} from './oauth_handoff_frontdoor_candidate.mjs';
 import {ZITADEL_STAGING} from './zitadel_provider_tokens_candidate.mjs';
 
 const ORIGIN=new URL(ZITADEL_STAGING.redirect_uri).origin;
@@ -43,6 +44,7 @@ function validHostOnlyCookies(headers,route){
 }
 
 export async function stagingIdentityRoute(request,env){
+ const handoff=await oauthHandoffRoute(request,env);if(handoff)return handoff;
  const u=new URL(request.url);
  if(u.origin!==ORIGIN||!ROUTES.has(u.pathname))return null;
  if(env.CUSTOMER_IDP_STAGING_ADMITTED!=='qualified_staging'||
@@ -52,11 +54,16 @@ export async function stagingIdentityRoute(request,env){
  if(request.method!==expected)return failure(405);
  if(u.pathname==='/auth/logout'&&request.headers.get('origin')!==ORIGIN)return failure(403);
  let result;
- try{result=await env.CUSTOMER_IDP_BROWSER.fetch(request);}catch{return failure(503);}
+ try{result=await env.CUSTOMER_IDP_BROWSER.fetch(new Request(request,{redirect:'manual'}));}catch{return failure(503);}
  if(!(result instanceof Response))return failure(502);
  if(result.status===303){
   const location=result.headers.get('location');
-  if(u.pathname==='/auth/start'?!validAuthorizationRedirect(location):location!==ORIGIN+'/')return failure(502);
+  let resumed=false;
+  if(env.CUSTOMER_OAUTH_HANDOFF_ROUTE_ADMITTED==='qualified_private_binding'&&u.pathname==='/auth/callback'){
+   try{const dest=new URL(location);resumed=dest.origin===ORIGIN&&dest.pathname==='/auth/oauth/authorize'&&!dest.hash&&
+    !dest.username&&!dest.password&&[...dest.searchParams.keys()].join(',')==='handoff'&&/^[A-Za-z0-9_-]{43}$/.test(dest.searchParams.get('handoff'));}catch{}
+  }
+  if(u.pathname==='/auth/start'?!validAuthorizationRedirect(location):location!==ORIGIN+'/'&&!resumed)return failure(502);
   if(!validHostOnlyCookies(result.headers,u.pathname))return failure(502);
   // The private service is not allowed to add CORS, Refresh, debug headers
   // or a response body to the public browser contract. Only the validated
