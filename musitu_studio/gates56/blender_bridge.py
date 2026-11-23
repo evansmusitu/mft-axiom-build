@@ -49,8 +49,10 @@ class LocalPrivateArtifacts:
     def _item(self,tenant,jid,filename):
         if not IDENT.fullmatch(tenant) or not IDENT.fullmatch(jid) or filename not in FILE_ALLOW:
             raise GateClosed("PRIVATE_ASSET_PATH_DENIED")
-        directory=self.root/tenant/jid
-        if self.root.is_symlink() or directory.is_symlink():
+        tenant_dir=self.root/tenant
+        directory=tenant_dir/jid
+        if (self.root.is_symlink() or tenant_dir.is_symlink() or
+                directory.is_symlink()):
             raise GateClosed("PRIVATE_ASSET_PATH_DENIED")
         return directory/filename
 
