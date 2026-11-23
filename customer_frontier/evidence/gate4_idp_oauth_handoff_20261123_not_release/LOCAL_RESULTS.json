@@ -1,15 +1,15 @@
 {
   "schema": "musitu.axiom.gate4.idp-oauth-handoff-local.v1",
   "status": "CANDIDATE_LOCAL_TESTS_PASS_NOT_RELEASE",
-  "observed_at": "2026-11-23T12:22:42.218048+00:00",
+  "observed_at": "2026-11-23T12:27:39.981907+00:00",
   "parent_pr": 246,
   "parent_sha": "ce6a8cb96450a43949c66c8186c1e476fe312a84",
   "fresh_main_sha": "c3c5aaab90e94f1ca84ac9903f9d481c23c4f350",
   "fresh_pr1_sha": "8fc1fbb7c5ebbcc1604ecf24c5f4594f2d5667e3",
   "fresh_pr1_state": "OPEN_DRAFT_UNMERGED",
   "node": {
-    "tests": 557,
-    "passed": 557,
+    "tests": 559,
+    "passed": 559,
     "failed": 0,
     "skipped": 0
   },
@@ -25,7 +25,7 @@
     "skipped": 0
   },
   "new_handoff_tests": {
-    "node": 37,
+    "node": 39,
     "python_schema": 4,
     "workerd_d1": 9
   },
@@ -50,8 +50,8 @@
   ],
   "log_sha256": {
     "baseline_missing_handoff.log": "55b286fd06a8b4e255b241b0598052f323cd275a898b0cb652af701595717460",
-    "node_full.log": "f52eb710cf770ac11f9111a274586b08471cabab3b7189819c6b1ce211bc3eec",
+    "node_full.log": "e36a901c72814fdd7ee5f19d6edbc143cbae0f66352234c5f71a017f8506830d",
     "python_full.log": "27de379b9e4b771258d19c76ed597adf828f8a90732b49cc5f3601c88b7426b0",
-    "workerd_full.log": "0f652d5bdbe4720911b9603e564be4246f8e23d56f34981341ddd8a1a59be984"
+    "workerd_full.log": "b7e0ce6c7e17ec37b58d08603ebdf93290e7956023f32fc8421d25e6bb718ef0"
   }
 }

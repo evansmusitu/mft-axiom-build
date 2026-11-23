@@ -23,7 +23,7 @@ export async function oauthHandoffRoute(request,env){
   if(r.headers.get('content-type')!=='application/json')return fail(502);
   p=parseIdentityJson(await readHandoffText(r,4096));
  }catch{return fail(503);}
- if(p.handoff_id!==u.searchParams.get('handoff'))return fail(502);
+ if(!p||typeof p!=='object'||Array.isArray(p)||p.handoff_id!==u.searchParams.get('handoff'))return fail(502);
  const h=headers();
  if(request.method==='GET'&&keys(p,'kind,handoff_id')&&p.kind==='login'){
   return new Response(null,{status:303,headers:{...h,location:HANDOFF_PORTAL+'/auth/start?intent=login&oauth_handoff='+p.handoff_id}});

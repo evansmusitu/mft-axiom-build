@@ -12,7 +12,7 @@ export async function beginOAuthHandoff(request,env,flowId,nonceHash,csrf){
    headers:{'content-type':'application/json'},body:JSON.stringify({flow_id:flowId,nonce_hash:nonceHash}),redirect:'manual',signal:AbortSignal.timeout(5000)}));
   if(r.status!==201)return failure();p=parseIdentityJson(await readHandoffText(r,2048));
  }catch{return failure();}
- if(Object.keys(p).sort().join(',')!=='expires_at_ms,flow_id,handoff_id'||p.flow_id!==flowId||!handoffOpaque(p.handoff_id)||
+ if(!p||typeof p!=='object'||Array.isArray(p)||Object.keys(p).sort().join(',')!=='expires_at_ms,flow_id,handoff_id'||p.flow_id!==flowId||!handoffOpaque(p.handoff_id)||
   !Number.isSafeInteger(p.expires_at_ms)||p.expires_at_ms<=Date.now()||p.expires_at_ms>Date.now()+300000)return failure();
  const age=Math.floor((p.expires_at_ms-Date.now())/1000);if(age<1)return failure();
  return new Response(`<!doctype html><html lang="en"><head><meta name="viewport" content="width=device-width,initial-scale=1"><title>Connect MUSITU Axiom</title></head>`+

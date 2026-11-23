@@ -186,3 +186,20 @@ test('the original ChatGPT PKCE verifier is still required after a successful ha
   redirect_uri:'https://chatgpt.com/connector/oauth/axiom',code,code_verifier:'X'.repeat(43)})}));assert.equal(bad.status,400);
  assert.equal(f.db._sqlite.prepare('SELECT count(*) n FROM oauth_access_tokens').get().n,0);assert.equal((await f.exchange(code)).status,200);
 });
+import {beginOAuthHandoff} from '../../auth/oauth_handoff_client_candidate.mjs';
+test('malformed private JSON cannot crash either browser response adapter or set a cookie',async t=>{
+ const f=setupHandoff(t),h=await f.start();
+ for(const payload of [null,[],17,'private-error',{handoff_id:h.id}]){
+  f.env.OAUTH_SESSION_VERIFIER={fetch:async()=>Response.json(payload,{status:201})};
+  const start=await beginOAuthHandoff(new Request(auth+'/oauth/authorize'),f.env,'flow_'+'A'.repeat(32),'a'.repeat(64),'B'.repeat(43));
+  assert.equal(start.status,503);assert.equal(start.headers.get('set-cookie'),null);
+  f.env.CUSTOMER_OAUTH_HANDOFF_BROWSER={fetch:async()=>Response.json(payload)};
+  const r=await f.fetch(new Request(h.href));assert.equal(r.status,502);assert.equal(r.headers.get('set-cookie'),null);
+ }
+});
+test('oversized private response streams are cancelled before parsing',async t=>{
+ const f=setupHandoff(t),h=await f.start();let cancelled=false;
+ const body=new ReadableStream({pull(controller){controller.enqueue(new Uint8Array(4097));},cancel(){cancelled=true;}});
+ f.env.CUSTOMER_OAUTH_HANDOFF_BROWSER={fetch:async()=>new Response(body,{headers:{'content-type':'application/json'}})};
+ const r=await f.fetch(new Request(h.href));assert.equal(r.status,503);assert.equal(cancelled,true);assert.equal(r.headers.get('set-cookie'),null);
+});
