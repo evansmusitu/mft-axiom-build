@@ -346,11 +346,18 @@ class StudioG56Ledger:
             return {"job":dict(db.execute("SELECT * FROM g56_jobs WHERE id=?",(row["id"],)).fetchone()),
                     "fence":fence}
 
+    def _require_live_worker_lease(self, row):
+        # An expired holder cannot recover its own ownership. Recovery is a
+        # separate authoritative review, even before the stale sweep runs.
+        if row["lease_until"] is None or self.now() >= row["lease_until"]:
+            raise Conflict("WORKER_LEASE_EXPIRED")
+
     def attach_provider_call(self, *, tenant, jid, fence, call_id):
         if not isinstance(call_id,str) or not 3<=len(call_id)<=150:
             raise ValueError("INVALID_PROVIDER_CALL")
         with self._write() as db:
             row=self._locked_job(db,tenant,jid,fence,("RUNNING",))
+            self._require_live_worker_lease(row)
             if row["provider_call_id"] is not None:
                 if row["provider_call_id"]==call_id:return
                 raise Conflict("MULTIPLE_PROVIDER_CALLS_REJECTED")
@@ -370,6 +377,7 @@ class StudioG56Ledger:
             raise ValueError("PROGRESS_MUST_BE_OBSERVED_1_TO_99")
         with self._write() as db:
             row=self._locked_job(db,tenant,jid,fence,("RUNNING","CANCEL_REQUESTED"))
+            self._require_live_worker_lease(row)
             if percent<row["progress"]:raise Conflict("PROGRESS_NOT_MONOTONIC")
             db.execute("UPDATE g56_jobs SET progress=?,lease_until=?,updated=? WHERE id=?",
                        (percent,max(row['lease_until'] or 0,self.now()+30),self.now(),jid))
