@@ -55,6 +55,21 @@ class LocalPrivateArtifactsTests(unittest.TestCase):
         with self.assertRaisesRegex(GateClosed,"UNVERIFIED_ASSET_SOURCE"):
             self.store.put("tenantA","G56_abc","scene.blend",link)
 
+    def test_rejects_symlinked_root_and_intermediate_tenant_directory(self):
+        target=self.root/"other-private-folder"
+        target.mkdir()
+        root_alias=self.root/"aliased-private-root"
+        root_alias.symlink_to(self.root/"private",target_is_directory=True)
+        with self.assertRaisesRegex(GateClosed,"ARTIFACT_ROOT_SYMLINK"):
+            LocalPrivateArtifacts(root_alias)
+        with self.assertRaisesRegex(GateClosed,"ARTIFACT_ROOT_SYMLINK"):
+            LocalPrivateArtifacts(root_alias/"nested")
+        tenant_alias=self.root/"private"/"tenantA"
+        tenant_alias.symlink_to(target,target_is_directory=True)
+        with self.assertRaisesRegex(GateClosed,"PRIVATE_ASSET_PATH_DENIED"):
+            self.store.put("tenantA","G56_abc","scene.blend",self.source)
+        self.assertFalse((target/"G56_abc").exists())
+
     def test_digest_mutation_detected_on_download(self):
         manifest=self.store.put("tenantA","G56_abc","scene.blend",self.source)
         target=self.root/"private/tenantA/G56_abc/scene.blend"
