@@ -37,9 +37,14 @@ class LocalPrivateArtifacts:
     only through an authenticated application endpoint, not a static URL.
     """
     def __init__(self,root):
-        self.root=Path(root).resolve()
-        if self.root.is_symlink():raise GateClosed("ARTIFACT_ROOT_SYMLINK")
+        # Check the supplied path BEFORE resolve(): resolve() hides symlinks.
+        candidate=Path(root).absolute()
+        if any(part.is_symlink() for part in (candidate,*candidate.parents)):
+            raise GateClosed("ARTIFACT_ROOT_SYMLINK")
+        self.root=candidate
         self.root.mkdir(mode=0o700,parents=True,exist_ok=True)
+        if self.root.is_symlink():
+            raise GateClosed("ARTIFACT_ROOT_SYMLINK")
 
     def _item(self,tenant,jid,filename):
         if not IDENT.fullmatch(tenant) or not IDENT.fullmatch(jid) or filename not in FILE_ALLOW:
