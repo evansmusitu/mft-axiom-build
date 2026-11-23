@@ -1,0 +1,42 @@
+npm warn Unknown env config "http-proxy". This will stop working in the next major version of npm. See `npm help npmrc` for supported config options.
+
+> axiom-idp-local-runtime-qualification@0.0.0 test
+> node --test idp_runtime.test.mjs review_adversarial.test.mjs gate4_canonical_mcp_runtime.test.mjs
+
+✔ workerd: current published gateway dispatches the active canonical fixture (1876.113779ms)
+✔ workerd: canonical membership revocation blocks a still-active OAuth token (971.039239ms)
+✔ workerd: canonical canonical link revocation blocks a still-active OAuth token (1051.578012ms)
+✔ workerd: canonical tenant revocation blocks a still-active OAuth token (935.762976ms)
+✔ workerd: qualification denial survives an otherwise valid token and mapping (935.875285ms)
+✔ workerd: canonical revocation remains effective after a real runtime restart (1055.94805ms)
+✔ workerd: private RPC forwarding and batch requests cannot bypass admission (944.889805ms)
+✔ workerd: public discovery is preserved while canonical admission is disabled (796.5782ms)
+✔ actual WorkerEntrypoint wrapper starts with isolated D1 and refuses public private paths (1018.593244ms)
+✔ server login and Paynow catalog read work, but synthetic PSP settlement is denied (496.712321ms)
+✔ test process denies external network even if a client accidentally follows a redirect (5.603856ms)
+✔ unmodified schemas, real D1 claim RETURNING, RSA callback and named binding reach customer API (769.333039ms)
+✔ real D1 racing callbacks have one winner and one provider exchange (633.06721ms)
+✔ wrong browser and provider redirect are denied without redeeming a flow twice (683.059249ms)
+✔ D1 batch failure rolls back session mint and prior-session rotation together (770.766668ms)
+✔ persisted D1 session and replay denial survive complete workerd restart (1029.252426ms)
+✔ local logout is terminal across workerd restart and private binding reads (979.292687ms)
+✔ canonical revocation and cross-tenant requests cannot use an otherwise active session (641.902514ms)
+✔ private verifier rejects production OAuth audience and public headers cannot create a private route (779.802898ms)
+✔ all server private transports reject redirect responses before parsing or forwarding (304.499432ms)
+✔ checkout transport only returns an authorized fixture destination and never settles synthetic orders (677.360103ms)
+{"case":"provider307","endpoint":"https://musitu-whatsapp-staging-mpqgsc.eu1.zitadel.cloud/oauth/v2/token","observedUrls":["https://musitu-whatsapp-staging-mpqgsc.eu1.zitadel.cloud/oauth/v2/token"],"status":400,"browserCookieForwarded":false}
+{"case":"provider307","endpoint":"https://musitu-whatsapp-staging-mpqgsc.eu1.zitadel.cloud/oauth/v2/keys","observedUrls":["https://musitu-whatsapp-staging-mpqgsc.eu1.zitadel.cloud/oauth/v2/token","https://musitu-whatsapp-staging-mpqgsc.eu1.zitadel.cloud/oauth/v2/keys"],"status":400,"browserCookieForwarded":false}
+{"case":"provider307","endpoint":"https://musitu-whatsapp-staging-mpqgsc.eu1.zitadel.cloud/oidc/v1/userinfo","observedUrls":["https://musitu-whatsapp-staging-mpqgsc.eu1.zitadel.cloud/oauth/v2/token","https://musitu-whatsapp-staging-mpqgsc.eu1.zitadel.cloud/oauth/v2/keys","https://musitu-whatsapp-staging-mpqgsc.eu1.zitadel.cloud/oidc/v1/userinfo"],"status":400,"browserCookieForwarded":false}
+✔ independent: each provider endpoint denies307 before following or forwarding browser cookies (2870.594714ms)
+{"case":"private-transport-browser-header-isolation","status":202,"observedUrls":["https://axiom-internal/identity/start-login","https://payments.mftintelligence.com/billing/healthz","https://payments.mftintelligence.com/billing/catalog","https://axiom-internal/payments/create"],"browserCredentialsForwarded":false}
+✔ independent: browser credentials do not leak into login billing or checkout service requests (808.739586ms)
+{"case":"identity-service302","status":401,"observedUrls":["https://axiom-internal/session/verify"]}
+✔ independent: private identity verifier redirect cannot authenticate a customer (1052.323186ms)
+ℹ tests 24
+ℹ suites 0
+ℹ pass 24
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 9621.407843

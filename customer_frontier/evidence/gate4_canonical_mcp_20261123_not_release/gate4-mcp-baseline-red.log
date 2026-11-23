@@ -1,0 +1,260 @@
+✔ published test dependency is byte-exact and is not a replacement gateway (1.971936ms)
+✔ active canonical OAuth customer reaches the supplied published gateway executor (51.654838ms)
+✖ revoked membership denies direct MCP while OAuth token is still active (14.402723ms)
+✖ revoked canonical link denies direct MCP while OAuth token is still active (14.12242ms)
+✖ revoked tenant denies direct MCP while OAuth token is still active (12.083142ms)
+✖ a previously successful dispatch is never a cached authorization after canonical revocation (15.198894ms)
+✖ canonical database absent or unavailable cannot fall back to OAuth-only access (14.43434ms)
+✖ unqualified staging admission cannot execute even with a valid token and mapping (9.602059ms)
+✖ a different canonical customer database cannot authenticate the OAuth customer (19.366333ms)
+✖ unqualified identity issuer drift denies even if both database rows are active (13.384616ms)
+✖ an OAuth token with no identity-token linkage cannot become canonical by browser headers (15.559047ms)
+✖ cross-customer OAuth access-token and key pairing denies at MCP dispatch (15.713872ms)
+✖ canonical revocation during the gateway OAuth read is observed before executor dispatch (10.718934ms)
+✖ private non-tool RPC forwarding also requires canonical admission (10.267964ms)
+✖ malformed batch forwarding cannot bypass canonical admission (9.346343ms)
+✔ public discovery remains available without customer qualification or bearer credentials (14.455432ms)
+ℹ tests 16
+ℹ suites 0
+ℹ pass 3
+ℹ fail 13
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 405.283121
+
+✖ failing tests:
+
+test at customer_frontier/tests/gate4_canonical_mcp.test.mjs:56:3
+✖ revoked membership denies direct MCP while OAuth token is still active (14.402723ms)
+  AssertionError [ERR_ASSERTION]: denied authorization must make zero executor calls
+  
+  1 !== 0
+  
+      at blocked (file:///workspace/scratch/bc4651aff037/axiom-gate4/customer_frontier/tests/gate4_canonical_mcp.test.mjs:32:9)
+      at async TestContext.<anonymous> (file:///workspace/scratch/bc4651aff037/axiom-gate4/customer_frontier/tests/gate4_canonical_mcp.test.mjs:59:2)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: 1,
+    expected: 0,
+    operator: 'strictEqual',
+    diff: 'simple'
+  }
+
+test at customer_frontier/tests/gate4_canonical_mcp.test.mjs:56:3
+✖ revoked canonical link denies direct MCP while OAuth token is still active (14.12242ms)
+  AssertionError [ERR_ASSERTION]: denied authorization must make zero executor calls
+  
+  1 !== 0
+  
+      at blocked (file:///workspace/scratch/bc4651aff037/axiom-gate4/customer_frontier/tests/gate4_canonical_mcp.test.mjs:32:9)
+      at async TestContext.<anonymous> (file:///workspace/scratch/bc4651aff037/axiom-gate4/customer_frontier/tests/gate4_canonical_mcp.test.mjs:59:2)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: 1,
+    expected: 0,
+    operator: 'strictEqual',
+    diff: 'simple'
+  }
+
+test at customer_frontier/tests/gate4_canonical_mcp.test.mjs:56:3
+✖ revoked tenant denies direct MCP while OAuth token is still active (12.083142ms)
+  AssertionError [ERR_ASSERTION]: denied authorization must make zero executor calls
+  
+  1 !== 0
+  
+      at blocked (file:///workspace/scratch/bc4651aff037/axiom-gate4/customer_frontier/tests/gate4_canonical_mcp.test.mjs:32:9)
+      at async TestContext.<anonymous> (file:///workspace/scratch/bc4651aff037/axiom-gate4/customer_frontier/tests/gate4_canonical_mcp.test.mjs:59:2)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: 1,
+    expected: 0,
+    operator: 'strictEqual',
+    diff: 'simple'
+  }
+
+test at customer_frontier/tests/gate4_canonical_mcp.test.mjs:62:1
+✖ a previously successful dispatch is never a cached authorization after canonical revocation (15.198894ms)
+  AssertionError [ERR_ASSERTION]: denied authorization must make zero executor calls
+  
+  1 !== 0
+  
+      at blocked (file:///workspace/scratch/bc4651aff037/axiom-gate4/customer_frontier/tests/gate4_canonical_mcp.test.mjs:32:9)
+      at async TestContext.<anonymous> (file:///workspace/scratch/bc4651aff037/axiom-gate4/customer_frontier/tests/gate4_canonical_mcp.test.mjs:64:67)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: 1,
+    expected: 0,
+    operator: 'strictEqual',
+    diff: 'simple'
+  }
+
+test at customer_frontier/tests/gate4_canonical_mcp.test.mjs:66:1
+✖ canonical database absent or unavailable cannot fall back to OAuth-only access (14.43434ms)
+  AssertionError [ERR_ASSERTION]: denied authorization must make zero executor calls
+  
+  1 !== 0
+  
+      at blocked (file:///workspace/scratch/bc4651aff037/axiom-gate4/customer_frontier/tests/gate4_canonical_mcp.test.mjs:32:9)
+      at async TestContext.<anonymous> (file:///workspace/scratch/bc4651aff037/axiom-gate4/customer_frontier/tests/gate4_canonical_mcp.test.mjs:68:66)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: 1,
+    expected: 0,
+    operator: 'strictEqual',
+    diff: 'simple'
+  }
+
+test at customer_frontier/tests/gate4_canonical_mcp.test.mjs:72:1
+✖ unqualified staging admission cannot execute even with a valid token and mapping (9.602059ms)
+  AssertionError [ERR_ASSERTION]: denied authorization must make zero executor calls
+  
+  1 !== 0
+  
+      at blocked (file:///workspace/scratch/bc4651aff037/axiom-gate4/customer_frontier/tests/gate4_canonical_mcp.test.mjs:32:9)
+      at async TestContext.<anonymous> (file:///workspace/scratch/bc4651aff037/axiom-gate4/customer_frontier/tests/gate4_canonical_mcp.test.mjs:74:60)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: 1,
+    expected: 0,
+    operator: 'strictEqual',
+    diff: 'simple'
+  }
+
+test at customer_frontier/tests/gate4_canonical_mcp.test.mjs:77:1
+✖ a different canonical customer database cannot authenticate the OAuth customer (19.366333ms)
+  AssertionError [ERR_ASSERTION]: denied authorization must make zero executor calls
+  
+  1 !== 0
+  
+      at blocked (file:///workspace/scratch/bc4651aff037/axiom-gate4/customer_frontier/tests/gate4_canonical_mcp.test.mjs:32:9)
+      at async TestContext.<anonymous> (file:///workspace/scratch/bc4651aff037/axiom-gate4/customer_frontier/tests/gate4_canonical_mcp.test.mjs:79:33)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: 1,
+    expected: 0,
+    operator: 'strictEqual',
+    diff: 'simple'
+  }
+
+test at customer_frontier/tests/gate4_canonical_mcp.test.mjs:81:1
+✖ unqualified identity issuer drift denies even if both database rows are active (13.384616ms)
+  AssertionError [ERR_ASSERTION]: denied authorization must make zero executor calls
+  
+  1 !== 0
+  
+      at blocked (file:///workspace/scratch/bc4651aff037/axiom-gate4/customer_frontier/tests/gate4_canonical_mcp.test.mjs:32:9)
+      at async TestContext.<anonymous> (file:///workspace/scratch/bc4651aff037/axiom-gate4/customer_frontier/tests/gate4_canonical_mcp.test.mjs:82:93)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: 1,
+    expected: 0,
+    operator: 'strictEqual',
+    diff: 'simple'
+  }
+
+test at customer_frontier/tests/gate4_canonical_mcp.test.mjs:84:1
+✖ an OAuth token with no identity-token linkage cannot become canonical by browser headers (15.559047ms)
+  AssertionError [ERR_ASSERTION]: denied authorization must make zero executor calls
+  
+  1 !== 0
+  
+      at blocked (file:///workspace/scratch/bc4651aff037/axiom-gate4/customer_frontier/tests/gate4_canonical_mcp.test.mjs:32:9)
+      at async TestContext.<anonymous> (file:///workspace/scratch/bc4651aff037/axiom-gate4/customer_frontier/tests/gate4_canonical_mcp.test.mjs:90:2)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: 1,
+    expected: 0,
+    operator: 'strictEqual',
+    diff: 'simple'
+  }
+
+test at customer_frontier/tests/gate4_canonical_mcp.test.mjs:92:1
+✖ cross-customer OAuth access-token and key pairing denies at MCP dispatch (15.713872ms)
+  AssertionError [ERR_ASSERTION]: denied authorization must make zero executor calls
+  
+  1 !== 0
+  
+      at blocked (file:///workspace/scratch/bc4651aff037/axiom-gate4/customer_frontier/tests/gate4_canonical_mcp.test.mjs:32:9)
+      at async TestContext.<anonymous> (file:///workspace/scratch/bc4651aff037/axiom-gate4/customer_frontier/tests/gate4_canonical_mcp.test.mjs:95:82)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: 1,
+    expected: 0,
+    operator: 'strictEqual',
+    diff: 'simple'
+  }
+
+test at customer_frontier/tests/gate4_canonical_mcp.test.mjs:97:1
+✖ canonical revocation during the gateway OAuth read is observed before executor dispatch (10.718934ms)
+  AssertionError [ERR_ASSERTION]: denied authorization must make zero executor calls
+  
+  1 !== 0
+  
+      at blocked (file:///workspace/scratch/bc4651aff037/axiom-gate4/customer_frontier/tests/gate4_canonical_mcp.test.mjs:32:9)
+      at async TestContext.<anonymous> (file:///workspace/scratch/bc4651aff037/axiom-gate4/customer_frontier/tests/gate4_canonical_mcp.test.mjs:106:2)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: 1,
+    expected: 0,
+    operator: 'strictEqual',
+    diff: 'simple'
+  }
+
+test at customer_frontier/tests/gate4_canonical_mcp.test.mjs:108:1
+✖ private non-tool RPC forwarding also requires canonical admission (10.267964ms)
+  AssertionError [ERR_ASSERTION]: denied authorization must make zero executor calls
+  
+  1 !== 0
+  
+      at blocked (file:///workspace/scratch/bc4651aff037/axiom-gate4/customer_frontier/tests/gate4_canonical_mcp.test.mjs:32:9)
+      at async TestContext.<anonymous> (file:///workspace/scratch/bc4651aff037/axiom-gate4/customer_frontier/tests/gate4_canonical_mcp.test.mjs:110:2)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: 1,
+    expected: 0,
+    operator: 'strictEqual',
+    diff: 'simple'
+  }
+
+test at customer_frontier/tests/gate4_canonical_mcp.test.mjs:112:1
+✖ malformed batch forwarding cannot bypass canonical admission (9.346343ms)
+  AssertionError [ERR_ASSERTION]: denied authorization must make zero executor calls
+  
+  1 !== 0
+  
+      at blocked (file:///workspace/scratch/bc4651aff037/axiom-gate4/customer_frontier/tests/gate4_canonical_mcp.test.mjs:32:9)
+      at async TestContext.<anonymous> (file:///workspace/scratch/bc4651aff037/axiom-gate4/customer_frontier/tests/gate4_canonical_mcp.test.mjs:113:27)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: 1,
+    expected: 0,
+    operator: 'strictEqual',
+    diff: 'simple'
+  }

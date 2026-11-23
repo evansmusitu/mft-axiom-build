@@ -1,0 +1,48 @@
+{
+  "schema": "musitu.axiom.gate4.canonical-mcp-local-candidate.v1",
+  "branch": "build/axiom-gate4-canonical-mcp-20261123",
+  "parent_commit": "8dac0f2207e46348dcca5f0f0bc8187cfd527744",
+  "source": {
+    "auth/canonical_mcp_authorization_candidate.mjs": {
+      "bytes": 3696,
+      "sha256": "e7d8ff5ce98f8d9c3d937a034a514276dd0bee123f35b84060c26b1e29d44d4d"
+    },
+    "mcp/canonical_mcp_admission_candidate.mjs": {
+      "bytes": 2565,
+      "sha256": "4d15f85ea6ce4d415d7c364e1464e1a5a72f7449ca29470c18eaae3800f2685f"
+    },
+    "customer_frontier/tests/fixtures/gate4-published-gateway/gateway.mjs": {
+      "bytes": 101122,
+      "sha256": "cf3e999deab721532ef584715fbdccc3699849ba40365bedccd961982779ece9"
+    },
+    "customer_frontier/tests/gate4_canonical_mcp.test.mjs": {
+      "bytes": 9413,
+      "sha256": "7219bcc89fe52bf3b964bf007aafc9d5563c73e63d2330edb6e1834c133ef21c"
+    },
+    "customer_frontier/runtime_acceptance/gate4_canonical_mcp_runtime.test.mjs": {
+      "bytes": 6722,
+      "sha256": "bdd67b6a50ff338b5da54d272dc40d9b0bf54172da2b073896abb581b3ec1176"
+    }
+  },
+  "local_results": {
+    "focused_node": 19,
+    "new_local_workerd": 8,
+    "full_node": 520,
+    "full_python": 344,
+    "full_local_workerd": 24,
+    "baseline_pass": 3,
+    "baseline_fail": 13
+  },
+  "gate3_closed": false,
+  "gate4_closed": false,
+  "hosted_identity_or_mcp_acceptance_qualified": false,
+  "independent_review_completed": false,
+  "production_gateway_or_oauth_modified": false,
+  "provider_operations": 0,
+  "real_customer_or_key_accessed": false,
+  "real_money_or_paid_inference": false,
+  "b27": "FAILED_IN_SYNTHETIC_ATTACK",
+  "parity_and_superiority": "NOT_CERTIFIED",
+  "unavailable_final_usage": "UNKNOWN",
+  "release_status": "NOT_RELEASE"
+}

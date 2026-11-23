@@ -1,0 +1,16 @@
+✔ workerd: current published gateway dispatches the active canonical fixture (949.264617ms)
+✔ workerd: canonical membership revocation blocks a still-active OAuth token (963.230371ms)
+✔ workerd: canonical canonical link revocation blocks a still-active OAuth token (912.628839ms)
+✔ workerd: canonical tenant revocation blocks a still-active OAuth token (787.565887ms)
+✔ workerd: qualification denial survives an otherwise valid token and mapping (787.519365ms)
+✔ workerd: canonical revocation remains effective after a real runtime restart (955.410606ms)
+✔ workerd: private RPC forwarding and batch requests cannot bypass admission (835.721806ms)
+✔ workerd: public discovery is preserved while canonical admission is disabled (831.512935ms)
+ℹ tests 8
+ℹ suites 0
+ℹ pass 8
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 7344.274028
