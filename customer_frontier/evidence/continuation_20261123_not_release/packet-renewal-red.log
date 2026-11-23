@@ -1,0 +1,81 @@
+test_archive_and_manifest_bind_all_public_bytes (test_authority2_possession_packet_renewal.PublicPacketRenewalTests.test_archive_and_manifest_bind_all_public_bytes) ... FAIL
+test_current_time_packet_fresh_and_pinned_to_original_authority (test_authority2_possession_packet_renewal.PublicPacketRenewalTests.test_current_time_packet_fresh_and_pinned_to_original_authority) ... FAIL
+test_derived_helper_changes_only_challenge_digest_and_wrapper_pin (test_authority2_possession_packet_renewal.PublicPacketRenewalTests.test_derived_helper_changes_only_challenge_digest_and_wrapper_pin) ... FAIL
+test_every_renewal_has_a_distinct_challenge (test_authority2_possession_packet_renewal.PublicPacketRenewalTests.test_every_renewal_has_a_distinct_challenge) ... FAIL
+test_historical_packet_stays_byte_exact_without_renewal (test_authority2_possession_packet_renewal.PublicPacketRenewalTests.test_historical_packet_stays_byte_exact_without_renewal) ... ok
+test_renewal_never_overwrites_an_existing_packet (test_authority2_possession_packet_renewal.PublicPacketRenewalTests.test_renewal_never_overwrites_an_existing_packet) ... FAIL
+
+======================================================================
+FAIL: test_archive_and_manifest_bind_all_public_bytes (test_authority2_possession_packet_renewal.PublicPacketRenewalTests.test_archive_and_manifest_bind_all_public_bytes)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/workspace/scratch/bc4651aff037/axiom-gate3/customer_frontier/tests/test_authority2_possession_packet_renewal.py", line 78, in test_archive_and_manifest_bind_all_public_bytes
+    directory, result = self.renewed()
+                        ^^^^^^^^^^^^^^
+  File "/workspace/scratch/bc4651aff037/axiom-gate3/customer_frontier/tests/test_authority2_possession_packet_renewal.py", line 34, in renewed
+    self.assertEqual(p.returncode, 0, p.stderr)
+AssertionError: 2 != 0 : usage: build_authority2_possession_packet.py [-h] --out OUT --source-commit
+                                             SOURCE_COMMIT [--local-source]
+build_authority2_possession_packet.py: error: unrecognized arguments: --renew-challenge
+
+
+======================================================================
+FAIL: test_current_time_packet_fresh_and_pinned_to_original_authority (test_authority2_possession_packet_renewal.PublicPacketRenewalTests.test_current_time_packet_fresh_and_pinned_to_original_authority)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/workspace/scratch/bc4651aff037/axiom-gate3/customer_frontier/tests/test_authority2_possession_packet_renewal.py", line 39, in test_current_time_packet_fresh_and_pinned_to_original_authority
+    directory, result = self.renewed()
+                        ^^^^^^^^^^^^^^
+  File "/workspace/scratch/bc4651aff037/axiom-gate3/customer_frontier/tests/test_authority2_possession_packet_renewal.py", line 34, in renewed
+    self.assertEqual(p.returncode, 0, p.stderr)
+AssertionError: 2 != 0 : usage: build_authority2_possession_packet.py [-h] --out OUT --source-commit
+                                             SOURCE_COMMIT [--local-source]
+build_authority2_possession_packet.py: error: unrecognized arguments: --renew-challenge
+
+
+======================================================================
+FAIL: test_derived_helper_changes_only_challenge_digest_and_wrapper_pin (test_authority2_possession_packet_renewal.PublicPacketRenewalTests.test_derived_helper_changes_only_challenge_digest_and_wrapper_pin)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/workspace/scratch/bc4651aff037/axiom-gate3/customer_frontier/tests/test_authority2_possession_packet_renewal.py", line 65, in test_derived_helper_changes_only_challenge_digest_and_wrapper_pin
+    directory, _ = self.renewed()
+                   ^^^^^^^^^^^^^^
+  File "/workspace/scratch/bc4651aff037/axiom-gate3/customer_frontier/tests/test_authority2_possession_packet_renewal.py", line 34, in renewed
+    self.assertEqual(p.returncode, 0, p.stderr)
+AssertionError: 2 != 0 : usage: build_authority2_possession_packet.py [-h] --out OUT --source-commit
+                                             SOURCE_COMMIT [--local-source]
+build_authority2_possession_packet.py: error: unrecognized arguments: --renew-challenge
+
+
+======================================================================
+FAIL: test_every_renewal_has_a_distinct_challenge (test_authority2_possession_packet_renewal.PublicPacketRenewalTests.test_every_renewal_has_a_distinct_challenge)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/workspace/scratch/bc4651aff037/axiom-gate3/customer_frontier/tests/test_authority2_possession_packet_renewal.py", line 58, in test_every_renewal_has_a_distinct_challenge
+    first, _ = self.renewed('first/packet')
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/workspace/scratch/bc4651aff037/axiom-gate3/customer_frontier/tests/test_authority2_possession_packet_renewal.py", line 34, in renewed
+    self.assertEqual(p.returncode, 0, p.stderr)
+AssertionError: 2 != 0 : usage: build_authority2_possession_packet.py [-h] --out OUT --source-commit
+                                             SOURCE_COMMIT [--local-source]
+build_authority2_possession_packet.py: error: unrecognized arguments: --renew-challenge
+
+
+======================================================================
+FAIL: test_renewal_never_overwrites_an_existing_packet (test_authority2_possession_packet_renewal.PublicPacketRenewalTests.test_renewal_never_overwrites_an_existing_packet)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/workspace/scratch/bc4651aff037/axiom-gate3/customer_frontier/tests/test_authority2_possession_packet_renewal.py", line 97, in test_renewal_never_overwrites_an_existing_packet
+    directory, result = self.renewed()
+                        ^^^^^^^^^^^^^^
+  File "/workspace/scratch/bc4651aff037/axiom-gate3/customer_frontier/tests/test_authority2_possession_packet_renewal.py", line 34, in renewed
+    self.assertEqual(p.returncode, 0, p.stderr)
+AssertionError: 2 != 0 : usage: build_authority2_possession_packet.py [-h] --out OUT --source-commit
+                                             SOURCE_COMMIT [--local-source]
+build_authority2_possession_packet.py: error: unrecognized arguments: --renew-challenge
+
+
+----------------------------------------------------------------------
+Ran 6 tests in 0.301s
+
+FAILED (failures=5)

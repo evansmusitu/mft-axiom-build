@@ -1,0 +1,13 @@
+test_archive_and_manifest_bind_all_public_bytes (test_authority2_possession_packet_renewal.PublicPacketRenewalTests.test_archive_and_manifest_bind_all_public_bytes) ... ok
+test_archive_collision_refuses_before_creating_a_new_directory (test_authority2_possession_packet_renewal.PublicPacketRenewalTests.test_archive_collision_refuses_before_creating_a_new_directory) ... ok
+test_current_time_packet_fresh_and_pinned_to_original_authority (test_authority2_possession_packet_renewal.PublicPacketRenewalTests.test_current_time_packet_fresh_and_pinned_to_original_authority) ... ok
+test_derived_helper_changes_only_challenge_digest_and_wrapper_pin (test_authority2_possession_packet_renewal.PublicPacketRenewalTests.test_derived_helper_changes_only_challenge_digest_and_wrapper_pin) ... ok
+test_every_renewal_has_a_distinct_challenge (test_authority2_possession_packet_renewal.PublicPacketRenewalTests.test_every_renewal_has_a_distinct_challenge) ... ok
+test_historical_packet_stays_byte_exact_without_renewal (test_authority2_possession_packet_renewal.PublicPacketRenewalTests.test_historical_packet_stays_byte_exact_without_renewal) ... ok
+test_non_commit_source_is_rejected_before_output (test_authority2_possession_packet_renewal.PublicPacketRenewalTests.test_non_commit_source_is_rejected_before_output) ... ok
+test_renewal_never_overwrites_an_existing_packet (test_authority2_possession_packet_renewal.PublicPacketRenewalTests.test_renewal_never_overwrites_an_existing_packet) ... ok
+
+----------------------------------------------------------------------
+Ran 8 tests in 0.681s
+
+OK
