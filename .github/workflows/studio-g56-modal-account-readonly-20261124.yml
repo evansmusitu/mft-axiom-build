@@ -1,0 +1,76 @@
+name: MUSITU Studio G5 Modal authenticated account readback ONLY (NO RENDER)
+on:
+  push:
+    branches:
+      - experiments/studio-g56-budgeted-render-20261122
+    paths:
+      - '.github/workflows/studio-g56-modal-account-readonly-20261124.yml'
+permissions:
+  contents: read
+concurrency:
+  group: musitu-studio-g56-modal-readonly-${{ github.ref }}
+  cancel-in-progress: false
+jobs:
+  modal-account-readonly:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 6
+    steps:
+      - name: Pin Python without checking out untrusted code
+        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065
+        with:
+          python-version: '3.13'
+      - name: Install official Modal SDK, no provider token in installation step
+        run: python -m pip install -q --disable-pip-version-check 'modal==1.6.4'
+      - name: Read authenticated workspace billing ONLY, never invoke functions
+        env:
+          MODAL_TOKEN_ID: ${{ secrets.MODAL_TOKEN_ID }}
+          MODAL_TOKEN_SECRET: ${{ secrets.MODAL_TOKEN_SECRET }}
+          EXPECTED_STUDIO_MODAL_WORKSPACE: ${{ vars.MUSITU_STUDIO_MODAL_WORKSPACE }}
+        shell: bash
+        run: |
+          python - <<'PY'
+          import json,os,sys
+          from decimal import Decimal
+          outcome={
+            'schema':'musitu.studio.g56.modal-auth-readonly.v1',
+            'credentials_provided':False,
+            'workspace_authenticated':False,
+            'expected_workspace_bound':False,
+            'billing_usage_readable':False,
+            'provider_hard_cap_verified':False,
+            'compute_enabled':False,
+            'render_jobs_spawned':False,
+            'provider_settings_mutated':False,
+            'commercial_release_authorized':False,
+          }
+          try:
+              tid=os.environ.get('MODAL_TOKEN_ID','')
+              secret=os.environ.get('MODAL_TOKEN_SECRET','')
+              expected=os.environ.get('EXPECTED_STUDIO_MODAL_WORKSPACE','')
+              if not (tid.startswith('ak-') and secret.startswith('as-') and
+                      len(tid)>=11 and len(secret)>=11):
+                  raise ValueError('MISSING_EXPLICIT_MODAL_API_AUTH')
+              outcome['credentials_provided']=True
+              import modal
+              workspace=modal.Workspace.from_context()
+              attr=workspace.name
+              actual=attr() if callable(attr) else attr
+              if not isinstance(actual,str) or not actual:
+                  raise ValueError('WORKSPACE_NOT_VERIFIABLE')
+              outcome['workspace_authenticated']=True
+              if not expected or expected!=actual:
+                  raise ValueError('EXPECTED_WORKSPACE_NOT_BOUND')
+              outcome['expected_workspace_bound']=True
+              summary=workspace.billing.summary(cycle='this month')
+              for item in ('metered_cost','billed_cost'):
+                  value=getattr(summary,item,None)
+                  if type(value) is not Decimal or not value.is_finite() or value<0:
+                      raise ValueError('BILLING_USAGE_NOT_VERIFIABLE')
+              outcome['billing_usage_readable']=True
+          except Exception:
+              # Do not expose provider error text, credentials, identity or costs.
+              pass
+          print('MUSITU_STUDIO_MODAL_PROVIDER_READBACK='+json.dumps(outcome,sort_keys=True))
+          # An authenticated usage response is still NOT hard-cap attestation.
+          sys.exit(0 if outcome['billing_usage_readable'] else 1)
+          PY
