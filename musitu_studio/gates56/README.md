@@ -124,3 +124,70 @@ change tenant enrollment, or touch any existing Studio QA assets.
 **No CI success, actual real render, true provider hard cap, cloud object store,
 hosted cancellation, paid ledger reconciliation or G5/G6 formal acceptance
 may be claimed until fresh independently recorded evidence exists.**
+
+## 24 November 2026 — authenticated Modal observation and offline DO queue schema
+
+The prior local safety suite was expanded with:
+- `modal_budget_observer.py`: calls the genuine documented Modal Python SDK
+  `Workspace.from_context().billing.summary(cycle="this month")` with explicit
+  `MODAL_TOKEN_ID` and `MODAL_TOKEN_SECRET`, verifies the exact configured
+  workspace name, rejects invalid/missing/nonfinite summaries, and rounds cost
+  observations upward to cents. Tests inject a fake SDK; **no authenticated live
+  account call has been performed or claimed by those tests**.
+- **Critical API boundary:** Modal billing summary is authenticated USAGE
+  observation, not a Workspace/Environment HARD BUDGET readback. The documented
+  SDK does not supply the enforceable remaining budget or expiry of usage data.
+  `ModalBudgetObserver.__call__` always raises
+  `MODAL_HARD_CAP_NOT_ATTESTED` and must never yield `VerifiedProviderCap`.
+  Even an authenticated billing result cannot open this Gate 5 control.
+- `durable_queue_schema.sql`: an *unapplied* namespaced SQLite schema candidate
+  for a NEW, isolated Cloudflare Durable Object; covers fail-closed kill switch,
+  tenant-scoped idempotency, queue state, one-writer transaction prerequisites,
+  fencing, attempt uniqueness, provider call uniqueness, immutable audit,
+  terminal immutability, completion requiring cost+credits+three artifacts, and
+  forbidden deletion of completed artifacts.
+- `test_modal_budget_observer.py` and `test_durable_queue_schema.py` add
+  offline negative and transactional checks to the existing workflow. The SQL
+  runs ONLY in ephemeral CI SQLite databases; it has not touched any Vercel,
+  Supabase, R2, Cloudflare, Modal or payment account.
+
+### Approved read-only path to real account evidence (NOT yet executed)
+
+On a trusted, private, operator-controlled machine with Modal SDK **1.6.4**
+installed and a minimum-privilege Modal API token supplied as runtime secrets:
+
+```python
+from musitu_studio.gates56.modal_budget_observer import ModalBudgetObserver
+
+probe = ModalBudgetObserver(expected_workspace="VERIFIED_WORKSPACE_NAME")
+observed = probe.read_usage()
+# Handle this object only in private authenticated operator logs.
+# It is NOT a provider-hard-cap certificate or permission to render.
+assert observed.rendering_authorized is False
+assert observed.hard_cap_verified is False
+```
+
+Do NOT add tokens, costs or customer account identifiers to GitHub source or
+public Actions logs. The already existing
+`.github/workflows/studio-v03-modal-spend-readonly-20261018.yml` uses a
+read-only Modal CLI billing summary, but does not provide the missing hard-cap
+attestation either. No new live workflow was triggered here.
+
+**Further prerequisites for a live Gate 5:** An independently trusted provider
+control-plane attestation for the exact Workspace enforced budget and actual
+remaining dollars; optionally separate Environment compute budget; separately
+capped Gemini spend; independent full-stack cost ceiling; unknown/provider-
+delayed costs fail closed. Do not substitute workspace included free credit for
+an enforced hard spend limit.
+
+**Further prerequisites for a live Gate 6:** An exact new DO namespace and
+versioned migration, private authenticated service-only routes, negative
+cross-tenant tests on real DO instances, robust lease/recovery and independent
+provider-call cancellation, non-QA private cloud artifacts, exact credit
+settlement, and independently verified live CPU execution. This source schema
+is not a running queue. G5 and G6 remain OPEN.
+
+Official docs:
+- https://modal.com/docs/guide/budgets
+- https://modal.com/docs/sdk/py/latest/Workspace
+- https://modal.com/docs/sdk/py/latest/FunctionCall
