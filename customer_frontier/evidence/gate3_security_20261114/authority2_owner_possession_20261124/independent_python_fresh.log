@@ -1,0 +1,1 @@
+{"independent_python_ed25519_verification": "PASS", "scope": "FRESH_AT_CHECK", "checked_at_utc": "2026-11-24T07:42:12.776652+00:00", "issued_challenge_exact_match": true, "public_pin_exact_match": true, "proof_sha256": "aed75f46b6d207ab8cea730baa25718af9f3c5fed85bf37c515c035aae2302d7", "gate3_closed": false, "hosted_custody_qualified": false}

@@ -1,7 +1,7 @@
 {
   "schema": "musitu.axiom.gate3.external-acceptance-inputs.v1",
-  "recorded_at_utc": "2026-11-16T06:32:21.121Z",
-  "status": "OWNER_PC_AVAILABLE_OFFLINE_AUTHORITY2_PUBLIC_POSSESSION_PROOF_PENDING",
+  "recorded_at_utc": "2026-11-24T07:37:52.057Z",
+  "status": "ACTUAL_SIGNER_POSSESSION_VERIFIED_PROVIDER_CUSTODY_HOSTED_ACCEPTANCE_PENDING",
   "controller": "Evans Musitu",
   "already_completed_owner_steps": [
     "controller declaration",
@@ -122,9 +122,9 @@
     "external_provider_execution_authority": false,
     "provider_admission_required": true,
     "production_authority": false,
-    "recorded_at_utc": "2026-11-16T05:15:42.915Z",
-    "evidence_origin": "FRESH_ACTUAL_CONNECTED_READONLY_STATUS_RESPONSE_THIS_TURN",
-    "does_not_establish_cloudflare_management_access": true
+    "observed_at_utc": "2026-11-24T07:44:33.039164+00:00",
+    "does_not_establish_cloudflare_management_access": true,
+    "evidence_origin": "ACTUAL_CONNECTED_READONLY_STATUS_RESPONSE"
   },
   "operator_private_actions_cannot_be_performed_under_builder_custody_and_count_as_independent": true,
   "gate3_closed": false,
@@ -139,11 +139,13 @@
     "review_decision": "APPROVE_AUTHORITY2_SOURCE_AND_DISPOSABLE_CONFIG_ONLY"
   },
   "next_owner_input": {
-    "question": "Run the existing Authority 2 signer possession check on the owner PC and return its public proof JSON only.",
+    "signer_possession_question_resolved": true,
     "expected_file": "OWNER_A2_SIGNER_POSSESSION_PROOF.json",
-    "answer_received": false,
+    "answer_received": true,
+    "signature_verified": true,
+    "verification_receipt_path": "authority2_owner_possession_20261124/VERIFICATION_RECEIPT.json",
     "private_key_upload_or_password_requested": false,
-    "prior_key_location_question_resolved": true
+    "next_missing_input": "Independent operator-side current provider policies and effective write-denial evidence for builder credentials. Existing owner reports remain preserved; no repeated key creation, source/config approval or backup recovery."
   },
   "signer_custody_location": {
     "receipt_path": "authority2_owner_signer_location_20261116.json",
@@ -160,6 +162,15 @@
     "evidence_origin": "DIRECT_USER_RESPONSE"
   },
   "offline_possession_challenge": {
+    "challenge_sha256": "cb28ecbfb1ba9167737ee18c9933cc94c7e56df599139fc24bbeccffb2890ee4",
+    "challenge_id": "1a9bfe868be22ffc0ef041cd2e87cdee7c7a27a12084ffb910b7e943ea2e18f6",
+    "expires_at_utc": "2026-11-24T10:46:41.122Z",
+    "receipt_path": "authority2_owner_possession_20261124/VERIFICATION_RECEIPT.json",
+    "possession_verified": true,
+    "verified_at_utc": "2026-11-24T07:37:52.057Z",
+    "hosted_custody_qualified": false
+  },
+  "historical_offline_possession_challenge_before_20261124": {
     "challenge_sha256": "60cd2f0ceec35106bc90beb7bfdb00326223d0a871a893f455e9dc0350a57878",
     "challenge_id": "afd56cb00b41969342398146ac99b2f2cb434d96b4268d519f17183905b1a2c7",
     "expires_at_utc": "2026-11-17T06:17:47.524Z",
