@@ -27,6 +27,10 @@ CREATE TABLE IF NOT EXISTS g56_do_jobs(
   project TEXT NOT NULL,
   submission_key TEXT NOT NULL,
   payload_sha256 TEXT NOT NULL CHECK(length(payload_sha256)=64),
+  -- MUSITU G5/G6 will never fall back to CPU rendering. Hardware is pinned
+  -- to the existing Modal T4 GPU adapter until a separate review revises it.
+  device TEXT NOT NULL DEFAULT 'GPU' CHECK(device='GPU'),
+  gpu_type TEXT NOT NULL DEFAULT 'T4' CHECK(gpu_type='T4'),
   state TEXT NOT NULL CHECK(state IN (
      'QUEUED','RUNNING','CANCEL_REQUESTED','NEEDS_REVIEW',
      'COMPLETED','FAILED','CANCELED')),
@@ -127,6 +131,8 @@ CREATE TRIGGER IF NOT EXISTS g56_do_reservation_immutable
    OR NEW.project IS NOT OLD.project
    OR NEW.submission_key IS NOT OLD.submission_key
    OR NEW.payload_sha256 IS NOT OLD.payload_sha256
+   OR NEW.device IS NOT OLD.device
+   OR NEW.gpu_type IS NOT OLD.gpu_type
    OR NEW.reserved_cents IS NOT OLD.reserved_cents
    OR NEW.credit_hold IS NOT OLD.credit_hold
    OR NEW.max_attempts IS NOT OLD.max_attempts
