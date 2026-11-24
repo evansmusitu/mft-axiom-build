@@ -1,80 +1,47 @@
 # Axiom v5 Frontier Fabric — Execution State
 
-Base production branch: `main`
-Base production SHA: `d6a846f6bbe0bccac1758713eb4de167caf07113`
-Development branch: `frontier/axiom-v5-skill-fabric`
-Draft PR: `#1` — `Axiom v5 Frontier Skill Fabric`
+- Base branch: `main` at `c3c5aaab`
+- Source: split from draft PR #1 (`frontier/axiom-v5-skill-fabric`, head `8fc1fbb7`). Only `frontier_v5/`, `.agents/plugins/marketplace.json` and one CI workflow were carried over.
+- Status date: 2026-11-24
 
 ## Safety invariant
 
-The sealed v4 OpenAI submission surface remains unchanged on `main`. Frontier work remains isolated on this branch. Passing frontier evidence does not silently mutate or promote the sealed production profile.
+This package changes no production surface (`auth/`, `mcp/`, `ops/`, `submission/`, `deploy_payload/`), uses no secrets, and makes no production calls. CI enforces this: see the isolation job in `.github/workflows/axiom-frontier-v5-ci.yml` and `tests/test_isolation_boundary.py`.
 
-## Implemented and verified in the frontier branch
+## What exists, with repository-local tests
 
-- Exact 110-capability target registry:
-  - 44 public OpenAI skill packages
-  - 36 mapped public role-specific workflows
-  - 30 MUSITU proprietary defensibility targets
-- 30 composable MUSITU skill packages:
-  - 18 submission-oriented analytical/business skills
-  - 12 frontier/proprietary skills
-- Proof/evidence, temporal memory, governance, authorization, capability-routing and fail-closed promotion primitives.
-- Persistent memory and isolated production persistence adapters.
-- Company, portfolio and economic digital-twin calibration plus historical/independent validation.
-- Specialist society, independent verifier and production OAuth -> MCP tool bindings.
-- Live research with byte-level provenance capture and a canonical Unicode-normalizing retrieved-content firewall.
-- Real DOCX, XLSX, PPTX, PDF and HTML/application workbenches with round-trip checks.
-- Real Playwright browser automation plus virtual-desktop computer-use verification.
-- Six multimodal paths: image, audio, speech, video, camera-stream and screen.
-- Sealed unseen comparative evaluation, adversarial retrieval evaluation, independent external-data validation and longitudinal regression protection.
+| Area | Where | Evidence |
+|---|---|---|
+| 30 skills (18 submission, 12 frontier) | `skills/`, `MANIFEST.json` | strict lint; deterministic packaging (byte-identical across builds) |
+| 110 capability targets (44 + 36 + 30) | `CAPABILITY_TARGETS.json` | registry only; a target is not an implementation |
+| Proof envelopes, ledgers, promotion policy | `runtime/fabric.py`, `runtime/advanced.py`, `scripts/` | `test_frontier_runtime.py`, `test_advanced_runtime.py`, `test_gate_integrity.py` |
+| Retrieved-content firewall | `runtime/retrieval_security.py` (single implementation) | 36/36 on the repository-authored corpus (22 attacks, 14 benign look-alikes) |
+| Capability broker | `runtime/advanced.py` | side-effecting capabilities need a confirmed user instruction |
+| Governance, identity, licensing, incident response, DR, spend, SLO, durable tasks, planner | `runtime/*.py` | one contract test per module |
+| Artifact, browser, sandbox and media adapters | `runtime/fullstack_base.py`, `runtime/fullstack.py` | `test_fullstack_local.py` (local fixtures only) |
+| Security hardening | sandbox, redirects, secret scanner, file guard, OIDC, spend clock | `test_security_hardening.py` |
 
-## Five-year frontier engineering objective gate
+All 38 standard-library contract scripts pass on Python 3.11 and 3.12.
 
-Workflow: `MUSITU Axiom Frontier v5 Full-Stack Verification`
-Run: `34046583704`
-Result: `SUCCESS`
-Verified head SHA: `bbb826834ee0924e5c9b84d030d7532c0e080ead`
-Final gate: `MUSITU_AXIOM_FIVE_YEAR_FRONTIER_OBJECTIVE_PASS`
-Final objective evidence SHA-256: `57b17a48e3f232afac485c213e05d63a80ad6350bf578fd8c43ac1e06397f812`
-Artifact: `musitu-axiom-frontier-v5-fullstack-evidence`
-Artifact ID: `9993303336`
-Artifact ZIP SHA-256: `09df64c61281f046304ec78d03ca0967d07a1480bb6a85fd2e2b313f39e6896a`
+## Not verified
 
-The passing evidence includes:
+- **External comparison (Level 5):** no baseline in `evals/EXTERNAL_BASELINE_REGISTRY.json` has been run. The registry review expired on 2026-10-07 and must be redone before any comparison.
+- **Independent reproduction (Level 6)** and **longitudinal tracking (Level 7):** not started.
+- **Five-year objective:** `NOT_MET`. All eight workstreams are `PARTIAL`, with their open items listed in `FIVE_YEAR_FRONTIER_OBJECTIVE.json`.
 
-- `MUSITU_AXIOM_FRONTIER_FULLSTACK_LOCAL_PASS`
-- `MUSITU_AXIOM_FRONTIER_COMPUTER_USE_PASS`
-- `MUSITU_AXIOM_FRONTIER_MULTIMODAL_PASS`
-- `MUSITU_AXIOM_FRONTIER_ADVERSARIAL_PASS` — 20/20 cases
-- `MUSITU_AXIOM_FRONTIER_INDEPENDENT_IMPLEMENTATION_VALIDATION_PASS`
-- `MUSITU_AXIOM_FRONTIER_LIVE_ADAPTERS_PASS`
-- `MUSITU_AXIOM_FRONTIER_LONGITUDINAL_REGRESSION_PASS`
-- `MUSITU_AXIOM_FIVE_YEAR_FRONTIER_OBJECTIVE_PASS`
+## Withdrawn evidence
 
-Independent/external validation used SEC Companyfacts, World Bank indicators, external AAPL/MSFT market history, scikit-learn, NumPy and SymPy. The live-adapter gate also proved isolated Cloudflare D1 persistence, live provenance-captured research, a real browser path, six production OAuth -> public MCP -> metered specialist bindings, and a sealed comparative holdout.
+PR #1 reported `MUSITU_AXIOM_FIVE_YEAR_FRONTIER_OBJECTIVE_PASS` from run `34046583704`. That result is withdrawn and not carried forward:
 
-## Strengthened longitudinal floor
+- Its objective, promotion and longitudinal checks compared status strings written by the same job or edited by hand.
+- Its live verifier wrote fixture customers and API keys into the production database.
+- Its "sealed unseen" holdout was four arithmetic expressions defined in the verifier itself.
 
-After the objective pass, the regression baseline was raised rather than left at weaker pre-pass thresholds:
+The scripts behind it (`frontier_live_verify.py`, `frontier_live_verify_v2.py`, `frontier_independent_validate.py`, `run_longitudinal_gate.py`, `evals/LONGITUDINAL_BASELINE.json`) are not part of this package.
 
-- multimodal modalities: `6` minimum
-- adversarial cases: `20` minimum
-- adversarial pass rate: `1.0`
-- live required checks: `6` minimum at `1.0` pass rate
-- independent validators: `2` minimum
-- sealed comparative holdout: `4` minimum
-- specialist tool bindings: `6` minimum
+## Next
 
-No required minimum may be lowered automatically.
-
-## Claim boundary
-
-The repository-defined five-year frontier **engineering objective is verified for the cited evidence set**. This is not a claim that MUSITU is already proven globally world-best, superior to every present/future competitor, or guaranteed to lead the market for five calendar years. Those broader claims remain evidence-gated and require continuing external comparative, adversarial and longitudinal evaluation.
-
-## Exact next execution
-
-1. Re-run the full-stack verification against the strengthened longitudinal floor and current branch head.
-2. Confirm the skill gate and brand guard are green on the same current branch state.
-3. Package/download a fresh CI-certified 18-skill OpenAI submission profile from that state.
-4. Only then proceed to OpenAI portal skill validation, beginning with the CI-certified `musitu-command-center.zip`.
-5. Keep the 12 frontier-only skills private unless/until each is policy-compatible and explicitly intended for the public OpenAI surface.
+1. Review and merge this package. It has no production effect.
+2. Choose the first external benchmark, for example the 74-operation quantitative engine against independent reference values and current frontier models. Re-review the baseline registry, then run it to the Level 5 rule in `EVAL_CONTRACT.json`.
+3. Complete Python distribution hashes (`supply_chain/LOCK.json` is `PARTIAL`).
+4. Close the open items per workstream in `FIVE_YEAR_FRONTIER_OBJECTIVE.json`, each with its own evidence.

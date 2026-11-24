@@ -8,7 +8,9 @@ Only skills directly supported by the current public MCP surface or by ordinary 
 
 ## Profile B — private/direct frontier skills
 
-Capabilities such as computer control, software deployment, Figma manipulation, arbitrary code execution, engineering operations, private enterprise integrations, transaction-adjacent operations, or other actions requiring capabilities not exposed by the public MCP surface remain private/direct until their required tools, permissions, security model and OpenAI submission policy have been separately proven.
+Profile B currently holds the 12 frontier skills listed under `frontier_skills` in `MANIFEST.json`: proof ledger, temporal memory, causal/counterfactual analysis, digital twin, agent society, uncertainty calibration, instruction firewall, adversarial simulation, self-evolving evals, continual learning, capability router and governance. None of them grants computer control, deployment or design-tool access today.
+
+If capabilities such as computer control, software deployment, Figma manipulation, arbitrary code execution, engineering operations, private enterprise integrations or transaction-adjacent operations are added later, they also belong in Profile B. They stay private/direct until their required tools, permissions, security model and OpenAI submission policy have been separately proven.
 
 A skill file must never pretend to grant a tool that the runtime does not expose.
 
