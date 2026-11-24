@@ -148,3 +148,9 @@ test('contradictory or malformed asset envelopes remain unqualified and diagnost
   assert.equal(r.controls.worker_assets.passed,false);assert.equal(r.bounded_worker_assets_r2_denial_tests_passed,false);assert(!JSON.stringify(r).includes('PRIVATE_REJECTED_JWT'));assert(!JSON.stringify(r).includes('PRIVATE_BUCKET_CONTENT'));holds(r);
  }
 });
+test('nullable asset error containers preserve explicit200 success and403 refusal without affecting other endpoints',async()=>{
+ const f=fixture(),r=await run(f,{includeAssetsProbe:true,includePreviewProbe:false,fetchImpl:async req=>{
+  if(req.url.endsWith('/assets-upload-session'))return req.url.includes(SOURCE)?Response.json({success:true,errors:null,result:{jwt:'PRIVATE_NULL_ERRORS_JWT',buckets:[['e3b0c44298fc1c149afbf4c8996fb924']]}}):Response.json({success:false,errors:null,result:null},{status:403});
+  return f.fetchImpl(req);
+ }});assert.equal(r.bounded_worker_assets_r2_denial_tests_passed,true);assert.equal(r.bounded_write_denial_tests_passed,false);assert(!JSON.stringify(r).includes('PRIVATE_NULL_ERRORS_JWT'));holds(r);
+});

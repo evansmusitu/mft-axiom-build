@@ -1,0 +1,31 @@
+✔ valid source controls and six real-endpoint authorization denials qualify only the bounded checks (46.507132ms)
+✔ global key is checked against the provider-verified principal without exporting email or credential values (11.4262ms)
+✔ inactive or mismatched subjects cannot trigger canary mutation attempts (1.370943ms)
+✔ 401,404,429,500 responses cannot be promoted to effective authorization denial (47.346991ms)
+✔ failed positive controls leave the affected endpoint tests unqualified (2.587498ms)
+✔ missing Authority2 upload session prevents a malformed Worker request from being called a denial (5.210397ms)
+✔ an unexpected private bucket creation fails denial and cleans only its acknowledged new empty name (7.897063ms)
+✔ failed cleanup is retained as a blocker with its exact disposable name (2.762506ms)
+✔ provider identifier drift after denied calls invalidates the acceptance (6.445591ms)
+✔ bad nonce values are refused before any network request (0.875632ms)
+✔ untrusted transport errors never leak secrets and never become denied writes (0.790666ms)
+✔ CLI refuses outside its exact isolated push context before provider access (136.401798ms)
+✔ all mutation requests remain outside retained buckets, authority scripts, D1, tokens and routing settings (13.114221ms)
+✔ redirects cannot forward credentials and cannot supply a successful control or denial (1.318095ms)
+✔ hanging fetches have a real deadline and cannot become qualified failures (104.467078ms)
+✔ duplicate JSON and reflected credentials in a purported403 body cannot qualify denial (4.430186ms)
+✔ global-key membership absence is not inferred from an incomplete provider page (7.050353ms)
+✔ a separate asset-session scope proves Workers write denial without waiving the unavailable preview test (4.329098ms)
+✔ an unavailable or failed asset-session control cannot qualify that permission test (2.346983ms)
+✔ an unexpectedly granted asset-upload capability is a denial failure and is never used (1.889328ms)
+✔ the documented assets success without an errors member qualifies only that endpoint control (5.005186ms)
+✔ contradictory or malformed asset envelopes remain unqualified and diagnostic shape reveals no values (6.677202ms)
+✔ nullable asset error containers preserve explicit200 success and403 refusal without affecting other endpoints (2.980098ms)
+ℹ tests 23
+ℹ suites 0
+ℹ pass 23
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 566.863829

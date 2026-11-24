@@ -72,12 +72,19 @@ function transport(fetchImpl,nonce,timeoutMs){
    const d=parseIdentityJson(new TextDecoder('utf-8',{fatal:true}).decode(raw));
    // Cloudflare's direct-upload contract omits errors on a successful assets
    // session response. This exception is exact-endpoint and success-only.
-   if(path.endsWith('/assets-upload-session')&&r.status===200&&d?.success===true&&(d.errors===undefined||Array.isArray(d.errors)&&d.errors.length===0)&&
+   const assetsEndpoint=path.endsWith('/assets-upload-session'),noAssetErrors=d?.errors==null||Array.isArray(d.errors)&&d.errors.length===0;
+   if(assetsEndpoint&&r.status===200&&d?.success===true&&noAssetErrors&&
     capability(d.result?.jwt)&&Array.isArray(d.result?.buckets)&&d.result.buckets.length<=100&&d.result.buckets.every(b=>Array.isArray(b)&&b.length<=100&&b.every(h=>typeof h==='string'&&/^[a-f0-9]{32}$/.test(h)))){
-    return {http_status:r.status,state:'VALID_DOCUMENTED_ASSETS_SESSION_RESPONSE',valid:true,result:d.result,error_codes:[]};
+    return {http_status:r.status,state:'VALID_ASSETS_SUCCESS_NULL_OR_OPTIONAL_ERRORS',valid:true,result:d.result,error_codes:[],provider_json_shape:{errors_is_null:d.errors===null,errors_absent:d.errors===undefined}};
    }
+   // The internal Workers service may return a null/empty error container.
+   // HTTP403 plus explicit success=false at this endpoint is a refusal, not
+   // a success/control. Stable active identities and a live positive control
+   // are still mandatory in the caller; other statuses/endpoints are unchanged.
+   if(assetsEndpoint&&r.status===403&&d?.success===false&&noAssetErrors&&d.result==null)
+    return {http_status:r.status,state:'ASSETS_HTTP403_EXPLICIT_PROVIDER_REFUSAL',rejected:true,error_codes:[],provider_json_shape:{errors_is_null:d.errors===null,errors_absent:d.errors===undefined}};
    const shape={success_type:typeof d?.success,errors_type:d?.errors===undefined?'ABSENT':Array.isArray(d.errors)?'ARRAY':typeof d.errors,
-    errors_count:Array.isArray(d?.errors)?d.errors.length:null,result_has_jwt:typeof d?.result?.jwt==='string',top_level_has_jwt:typeof d?.jwt==='string'};
+    errors_count:Array.isArray(d?.errors)?d.errors.length:null,errors_is_null:d?.errors===null,result_has_jwt:typeof d?.result?.jwt==='string',top_level_has_jwt:typeof d?.jwt==='string'};
    if(!d||!Array.isArray(d.errors)||![true,false].includes(d.success))return {http_status:r.status,state:'INVALID_PROVIDER_ENVELOPE_UNKNOWN',provider_json_shape:shape};
    const error_codes=[...new Set(d.errors.map(e=>e?.code).filter(n=>Number.isInteger(n)&&n>=0&&n<=999999999))].slice(0,10);
    if(d.success===true&&d.errors.length===0&&r.status>=200&&r.status<300&&Object.hasOwn(d,'result'))return {http_status:r.status,state:'VALID_PROVIDER_SUCCESS',valid:true,result:d.result,pagination:d.result_info,error_codes};
