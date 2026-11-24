@@ -160,3 +160,26 @@ test('policy projection failures export only fixed reason enums and no response 
   assert.equal(p.projection_hold_reason,reason);assert(!JSON.stringify(r).includes(token));holds(r);
  }
 });
+test('empty provider permission-group arrays remain visible and do not certify a read-only grant',async()=>{
+ const f=fake(),r=await probeBuildCredentials({env:tokenEnv,fetchImpl:async req=>/\/tokens\/[a-f0-9]{32}$/.test(new URL(req.url).pathname)?policyResponse({extra:{policies:[{effect:'deny',resources:{['com.cloudflare.api.account.'+A2]:'*'},permission_groups:[]}]}}):f.fetchImpl(req)});
+ const p=r.credentials.find(c=>c.reference==='CLOUDFLARE_API_TOKEN').verification.policy_metadata;assert.equal(p.policy_metadata_observed,true);
+ assert.equal(p.policies[0].empty_permission_groups,true);assert.equal(p.effective_policy_resolution_verified,false);holds(r);
+});
+test('a missing permission-group array emits its fixed shape without guessing permissions',async()=>{
+ const f=fake(),r=await probeBuildCredentials({env:tokenEnv,fetchImpl:async req=>/\/tokens\/[a-f0-9]{32}$/.test(new URL(req.url).pathname)?policyResponse({extra:{policies:[{effect:'allow',resources:{['com.cloudflare.api.account.'+A2]:'*'}}]}}):f.fetchImpl(req)});
+ const p=r.credentials.find(c=>c.reference==='CLOUDFLARE_API_TOKEN').verification.policy_metadata;assert.equal(p.permission_groups_shape,'MISSING');assert.equal(p.policy_metadata_observed,false);holds(r);
+});
+test('an existing build metadata token may read only the exact previously provider-verified recovery token policy',async()=>{
+ const recoveryId='b'.repeat(32),adminId='c'.repeat(32),recoveryToken='R'.repeat(40),adminToken='A'.repeat(40),calls=[],f=fake();
+ const r=await probeBuildCredentials({env:{AXIOM_D1_RECOVERY_CF_API_TOKEN:recoveryToken,MUSITU_CLOUDFLARE_ADMIN_TOKEN:adminToken},fetchImpl:async req=>{
+  const path=new URL(req.url).pathname,auth=req.headers.get('authorization');calls.push({path,auth});
+  if(path.endsWith('/tokens/verify'))return cf({id:auth==='Bearer '+recoveryToken?recoveryId:adminId,status:'active'});
+  if(path.endsWith('/tokens/'+recoveryId)&&auth==='Bearer '+recoveryToken)return new Response(null,{status:403});
+  if(/\/tokens\/[a-f0-9]{32}$/.test(path))return policyResponse({extra:{id:path.endsWith(recoveryId)?recoveryId:adminId}});
+  return f.fetchImpl(req);
+ }});
+ const p=r.credentials.find(c=>c.reference==='AXIOM_D1_RECOVERY_CF_API_TOKEN').verification.existing_build_metadata_reader;
+ assert.equal(p.reference,'MUSITU_CLOUDFLARE_ADMIN_TOKEN');assert.equal(p.policy_metadata.policy_metadata_observed,true);
+ assert.equal(calls.filter(x=>x.path.endsWith('/tokens/'+recoveryId)&&x.auth==='Bearer '+adminToken).length,1);
+ assert(!JSON.stringify(r).includes(recoveryId));assert(!JSON.stringify(r).includes(adminToken));holds(r);
+});

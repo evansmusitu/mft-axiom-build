@@ -51,11 +51,12 @@ async function resourceReads(api,headers){
  if(l&&Array.isArray(l.rules))result.bucket_lock={...result.bucket_lock,indefinite_b27_rule_observed:l.rules.some(r=>r?.enabled===true&&r.condition?.type==='Indefinite'&&[undefined,'','b27/'].includes(r.prefix))};
  return result;
 }
-async function verifyToken(api,token,protectedValues){
+async function verifyToken(api,token,protectedValues,verifiedIds,reference){
  const headers={authorization:'Bearer '+token},attempts=[];
  for(const [scope,path]of [['user','/user/tokens/verify'],['account_a2',`/accounts/${A2}/tokens/verify`],['account_source',`/accounts/${SOURCE_ACCOUNT}/tokens/verify`]]){
   const r=await api.get(path,headers);attempts.push({scope,...publicRead(r)});const t=r.data?.result;
   if(t&&hex32(t.id)&&!protectedValues.has(t.id)&&['active','disabled','expired'].includes(t.status)){
+   verifiedIds.set(reference,{scope,id:t.id});
    const details=await tokenPolicy(api,headers,scope,t.id);
    return {attempts,token_identifier_sha256:sha('cloudflare-token-id\n'+t.id),token_status:t.status,verification_scope:scope,policy_metadata:details};
   }
@@ -76,7 +77,8 @@ async function tokenPolicy(api,headers,scope,id){
  for(const policy of p.policies){
   if(!['allow','deny'].includes(policy?.effect))return hold('POLICY_EFFECT_UNSUPPORTED');
   if(!policy.resources||Array.isArray(policy.resources)||typeof policy.resources!=='object')return hold('RESOURCE_MAP_UNSUPPORTED');
-  if(!Array.isArray(policy.permission_groups)||policy.permission_groups.length<1||policy.permission_groups.length>100)return hold('PERMISSION_GROUP_ARRAY_UNSUPPORTED');
+  if(!Array.isArray(policy.permission_groups))return {...hold('PERMISSION_GROUP_ARRAY_UNSUPPORTED'),permission_groups_shape:policy.permission_groups===undefined?'MISSING':policy.permission_groups===null?'NULL':'OTHER_TYPE'};
+  if(policy.permission_groups.length>100)return hold('PERMISSION_GROUP_COUNT_UNSUPPORTED');
   const resources=Object.keys(policy.resources);if(resources.length<1||resources.length>100)return hold('RESOURCE_COUNT_UNSUPPORTED');
   let explicit=false,all=false,unknown=false;
   for(const resource of resources){
@@ -94,7 +96,7 @@ async function tokenPolicy(api,headers,scope,id){
    else if(/ (Write|Edit)$/.test(group.name))write++;
    else unclassified++;
   }
-  rows.push({effect:policy.effect,explicit_a2_resource:explicit,all_account_resource:all,unclassified_resource_scope:unknown,read_named_groups:read,write_named_groups:write,unclassified_groups:unclassified});
+  rows.push({effect:policy.effect,explicit_a2_resource:explicit,all_account_resource:all,unclassified_resource_scope:unknown,empty_permission_groups:policy.permission_groups.length===0,read_named_groups:read,write_named_groups:write,unclassified_groups:unclassified});
  }
  return {...out,policy_metadata_observed:true,policies:rows,
   potential_a2_write_allow_policy_observed:rows.some(p=>p.effect==='allow'&&(p.explicit_a2_resource||p.all_account_resource||p.unclassified_resource_scope)&&p.write_named_groups>0),
@@ -129,13 +131,21 @@ async function memberships(api,headers){
  return result;
 }
 export async function probeBuildCredentials({env=process.env,fetchImpl=globalThis.fetch,timeoutMs=5000}={}){
- const api=client(fetchImpl,timeoutMs),credentials=[];
+ const api=client(fetchImpl,timeoutMs),credentials=[],verifiedIds=new Map();
  const protectedValues=new Set([...TOKEN_REFS,...KEY_REFS,'CLOUDFLARE_EMAIL'].map(k=>env[k]).filter(x=>typeof x==='string'&&x.length));
  for(const reference of TOKEN_REFS){
   const value=env[reference];if(!value){credentials.push({reference,type:'API_TOKEN',status:'NOT_AVAILABLE_IN_THIS_WORKFLOW_CONTEXT'});continue;}
   if(!secretValue(value)){credentials.push({reference,type:'API_TOKEN',status:'LOCAL_FORMAT_UNSUPPORTED_UNKNOWN'});continue;}
-  const verification=await verifyToken(api,value,protectedValues),reads=await resourceReads(api,{authorization:'Bearer '+value});
+  const verification=await verifyToken(api,value,protectedValues,verifiedIds,reference),reads=await resourceReads(api,{authorization:'Bearer '+value});
   credentials.push({reference,type:'API_TOKEN',status:'GET_OBSERVATIONS_ONLY_NOT_PERMISSION_QUALIFICATION',verification,...reads});
+ }
+ // Existing build-held metadata credential only; one exact verified user-token ID.
+ // Never enumerate tokens, add privileges, export identifiers or accept this as independent proof.
+ const recovery=credentials.find(c=>c.reference==='AXIOM_D1_RECOVERY_CF_API_TOKEN'),target=verifiedIds.get('AXIOM_D1_RECOVERY_CF_API_TOKEN');
+ const admin=credentials.find(c=>c.reference==='MUSITU_CLOUDFLARE_ADMIN_TOKEN'),reader=verifiedIds.get('MUSITU_CLOUDFLARE_ADMIN_TOKEN');
+ if(recovery?.verification?.policy_metadata?.http_status===403&&target?.scope==='user'&&reader?.scope==='user'&&admin?.verification?.policy_metadata?.http_status===200){
+  recovery.verification.existing_build_metadata_reader={reference:'MUSITU_CLOUDFLARE_ADMIN_TOKEN',
+   policy_metadata:await tokenPolicy(api,{authorization:'Bearer '+env.MUSITU_CLOUDFLARE_ADMIN_TOKEN},target.scope,target.id)};
  }
  for(const reference of KEY_REFS){
   const value=env[reference],email=env.CLOUDFLARE_EMAIL;
