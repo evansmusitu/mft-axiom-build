@@ -114,3 +114,37 @@ test('an identifier equal to another protected credential is also rejected',asyn
  for(const c of r.credentials.filter(c=>c.verification))assert.equal(c.verification.token_identifier_sha256,null);
  assert(!JSON.stringify(r).includes(other));holds(r);
 });
+function policyResponse({resource='com.cloudflare.api.account.'+A2,name='Workers Scripts Read',extra={}}={}){
+ return cf({id,name:'PRIVATE_TOKEN_NAME',status:'active',policies:[{effect:'allow',resources:{[resource]:'*'},permission_groups:[{id:'d'.repeat(32),name}]}],...extra});
+}
+test('self-policy GET projects A2 resource/read classifications without exporting raw policy identifiers or token names',async()=>{
+ const f=fake(),r=await probeBuildCredentials({env:tokenEnv,fetchImpl:async req=>/\/tokens\/[a-f0-9]{32}$/.test(new URL(req.url).pathname)?policyResponse():f.fetchImpl(req)});
+ const p=r.credentials.find(c=>c.reference==='CLOUDFLARE_API_TOKEN').verification.policy_metadata;
+ assert.equal(p.policy_metadata_observed,true);assert.equal(p.policies[0].explicit_a2_resource,true);assert.equal(p.policies[0].read_named_groups,1);assert.equal(p.potential_a2_write_allow_policy_observed,false);
+ assert(!JSON.stringify(r).includes('PRIVATE_TOKEN_NAME'));assert(!JSON.stringify(r).includes('d'.repeat(32)));holds(r);
+});
+test('an explicit write allow in policy metadata is observed without claiming effective-policy or custody acceptance',async()=>{
+ const f=fake(),r=await probeBuildCredentials({env:tokenEnv,fetchImpl:async req=>/\/tokens\/[a-f0-9]{32}$/.test(new URL(req.url).pathname)?policyResponse({name:'Workers Scripts Write'}):f.fetchImpl(req)});
+ const p=r.credentials.find(c=>c.reference==='CLOUDFLARE_API_TOKEN').verification.policy_metadata;
+ assert.equal(p.potential_a2_write_allow_policy_observed,true);assert.equal(p.effective_policy_resolution_verified,false);holds(r);
+});
+test('unclassified resource scope stays explicit rather than being assumed to exclude Authority2',async()=>{
+ const f=fake(),r=await probeBuildCredentials({env:tokenEnv,fetchImpl:async req=>/\/tokens\/[a-f0-9]{32}$/.test(new URL(req.url).pathname)?policyResponse({resource:'com.cloudflare.api.account.zone.*'}):f.fetchImpl(req)});
+ const p=r.credentials.find(c=>c.reference==='CLOUDFLARE_API_TOKEN').verification.policy_metadata;assert.equal(p.policies[0].unclassified_resource_scope,true);holds(r);
+});
+test('denied or malformed self-policy metadata does not become a read-only permission certificate',async()=>{
+ for(const response of [new Response(null,{status:403}),policyResponse({extra:{id:'0'.repeat(32)}}),policyResponse({extra:{value:token}})]){
+  const f=fake(),r=await probeBuildCredentials({env:tokenEnv,fetchImpl:async req=>/\/tokens\/[a-f0-9]{32}$/.test(new URL(req.url).pathname)?response.clone():f.fetchImpl(req)});
+  const p=r.credentials.find(c=>c.reference==='CLOUDFLARE_API_TOKEN').verification.policy_metadata;assert.equal(p.policy_metadata_observed,false);assert(!JSON.stringify(r).includes(token));holds(r);
+ }
+});
+test('account-source token details use the source account endpoint rather than a guessed user-token policy',async()=>{
+ const f=fake(),urls=[];const r=await probeBuildCredentials({env:tokenEnv,fetchImpl:async req=>{
+  const u=new URL(req.url);urls.push(u.pathname);
+  if(u.pathname.endsWith('/tokens/verify')&&!u.pathname.includes('/93f395f5121954671f92fffa453d6b61/'))return new Response(null,{status:401});
+  if(/\/tokens\/[a-f0-9]{32}$/.test(u.pathname))return policyResponse({resource:'com.cloudflare.api.account.93f395f5121954671f92fffa453d6b61'});
+  return f.fetchImpl(req);
+ }});
+ assert(urls.includes('/client/v4/accounts/93f395f5121954671f92fffa453d6b61/tokens/'+id));
+ assert.equal(r.credentials.find(c=>c.reference==='CLOUDFLARE_API_TOKEN').verification.policy_metadata.policies[0].explicit_a2_resource,false);holds(r);
+});

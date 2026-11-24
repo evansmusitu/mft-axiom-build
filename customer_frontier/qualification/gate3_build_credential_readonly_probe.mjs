@@ -12,7 +12,8 @@ const TOKEN_REFS=['AXIOM_D1_RECOVERY_CF_API_TOKEN','MUSITU_CLOUDFLARE_ADMIN_TOKE
 const KEY_REFS=['CLOUDFLARE_GLOBAL_API_KEY','CLOUDFLARE_API_KEY'];
 const hex32=x=>typeof x==='string'&&/^[a-f0-9]{32}$/.test(x);
 const sha=x=>createHash('sha256').update(x).digest('hex');
-const permitted=path=>['/user','/user/tokens/verify',`/accounts/${A2}/tokens/verify`,`/accounts/${SOURCE_ACCOUNT}/tokens/verify`,WORKER,LOCK].includes(path)||/^\/memberships\?page=[1-5]&per_page=50&status=accepted$/.test(path);
+const tokenDetailsPath=path=>/^\/user\/tokens\/[a-f0-9]{32}$/.test(path)||new RegExp('^/accounts/('+A2+'|'+SOURCE_ACCOUNT+')/tokens/[a-f0-9]{32}$').test(path);
+const permitted=path=>tokenDetailsPath(path)||['/user','/user/tokens/verify',`/accounts/${A2}/tokens/verify`,`/accounts/${SOURCE_ACCOUNT}/tokens/verify`,WORKER,LOCK].includes(path)||/^\/memberships\?page=[1-5]&per_page=50&status=accepted$/.test(path);
 const secretValue=x=>typeof x==='string'&&/^[A-Za-z0-9._~-]{16,200}$/.test(x);
 const noGo=()=>{throw Error('READONLY_PROBE_HOLD');};
 function client(fetchImpl,timeoutMs){
@@ -54,9 +55,41 @@ async function verifyToken(api,token,protectedValues){
  const headers={authorization:'Bearer '+token},attempts=[];
  for(const [scope,path]of [['user','/user/tokens/verify'],['account_a2',`/accounts/${A2}/tokens/verify`],['account_source',`/accounts/${SOURCE_ACCOUNT}/tokens/verify`]]){
   const r=await api.get(path,headers);attempts.push({scope,...publicRead(r)});const t=r.data?.result;
-  if(t&&hex32(t.id)&&!protectedValues.has(t.id)&&['active','disabled','expired'].includes(t.status))return {attempts,token_identifier_sha256:sha('cloudflare-token-id\n'+t.id),token_status:t.status,verification_scope:scope};
+  if(t&&hex32(t.id)&&!protectedValues.has(t.id)&&['active','disabled','expired'].includes(t.status)){
+   const details=await tokenPolicy(api,headers,scope,t.id);
+   return {attempts,token_identifier_sha256:sha('cloudflare-token-id\n'+t.id),token_status:t.status,verification_scope:scope,policy_metadata:details};
+  }
  }
  return {attempts,token_identifier_sha256:null,token_status:'UNKNOWN'};
+}
+async function tokenPolicy(api,headers,scope,id){
+ const prefix=scope==='user'?'/user':scope==='account_a2'?'/accounts/'+A2:'/accounts/'+SOURCE_ACCOUNT;
+ const r=await api.get(prefix+'/tokens/'+id,headers),p=r.data?.result;
+ const out={...publicRead(r),policy_metadata_observed:false,effective_write_denial_verified:false,effective_policy_resolution_verified:false};
+ if(!p||p.id!==id||Object.hasOwn(p,'value')||!Array.isArray(p.policies)||p.policies.length<1||p.policies.length>100)return out;
+ const rows=[];
+ for(const policy of p.policies){
+  if(!['allow','deny'].includes(policy?.effect)||!policy.resources||Array.isArray(policy.resources)||typeof policy.resources!=='object'||!Array.isArray(policy.permission_groups)||policy.permission_groups.length<1||policy.permission_groups.length>100)return out;
+  const resources=Object.keys(policy.resources);if(resources.length<1||resources.length>100)return out;
+  let explicit=false,all=false,unknown=false;
+  for(const resource of resources){
+   if(resource==='com.cloudflare.api.account.'+A2)explicit=true;
+   else if(resource==='com.cloudflare.api.account.*')all=true;
+   else if(!/^com\.cloudflare\.api\.account\.[a-f0-9]{32}$/.test(resource))unknown=true;
+   if(policy.resources[resource]!=='*')unknown=true;
+  }
+  let read=0,write=0,unclassified=0;
+  for(const group of policy.permission_groups){
+   if(!hex32(group?.id)||typeof group.name!=='string'||group.name.length>200)return out;
+   if(/ Read$/.test(group.name))read++;
+   else if(/ (Write|Edit)$/.test(group.name))write++;
+   else unclassified++;
+  }
+  rows.push({effect:policy.effect,explicit_a2_resource:explicit,all_account_resource:all,unclassified_resource_scope:unknown,read_named_groups:read,write_named_groups:write,unclassified_groups:unclassified});
+ }
+ return {...out,policy_metadata_observed:true,policies:rows,
+  potential_a2_write_allow_policy_observed:rows.some(p=>p.effect==='allow'&&(p.explicit_a2_resource||p.all_account_resource||p.unclassified_resource_scope)&&p.write_named_groups>0),
+  limit:'Names/resources are observations, not a complete policy evaluator or custody/denial proof'};
 }
 async function memberships(api,headers){
  const result={state:'MEMBERSHIP_READ_INCOMPLETE_UNKNOWN',pages:0,complete:false,a2_accepted_membership_observed:null,
