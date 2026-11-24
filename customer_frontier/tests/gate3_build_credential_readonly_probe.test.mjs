@@ -210,3 +210,32 @@ test('unknown names and omitted names remain unmapped without reflected content 
   assert.equal(row.unmapped_nonstandard_groups,1);assert.equal(row.documented_nonstandard_read_groups,0);assert(!JSON.stringify(r).includes('PRIVATE_UNRECOGNIZED_PERMISSION'));holds(r);
  }
 });
+test('nonstandard names are exported only when matched by public registry ID and name',async()=>{
+ const name='Public Registry Fixture',f=fake(),groupId='d'.repeat(32);
+ for(const match of [true,false]){
+  const r=await probeBuildCredentials({env:{MUSITU_CLOUDFLARE_ADMIN_TOKEN:token},fetchImpl:async req=>{
+   const path=new URL(req.url).pathname;if(path.endsWith('/tokens/permission_groups'))return cf([{id:match?groupId:'e'.repeat(32),name}]);
+   if(/\/tokens\/[a-f0-9]{32}$/.test(path))return policyResponse({name});return f.fetchImpl(req);
+  }});
+  const row=r.credentials.find(c=>c.reference==='MUSITU_CLOUDFLARE_ADMIN_TOKEN').verification.policy_metadata.policies[0];
+  assert.deepEqual(row.provider_registered_nonstandard_permission_names,match?[name]:[]);assert.equal(row.registry_unresolved_nonstandard_groups,match?0:1);
+  assert.equal(row.unclassified_groups,1);holds(r);
+ }
+});
+test('a registry name containing protected authentication material is not exported',async()=>{
+ const f=fake(),r=await probeBuildCredentials({env:{MUSITU_CLOUDFLARE_ADMIN_TOKEN:token},fetchImpl:async req=>{
+  const path=new URL(req.url).pathname;if(path.endsWith('/tokens/permission_groups'))return cf([{id:'d'.repeat(32),name:'Reflected '+token}]);
+  if(/\/tokens\/[a-f0-9]{32}$/.test(path))return policyResponse({name:'Reflected '+token});return f.fetchImpl(req);
+ }});
+ assert.equal(r.public_permission_registry.public_groups_observed,0);assert(!JSON.stringify(r).includes(token));holds(r);
+});
+test('duplicate public registry identifiers and mismatched names remain unresolved',async()=>{
+ const f=fake();for(const entries of [[{id:'d'.repeat(32),name:'First'},{id:'d'.repeat(32),name:'Second'}],[{id:'d'.repeat(32),name:'Different public name'}]]){
+  const r=await probeBuildCredentials({env:{MUSITU_CLOUDFLARE_ADMIN_TOKEN:token},fetchImpl:async req=>{
+   const path=new URL(req.url).pathname;if(path.endsWith('/tokens/permission_groups'))return cf(entries);
+   if(/\/tokens\/[a-f0-9]{32}$/.test(path))return policyResponse({name:'Private unregistered metadata'});return f.fetchImpl(req);
+  }});
+  const row=r.credentials.find(c=>c.reference==='MUSITU_CLOUDFLARE_ADMIN_TOKEN').verification.policy_metadata.policies[0];
+  assert.deepEqual(row.provider_registered_nonstandard_permission_names,[]);assert.equal(row.registry_unresolved_nonstandard_groups,1);assert(!JSON.stringify(r).includes('Private unregistered metadata'));holds(r);
+ }
+});

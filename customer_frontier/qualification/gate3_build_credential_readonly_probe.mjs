@@ -10,6 +10,7 @@ const WORKER=`/accounts/${A2}/workers/scripts/axiom-security-authority2-highwate
 const LOCK=`/accounts/${A2}/r2/buckets/musitu-axiom-b27-highwater-a2/lock`;
 const TOKEN_REFS=['AXIOM_D1_RECOVERY_CF_API_TOKEN','MUSITU_CLOUDFLARE_ADMIN_TOKEN','CLOUDFLARE_API_TOKEN','MUSITU_CF_STAGING_READ_TOKEN'];
 const KEY_REFS=['CLOUDFLARE_GLOBAL_API_KEY','CLOUDFLARE_API_KEY'];
+const PUBLIC_PERMISSION_REGISTRY='/user/tokens/permission_groups';
 // Fixed public capability labels only: provider-supplied names are never echoed.
 const WRITE_CAPABILITIES=new Map([
  ['Workers Scripts','WORKER_SOURCE_WRITE'],['Workers R2 Storage','R2_STORAGE_WRITE'],['R2','R2_STORAGE_WRITE'],
@@ -34,7 +35,7 @@ const NONSTANDARD_CAPABILITIES=new Map([
 const hex32=x=>typeof x==='string'&&/^[a-f0-9]{32}$/.test(x);
 const sha=x=>createHash('sha256').update(x).digest('hex');
 const tokenDetailsPath=path=>/^\/user\/tokens\/[a-f0-9]{32}$/.test(path)||new RegExp('^/accounts/('+A2+'|'+SOURCE_ACCOUNT+')/tokens/[a-f0-9]{32}$').test(path);
-const permitted=path=>tokenDetailsPath(path)||['/user','/user/tokens/verify',`/accounts/${A2}/tokens/verify`,`/accounts/${SOURCE_ACCOUNT}/tokens/verify`,WORKER,LOCK].includes(path)||/^\/memberships\?page=[1-5]&per_page=50&status=accepted$/.test(path);
+const permitted=path=>tokenDetailsPath(path)||['/user','/user/tokens/verify',`/accounts/${A2}/tokens/verify`,`/accounts/${SOURCE_ACCOUNT}/tokens/verify`,WORKER,LOCK,PUBLIC_PERMISSION_REGISTRY].includes(path)||/^\/memberships\?page=[1-5]&per_page=50&status=accepted$/.test(path);
 const secretValue=x=>typeof x==='string'&&/^[A-Za-z0-9._~-]{16,200}$/.test(x);
 const noGo=()=>{throw Error('READONLY_PROBE_HOLD');};
 function client(fetchImpl,timeoutMs){
@@ -52,7 +53,7 @@ function client(fetchImpl,timeoutMs){
    const chunks=[];let size=0,complete=false;
    try{
     for(;;){const p=await Promise.race([reader.read(),deadline]);if(p.done){complete=true;break;}if(!(p.value instanceof Uint8Array))noGo();
-     size+=p.value.byteLength;if(size>131072)noGo();chunks.push(p.value);}
+     size+=p.value.byteLength;if(size>(path===PUBLIC_PERMISSION_REGISTRY?1048576:131072))noGo();chunks.push(p.value);}
    }finally{if(!complete)try{void reader.cancel().catch(()=>{});}catch{}try{reader.releaseLock();}catch{}}
    const bytes=new Uint8Array(size);let at=0;for(const chunk of chunks){bytes.set(chunk,at);at+=chunk.length;}
    const data=parseIdentityJson(new TextDecoder('utf-8',{fatal:true}).decode(bytes));
@@ -63,6 +64,21 @@ function client(fetchImpl,timeoutMs){
  }};
 }
 const publicRead=r=>({state:r.state,http_status:r.http_status});
+async function publicPermissionRegistry(api,token,protectedValues){
+ const out={state:'NOT_AVAILABLE_WITH_EXISTING_METADATA_CREDENTIAL',http_status:null,public_groups_observed:0};
+ if(!secretValue(token))return {public:out,groups:new Map()};
+ const r=await api.get(PUBLIC_PERMISSION_REGISTRY,{authorization:'Bearer '+token}),rows=r.data?.result,groups=new Map(),seen=new Set();let rejected=0;
+ const held=s=>[...protectedValues].some(v=>s.includes(v));
+ const unavailable=()=>({public:{...out,...publicRead(r)},groups:new Map()});
+ if(!Array.isArray(rows)||rows.length<1||rows.length>4096)return unavailable();
+ for(const row of rows){
+  if(!hex32(row?.id)||protectedValues.has(row.id)){rejected++;continue;}
+  if(seen.has(row.id)){groups.delete(row.id);rejected++;continue;}seen.add(row.id);
+  if(typeof row.name!=='string'||row.name.length<1||row.name.length>200||!/^[A-Za-z0-9 _:(),+&./-]+$/.test(row.name)||held(row.name)){rejected++;continue;}
+  groups.set(row.id,row.name);
+ }
+ return {public:{...publicRead(r),public_groups_observed:groups.size,rejected_registry_rows:rejected,catalog_complete_verified:false,catalog_observation_only_not_effective_policy:true},groups};
+}
 async function resourceReads(api,headers){
  const worker=await api.get(WORKER,headers),lock=await api.get(LOCK,headers);
  const w=worker.data?.result,l=lock.data?.result;
@@ -72,19 +88,19 @@ async function resourceReads(api,headers){
  if(l&&Array.isArray(l.rules))result.bucket_lock={...result.bucket_lock,indefinite_b27_rule_observed:l.rules.some(r=>r?.enabled===true&&r.condition?.type==='Indefinite'&&[undefined,'','b27/'].includes(r.prefix))};
  return result;
 }
-async function verifyToken(api,token,protectedValues,verifiedIds,reference){
+async function verifyToken(api,token,protectedValues,verifiedIds,reference,registry){
  const headers={authorization:'Bearer '+token},attempts=[];
  for(const [scope,path]of [['user','/user/tokens/verify'],['account_a2',`/accounts/${A2}/tokens/verify`],['account_source',`/accounts/${SOURCE_ACCOUNT}/tokens/verify`]]){
   const r=await api.get(path,headers);attempts.push({scope,...publicRead(r)});const t=r.data?.result;
   if(t&&hex32(t.id)&&!protectedValues.has(t.id)&&['active','disabled','expired'].includes(t.status)){
    verifiedIds.set(reference,{scope,id:t.id});
-   const details=await tokenPolicy(api,headers,scope,t.id);
+   const details=await tokenPolicy(api,headers,scope,t.id,registry);
    return {attempts,token_identifier_sha256:sha('cloudflare-token-id\n'+t.id),token_status:t.status,verification_scope:scope,policy_metadata:details};
   }
  }
  return {attempts,token_identifier_sha256:null,token_status:'UNKNOWN'};
 }
-async function tokenPolicy(api,headers,scope,id){
+async function tokenPolicy(api,headers,scope,id,registry){
  const prefix=scope==='user'?'/user':scope==='account_a2'?'/accounts/'+A2:'/accounts/'+SOURCE_ACCOUNT;
  const r=await api.get(prefix+'/tokens/'+id,headers),p=r.data?.result;
  const out={...publicRead(r),policy_metadata_observed:false,effective_write_denial_verified:false,effective_policy_resolution_verified:false};
@@ -108,10 +124,14 @@ async function tokenPolicy(api,headers,scope,id){
    else if(!/^com\.cloudflare\.api\.account\.[a-f0-9]{32}$/.test(resource))unknown=true;
    if(policy.resources[resource]!=='*')unknown=true;
   }
-  let read=0,write=0,unclassified=0,docRead=0,docReport=0,docNonRead=0,unmapped=0;const capabilities=new Set(),nonstandard=new Set();
+  let read=0,write=0,unclassified=0,docRead=0,docReport=0,docNonRead=0,unmapped=0,registryUnresolved=0;const capabilities=new Set(),nonstandard=new Set(),registeredNames=new Set();
   for(const group of policy.permission_groups){
    if(!hex32(group?.id))return hold('PERMISSION_GROUP_IDENTIFIER_UNSUPPORTED');
    if(group.name!==undefined&&(typeof group.name!=='string'||group.name.length>200))return hold('PERMISSION_GROUP_NAME_UNSUPPORTED');
+   if(group.name===undefined||!/(Read|Write|Edit)$/.test(group.name)){
+    const registered=registry?.groups?.get(group.id);
+    if(registered&&(group.name===undefined||registered===group.name))registeredNames.add(registered);else registryUnresolved++;
+   }
    if(group.name===undefined){unclassified++;unmapped++;}
    else if(/ Read$/.test(group.name))read++;
    else if(/ (Write|Edit)$/.test(group.name)){write++;capabilities.add(WRITE_CAPABILITIES.get(group.name)||'OTHER_WRITE_NAMED');}
@@ -123,6 +143,7 @@ async function tokenPolicy(api,headers,scope,id){
   }
   rows.push({effect:policy.effect,explicit_a2_resource:explicit,all_account_resource:all,unclassified_resource_scope:unknown,empty_permission_groups:policy.permission_groups.length===0,permission_group_count:policy.permission_groups.length,read_named_groups:read,write_named_groups:write,unclassified_groups:unclassified,write_capability_codes:[...capabilities].sort(),
    nonstandard_capability_codes:[...nonstandard].sort(),documented_nonstandard_read_groups:docRead,documented_reporting_groups:docReport,documented_non_read_groups:docNonRead,unmapped_nonstandard_groups:unmapped});
+  Object.assign(rows.at(-1),{provider_registered_nonstandard_permission_names:[...registeredNames].sort(),registry_unresolved_nonstandard_groups:registryUnresolved});
  }
  return {...out,policy_metadata_observed:true,policies:rows,
   potential_a2_write_allow_policy_observed:rows.some(p=>p.effect==='allow'&&(p.explicit_a2_resource||p.all_account_resource||p.unclassified_resource_scope)&&p.write_named_groups>0),
@@ -160,10 +181,11 @@ async function memberships(api,headers){
 export async function probeBuildCredentials({env=process.env,fetchImpl=globalThis.fetch,timeoutMs=5000}={}){
  const api=client(fetchImpl,timeoutMs),credentials=[],verifiedIds=new Map();
  const protectedValues=new Set([...TOKEN_REFS,...KEY_REFS,'CLOUDFLARE_EMAIL'].map(k=>env[k]).filter(x=>typeof x==='string'&&x.length));
+ const registry=await publicPermissionRegistry(api,env.MUSITU_CLOUDFLARE_ADMIN_TOKEN,protectedValues);
  for(const reference of TOKEN_REFS){
   const value=env[reference];if(!value){credentials.push({reference,type:'API_TOKEN',status:'NOT_AVAILABLE_IN_THIS_WORKFLOW_CONTEXT'});continue;}
   if(!secretValue(value)){credentials.push({reference,type:'API_TOKEN',status:'LOCAL_FORMAT_UNSUPPORTED_UNKNOWN'});continue;}
-  const verification=await verifyToken(api,value,protectedValues,verifiedIds,reference),reads=await resourceReads(api,{authorization:'Bearer '+value});
+  const verification=await verifyToken(api,value,protectedValues,verifiedIds,reference,registry),reads=await resourceReads(api,{authorization:'Bearer '+value});
   credentials.push({reference,type:'API_TOKEN',status:'GET_OBSERVATIONS_ONLY_NOT_PERMISSION_QUALIFICATION',verification,...reads});
  }
  // Existing build-held metadata credential only; one exact verified user-token ID.
@@ -172,7 +194,7 @@ export async function probeBuildCredentials({env=process.env,fetchImpl=globalThi
  const admin=credentials.find(c=>c.reference==='MUSITU_CLOUDFLARE_ADMIN_TOKEN'),reader=verifiedIds.get('MUSITU_CLOUDFLARE_ADMIN_TOKEN');
  if(recovery?.verification?.policy_metadata?.http_status===403&&target?.scope==='user'&&reader?.scope==='user'&&admin?.verification?.policy_metadata?.http_status===200){
   recovery.verification.existing_build_metadata_reader={reference:'MUSITU_CLOUDFLARE_ADMIN_TOKEN',
-   policy_metadata:await tokenPolicy(api,{authorization:'Bearer '+env.MUSITU_CLOUDFLARE_ADMIN_TOKEN},target.scope,target.id)};
+   policy_metadata:await tokenPolicy(api,{authorization:'Bearer '+env.MUSITU_CLOUDFLARE_ADMIN_TOKEN},target.scope,target.id,registry)};
  }
  for(const reference of KEY_REFS){
   const value=env[reference],email=env.CLOUDFLARE_EMAIL;
@@ -185,7 +207,7 @@ export async function probeBuildCredentials({env=process.env,fetchImpl=globalThi
  }
  return {schema:'musitu.axiom.gate3.build-credential-readonly-observation.v1',observed_at_utc:new Date().toISOString(),
   status:'BUILDER_GET_OBSERVATIONS_ONLY_CUSTODY_HOLD',account_id:A2,execution_origin:'BUILD_CONTROLLED_NOT_INDEPENDENT_OPERATOR',credentials,
-  provider_get_requests:api.count(),provider_write_requests:0,credential_values_exported:false,
+  provider_get_requests:api.count(),provider_write_requests:0,credential_values_exported:false,public_permission_registry:registry.public,
   build_global_key_a2_administrative_membership_observed:credentials.some(c=>c.type==='GLOBAL_KEY'&&c.memberships?.a2_accepted_membership_observed===true&&
    (c.memberships.a2_administrator_role_observed===true||c.memberships.a2_any_reported_write_permission===true)),
   build_credential_inventory_exhaustive:false,build_credential_restrictions_verified:false,effective_write_denial_verified:false,
