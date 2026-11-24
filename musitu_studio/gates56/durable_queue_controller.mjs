@@ -14,11 +14,12 @@ const NAME = /^[A-Za-z0-9_-]{1,128}$/;
 const TERMINAL = new Set(['COMPLETED', 'FAILED', 'CANCELED']);
 
 export class G56DurableQueueController {
-  constructor(storage, { authorizeUser, authorizeWorker, authorizeMaintenance, now } = {}) {
+  constructor(storage, { authorizeUser, authorizeProject, authorizeWorker, authorizeMaintenance, now } = {}) {
     if (!storage?.sql?.exec || typeof storage.transactionSync !== 'function')
       throw new QueueGateClosed('SQLITE_DURABLE_STORAGE_REQUIRED');
     this.storage = storage;
     this.authorizeUser = authorizeUser;
+    this.authorizeProject = authorizeProject;
     this.authorizeWorker = authorizeWorker;
     this.authorizeMaintenance = authorizeMaintenance;
     this.now = now || (() => Math.floor(Date.now() / 1000));
@@ -41,6 +42,14 @@ export class G56DurableQueueController {
     if (typeof this.authorizeUser !== 'function' ||
         this.authorizeUser(principal, tenant) !== true)
       throw new QueueGateClosed('IDENTITY_NOT_VERIFIED');
+  }
+
+  _project(principal, tenant, project) {
+    // Tenant membership alone does not grant access to another project.
+    // This callback must be a trusted, externally verified role check.
+    if (typeof this.authorizeProject !== 'function' ||
+        this.authorizeProject(principal, tenant, project) !== true)
+      throw new QueueGateClosed('PROJECT_ROLE_NOT_VERIFIED');
   }
 
   _worker(proof, jid) {
@@ -91,7 +100,9 @@ export class G56DurableQueueController {
   status({ principal, tenant, jid } = {}) {
     this._selector(tenant, jid);
     this._identity(principal, tenant);
-    return this._safe(this._job(tenant, jid));
+    const row = this._job(tenant, jid);
+    this._project(principal, tenant, row.project);
+    return this._safe(row);
   }
 
   cancel({ principal, tenant, jid } = {}) {
@@ -100,6 +111,7 @@ export class G56DurableQueueController {
     const at = this._time();
     return this.storage.transactionSync(() => {
       const row = this._job(tenant, jid);
+      this._project(principal, tenant, row.project);
       if (TERMINAL.has(row.state) || row.state === 'CANCEL_REQUESTED' ||
           row.state === 'NEEDS_REVIEW') return this._safe(row);
       if (row.state === 'QUEUED') {
