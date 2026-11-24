@@ -1,0 +1,35 @@
+{
+  "schema": "musitu.axiom.gate3.single-file-launcher-local.v1",
+  "observed_at_utc": "2026-11-24T07:00:33.718168+00:00",
+  "status": "PUBLIC_PACKAGING_TESTS_PASS_WINDOWS_PENDING_NOT_RELEASE",
+  "parent_pr": 245,
+  "parent_commit": "8dac0f2207e46348dcca5f0f0bc8187cfd527744",
+  "approved_authority_source": "68799a41a367865649b833de649edcb26f77c0d3",
+  "approved_config_sha256": "bc09d63349f611a71f0eef6c1ad1d00bd861454aeab7c41f9565056758f2f8e3",
+  "public_packet_sha256": "70ff535142102d2e3a980a5fe1844b12960678bc15f7367abee262900e921eda",
+  "python_public_packaging_and_renewal": {
+    "passed": 16,
+    "failed": 0
+  },
+  "node_ephemeral_synthetic_cryptography": {
+    "passed": 15,
+    "failed": 0,
+    "skipped": 0
+  },
+  "new_builder_tests": 8,
+  "owner_signature_verified": false,
+  "windows_native_new_launcher": "PENDING_CI",
+  "hosted_operations": 0,
+  "network_operations_by_launcher": 0,
+  "new_keys_generated": false,
+  "private_material_in_builder": false,
+  "gate3_closed": false,
+  "B27": "FAILED_IN_SYNTHETIC_ATTACK",
+  "release_status": "NOT_RELEASE",
+  "scope": "Single-file convenience packaging only. Actual owner proof and provider/custody/recovery acceptance remain required.",
+  "log_sha256": {
+    "baseline_missing_launcher.log": "599e741fa15c48a6c9a37528a7f2b185995089ea7b1f695484af1f3972687f48",
+    "node_synthetic_cryptography.log": "be4747f6043c1c0207a367967d8cd8ab91a5176f9687319652f1baabdeaf2c8c",
+    "python_public_packaging.log": "5ef6960492fd5d9f548f2e74febeca7f49658a25818ae14ee134c633f81af055"
+  }
+}

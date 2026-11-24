@@ -1,0 +1,43 @@
+test_appended_helper_is_rejected_even_with_rewritten_member_manifest (test_authority2_single_file_launcher.SingleFileLauncherTests.test_appended_helper_is_rejected_even_with_rewritten_member_manifest) ... ok
+test_extra_or_traversal_members_are_rejected (test_authority2_single_file_launcher.SingleFileLauncherTests.test_extra_or_traversal_members_are_rejected) ... ok
+test_inventory_duplicates_and_invalid_public_key_fail (test_authority2_single_file_launcher.SingleFileLauncherTests.test_inventory_duplicates_and_invalid_public_key_fail) ... ok
+test_manifest_cannot_promote_deployment_or_gate_acceptance (test_authority2_single_file_launcher.SingleFileLauncherTests.test_manifest_cannot_promote_deployment_or_gate_acceptance) ... ok
+test_no_overwrite_or_unversioned_template_source (test_authority2_single_file_launcher.SingleFileLauncherTests.test_no_overwrite_or_unversioned_template_source) ... FAIL
+test_renewed_packet_supported_without_modifying_original_helper (test_authority2_single_file_launcher.SingleFileLauncherTests.test_renewed_packet_supported_without_modifying_original_helper) ... FAIL
+test_single_file_embeds_exact_archive_and_preserves_all_gate_holds (test_authority2_single_file_launcher.SingleFileLauncherTests.test_single_file_embeds_exact_archive_and_preserves_all_gate_holds) ... FAIL
+test_wrong_outer_digest_refuses_before_output (test_authority2_single_file_launcher.SingleFileLauncherTests.test_wrong_outer_digest_refuses_before_output) ... ok
+
+======================================================================
+FAIL: test_no_overwrite_or_unversioned_template_source (test_authority2_single_file_launcher.SingleFileLauncherTests.test_no_overwrite_or_unversioned_template_source)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/workspace/scratch/bc4651aff037/axiom-gate3-launcher/customer_frontier/tests/test_authority2_single_file_launcher.py", line 55, in test_no_overwrite_or_unversioned_template_source
+    first=self.build();self.assertEqual(first.returncode,0,first.stderr);before=(self.base/'Run_Axiom.ps1').read_bytes()
+                       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: 2 != 0 : /opt/codex/runtimes/codex-primary-runtime/dependencies/python/bin/python3: can't open file '/workspace/scratch/bc4651aff037/axiom-gate3-launcher/scripts/build_authority2_single_file_launcher.py': [Errno 2] No such file or directory
+
+
+======================================================================
+FAIL: test_renewed_packet_supported_without_modifying_original_helper (test_authority2_single_file_launcher.SingleFileLauncherTests.test_renewed_packet_supported_without_modifying_original_helper)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/workspace/scratch/bc4651aff037/axiom-gate3-launcher/customer_frontier/tests/test_authority2_single_file_launcher.py", line 61, in test_renewed_packet_supported_without_modifying_original_helper
+    self.assertEqual(p.returncode,0,p.stderr);archive=Path(json.loads(p.stdout)['archive']);r=self.build(archive);self.assertEqual(r.returncode,0,r.stderr)
+                                                                                                                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: 2 != 0 : /opt/codex/runtimes/codex-primary-runtime/dependencies/python/bin/python3: can't open file '/workspace/scratch/bc4651aff037/axiom-gate3-launcher/scripts/build_authority2_single_file_launcher.py': [Errno 2] No such file or directory
+
+
+======================================================================
+FAIL: test_single_file_embeds_exact_archive_and_preserves_all_gate_holds (test_authority2_single_file_launcher.SingleFileLauncherTests.test_single_file_embeds_exact_archive_and_preserves_all_gate_holds)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/workspace/scratch/bc4651aff037/axiom-gate3-launcher/customer_frontier/tests/test_authority2_single_file_launcher.py", line 35, in test_single_file_embeds_exact_archive_and_preserves_all_gate_holds
+    r=self.build();self.assertEqual(r.returncode,0,r.stderr);report=json.loads(r.stdout);script=(self.base/'Run_Axiom.ps1').read_text(encoding='utf-8-sig')
+                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: 2 != 0 : /opt/codex/runtimes/codex-primary-runtime/dependencies/python/bin/python3: can't open file '/workspace/scratch/bc4651aff037/axiom-gate3-launcher/scripts/build_authority2_single_file_launcher.py': [Errno 2] No such file or directory
+
+
+----------------------------------------------------------------------
+Ran 8 tests in 0.615s
+
+FAILED (failures=3)

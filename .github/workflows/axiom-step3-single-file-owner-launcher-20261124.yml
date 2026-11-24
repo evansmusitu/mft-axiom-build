@@ -1,0 +1,53 @@
+name: AXIOM Authority2 single-file Windows launcher SYNTHETIC ONLY (NOT RELEASE)
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/axiom-step3-single-file-owner-launcher-20261124.yml'
+      - 'scripts/build_authority2_single_file_launcher.py'
+      - 'customer_frontier/qualification/step3_authority2_single_file_launcher.template.ps1'
+      - 'customer_frontier/tests/test_authority2_single_file_launcher.py'
+      - 'customer_frontier/tests/step3_authority2_single_file_launcher_windows.test.ps1'
+      - 'customer_frontier/tests/fixtures/a2-single-file-public-packet-20261123.b64'
+  workflow_dispatch:
+permissions: {contents: read}
+jobs:
+  native-public-only:
+    if: github.repository == 'evansmusitu/mft-axiom-build'
+    runs-on: windows-2022
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with: {persist-credentials: false}
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with: {node-version: '22'}
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065
+        with: {python-version: '3.12'}
+      - name: Public packaging and synthetic cryptography
+        shell: pwsh
+        run: |
+          python -m unittest discover -s customer_frontier/tests -p test_authority2_single_file_launcher.py -v
+          if($LASTEXITCODE -ne 0){throw 'Public launcher builder tests failed'}
+          node --test customer_frontier/tests/step3_authority2_signer_possession.test.mjs
+          if($LASTEXITCODE -ne 0){throw 'Synthetic possession tests failed'}
+      - name: Build fresh public packet and exact-source single-file launcher
+        shell: pwsh
+        run: |
+          $packet=python scripts/build_authority2_possession_packet.py --out "$env:RUNNER_TEMP/launcher-source-packet" --source-commit $env:GITHUB_SHA --renew-challenge
+          if($LASTEXITCODE -ne 0){throw 'Fresh public packet failed'}
+          $p=$packet|ConvertFrom-Json
+          python scripts/build_authority2_single_file_launcher.py --packet $p.archive --expected-sha256 $p.sha256 --out "$env:RUNNER_TEMP/Run_AXIOM_A2.ps1" --source-commit $env:GITHUB_SHA
+          if($LASTEXITCODE -ne 0){throw 'Single-file build failed'}
+      - name: Actual PowerShell 5.1 and 7 inspection and owner/tamper denials
+        shell: pwsh
+        run: |
+          powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File customer_frontier/tests/step3_authority2_single_file_launcher_windows.test.ps1 -Launcher "$env:RUNNER_TEMP/Run_AXIOM_A2.ps1"
+          if($LASTEXITCODE -ne 0){throw 'Native Windows launcher acceptance failed'}
+      - name: Exact delivered public packet on PowerShell 5.1 and 7 (no owner execution)
+        shell: pwsh
+        run: |
+          $archive=Join-Path $env:RUNNER_TEMP 'issued-public-packet-20261123.zip'
+          [IO.File]::WriteAllBytes($archive,[Convert]::FromBase64String([IO.File]::ReadAllText('customer_frontier/tests/fixtures/a2-single-file-public-packet-20261123.b64')))
+          python scripts/build_authority2_single_file_launcher.py --packet $archive --expected-sha256 70ff535142102d2e3a980a5fe1844b12960678bc15f7367abee262900e921eda --out "$env:RUNNER_TEMP/Run_AXIOM_A2_delivered_packet.ps1" --source-commit $env:GITHUB_SHA
+          if($LASTEXITCODE -ne 0){throw 'Exact issued packet build failed'}
+          powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File customer_frontier/tests/step3_authority2_single_file_launcher_windows.test.ps1 -Launcher "$env:RUNNER_TEMP/Run_AXIOM_A2_delivered_packet.ps1"
+          if($LASTEXITCODE -ne 0){throw 'Exact issued packet Windows checks failed'}

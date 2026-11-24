@@ -1,0 +1,23 @@
+✔ encrypted Ed25519 produces an independently verified public signature, no authority (8.897473ms)
+✔ signature cannot verify as an ordinary unprefixed runtime payload (2.051217ms)
+✔ wrong passphrase refuses and clears input buffers (2.340513ms)
+✔ different Ed25519 private key refuses the trusted pin (1.682954ms)
+✔ X25519 private key cannot be used as the signer (2.306873ms)
+✔ unencrypted private PEM is refused (0.846565ms)
+✔ invalid public DER still clears supplied secrets (1.026576ms)
+✔ expired challenge refuses without a signature (0.77067ms)
+✔ future challenge and excessive lifetime are refused (1.227468ms)
+✔ modified nonce or signed statement cannot satisfy the issued challenge (2.506363ms)
+✔ wrong public key, altered signature and private JWK fields refuse (9.388112ms)
+✔ wrong account/context, extra fields and runtime purpose refuse (3.16163ms)
+✔ verification expiry and wrong issuer nonce cannot be replayed into a new request (2.447274ms)
+✔ public proof write is create-only and does not overwrite an older file (2.682899ms)
+✔ real CLI refuses CI and redirected input before private file access (68.757567ms)
+ℹ tests 15
+ℹ suites 0
+ℹ pass 15
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 239.617566
