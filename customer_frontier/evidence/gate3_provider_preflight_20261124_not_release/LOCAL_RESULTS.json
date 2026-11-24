@@ -1,0 +1,13 @@
+{
+  "node_customer_tests_passed": 528,
+  "python_customer_tests_passed": 352,
+  "new_synthetic_get_only_cases": 21,
+  "source_syntax_and_diff": "PASS",
+  "actual_provider_observation": "PENDING_GITHUB_GET_ONLY_JOB",
+  "independent_operator_policy_readback": "NOT_RECEIVED",
+  "effective_write_denial": "NOT_RUN",
+  "private_genesis_retirement_and_hosted_recovery": "BLOCKED_BY_PROVIDER_CUSTODY",
+  "gate3_closed": false,
+  "B27": "FAILED_IN_SYNTHETIC_ATTACK",
+  "release_status": "NOT_RELEASE"
+}

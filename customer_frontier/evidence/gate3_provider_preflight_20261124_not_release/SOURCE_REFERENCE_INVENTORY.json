@@ -1,0 +1,77 @@
+{
+  "schema": "musitu.axiom.gate3.build-credential-source-reference-inventory.v1",
+  "observed_at_utc": "2026-11-24T08:07:20.204782+00:00",
+  "scope": "Tracked workflow references only; not a GitHub secrets/organization/environment inventory, current secret presence or effective permission evidence.",
+  "references": [
+    {
+      "scope": "live_main",
+      "commit": "c3c5aaab90e94f1ca84ac9903f9d481c23c4f350",
+      "workflow_reference_counts": {
+        "CLOUDFLARE_API_KEY": 1,
+        "CLOUDFLARE_API_TOKEN": 6,
+        "CLOUDFLARE_EMAIL": 118,
+        "CLOUDFLARE_GLOBAL_API_KEY": 157,
+        "MUSITU_CF_PRODUCTION_ACCOUNT_ID": 1,
+        "MUSITU_CF_STAGING_ACCOUNT_ID": 1,
+        "MUSITU_CF_STAGING_DATABASE_ID": 1,
+        "MUSITU_CF_STAGING_DATABASE_NAME": 1,
+        "MUSITU_CF_STAGING_READ_TOKEN": 1
+      }
+    },
+    {
+      "scope": "approved_authority_source",
+      "commit": "68799a41a367865649b833de649edcb26f77c0d3",
+      "workflow_reference_counts": {
+        "CLOUDFLARE_API_KEY": 1,
+        "CLOUDFLARE_API_TOKEN": 17,
+        "CLOUDFLARE_EMAIL": 120,
+        "CLOUDFLARE_GLOBAL_API_KEY": 159,
+        "MUSITU_CF_PRODUCTION_ACCOUNT_ID": 1,
+        "MUSITU_CF_STAGING_ACCOUNT_ID": 1,
+        "MUSITU_CF_STAGING_DATABASE_ID": 1,
+        "MUSITU_CF_STAGING_DATABASE_NAME": 1,
+        "MUSITU_CF_STAGING_READ_TOKEN": 1
+      }
+    },
+    {
+      "scope": "accepted_owner_proof",
+      "commit": "124bf6204e6c99ca053d15916a29473ac8a69f0a",
+      "workflow_reference_counts": {
+        "AXIOM_D1_RECOVERY_CF_API_TOKEN": 9,
+        "CLOUDFLARE_API_KEY": 1,
+        "CLOUDFLARE_API_TOKEN": 44,
+        "CLOUDFLARE_EMAIL": 118,
+        "CLOUDFLARE_GLOBAL_API_KEY": 157,
+        "MUSITU_CF_PRODUCTION_ACCOUNT_ID": 1,
+        "MUSITU_CF_STAGING_ACCOUNT_ID": 1,
+        "MUSITU_CF_STAGING_DATABASE_ID": 1,
+        "MUSITU_CF_STAGING_DATABASE_NAME": 1,
+        "MUSITU_CF_STAGING_READ_TOKEN": 1
+      }
+    }
+  ],
+  "known_probe_credentials": [
+    "AXIOM_D1_RECOVERY_CF_API_TOKEN",
+    "MUSITU_CLOUDFLARE_ADMIN_TOKEN",
+    "CLOUDFLARE_API_TOKEN",
+    "MUSITU_CF_STAGING_READ_TOKEN",
+    "CLOUDFLARE_GLOBAL_API_KEY",
+    "CLOUDFLARE_API_KEY"
+  ],
+  "global_key_consumer_examples": [
+    {
+      "commit": "c3c5aaab90e94f1ca84ac9903f9d481c23c4f350",
+      "path": ".github/workflows/axiom-live-backend-readonly-audit.yml",
+      "use": "Cloudflare API X-Auth-Key"
+    },
+    {
+      "commit": "c3c5aaab90e94f1ca84ac9903f9d481c23c4f350",
+      "path": ".github/workflows/axiom-auth-metering-contract.yml",
+      "use": "Legacy protected-payload OpenSSL decryption input"
+    }
+  ],
+  "credential_values_read_by_builder_assistant": false,
+  "new_owner_only_credentials_in_ci": false,
+  "gate3_closed": false,
+  "release_status": "NOT_RELEASE"
+}
