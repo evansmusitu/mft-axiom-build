@@ -118,3 +118,24 @@ CREATE TRIGGER IF NOT EXISTS g56_do_completed_asset_immutable_delete
 CREATE TRIGGER IF NOT EXISTS g56_do_no_job_delete
  BEFORE DELETE ON g56_do_jobs
  BEGIN SELECT RAISE(ABORT,'G56_JOB_DELETE_REQUIRES_REVIEW'); END;
+
+-- The admission quote, tenant, payload, key and retry ceiling are frozen at
+-- reservation time. A retry changes ATTEMPT state, not these economics.
+CREATE TRIGGER IF NOT EXISTS g56_do_reservation_immutable
+ BEFORE UPDATE ON g56_do_jobs
+ WHEN NEW.tenant IS NOT OLD.tenant
+   OR NEW.project IS NOT OLD.project
+   OR NEW.submission_key IS NOT OLD.submission_key
+   OR NEW.payload_sha256 IS NOT OLD.payload_sha256
+   OR NEW.reserved_cents IS NOT OLD.reserved_cents
+   OR NEW.credit_hold IS NOT OLD.credit_hold
+   OR NEW.max_attempts IS NOT OLD.max_attempts
+   OR NEW.created IS NOT OLD.created
+ BEGIN SELECT RAISE(ABORT,'G56_RESERVATION_IMMUTABLE'); END;
+
+-- Terminal receipts cannot be modified, not even without changing state:
+-- no post-settlement charge rewrite, zeroing, or silent outcome mutation.
+CREATE TRIGGER IF NOT EXISTS g56_do_terminal_economics_immutable
+ BEFORE UPDATE ON g56_do_jobs
+ WHEN OLD.state IN ('COMPLETED','FAILED','CANCELED')
+ BEGIN SELECT RAISE(ABORT,'G56_TERMINAL_ECONOMICS_IMMUTABLE'); END;
