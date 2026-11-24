@@ -240,6 +240,15 @@ export class G56DurableQueueController {
       this._open();
       const cap=this._providerBudget(at);
       this._checkHeadroom(cap);
+      // One globally serialized CPU lane, not one lane per tenant. A running,
+      // cancellation-pending or quarantined provider call could still bill
+      // after a worker lease expires. Until authoritative reconciliation,
+      // refuse further claims rather than letting another tenant spend.
+      const uncertain=this._row(`SELECT COUNT(*) AS unsettled
+        FROM g56_do_jobs WHERE state IN
+        ('RUNNING','CANCEL_REQUESTED','NEEDS_REVIEW')`);
+      if (!uncertain || uncertain.unsettled > 0)
+        return null;
       const job=this._row(`SELECT * FROM g56_do_jobs WHERE state='QUEUED'
         ORDER BY created,id LIMIT 1`);
       if (!job)return null;
