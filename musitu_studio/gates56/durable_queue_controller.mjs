@@ -163,10 +163,13 @@ export class G56DurableQueueController {
   }
 
   submit({ principal, tenant, project, submissionKey, payloadSha256,
-           maxCostCents, creditUnits, maxAttempts=1 } = {}) {
+           maxCostCents, creditUnits, maxAttempts=1,
+           device='GPU',gpuType='T4' } = {}) {
     this._selector(tenant, project);
     this._identity(principal,tenant);
     this._project(principal,tenant,project,'write');
+    if (device!=='GPU' || gpuType!=='T4')
+      throw new QueueGateClosed('MODAL_GPU_ONLY_REQUIRED');
     if (typeof submissionKey !== 'string' || !NAME.test(submissionKey) ||
         typeof payloadSha256 !== 'string' ||
         !/^[a-f0-9]{64}$/.test(payloadSha256) ||
@@ -184,6 +187,7 @@ export class G56DurableQueueController {
         tenant,submissionKey);
       if (old) {
         if (old.project!==project || old.payload_sha256!==payloadSha256 ||
+            old.device!==device || old.gpu_type!==gpuType ||
             old.reserved_cents!==maxCostCents ||
             old.credit_hold!==creditUnits || old.max_attempts!==maxAttempts)
           throw new QueueConflict('IDEMPOTENCY_KEY_PAYLOAD_CONFLICT');
@@ -195,7 +199,8 @@ export class G56DurableQueueController {
       const cap=this._providerBudget(at);
       if (typeof this.verifyWorstCaseQuote !== 'function' ||
           this.verifyWorstCaseQuote({
-            tenant,project,payloadSha256,maxCostCents,maxAttempts
+            tenant,project,payloadSha256,maxCostCents,maxAttempts,
+            provider:'MODAL',device,gpuType
           }) !== true)
         throw new QueueGateClosed('WORST_CASE_QUOTE_NOT_VERIFIED');
       this._checkHeadroom(cap,maxCostCents);
@@ -217,30 +222,32 @@ export class G56DurableQueueController {
         throw new QueueGateClosed('INSUFFICIENT_VERIFIED_CREDITS');
       const jid='G56_'+crypto.randomUUID().replaceAll('-','');
       this._run(`INSERT INTO g56_do_jobs(
-        id,tenant,project,submission_key,payload_sha256,state,
+        id,tenant,project,submission_key,payload_sha256,device,gpu_type,state,
         reserved_cents,credit_hold,max_attempts,created,updated)
-        VALUES(?,?,?,?,?,'QUEUED',?,?,?,?,?)`,
-        jid,tenant,project,submissionKey,payloadSha256,maxCostCents,
-        creditUnits,maxAttempts,at,at);
+        VALUES(?,?,?,?,?,?,?,'QUEUED',?,?,?,?,?)`,
+        jid,tenant,project,submissionKey,payloadSha256,
+        device,gpuType,maxCostCents,creditUnits,maxAttempts,at,at);
       this._event(jid,'RESERVED_PROVIDER_QUOTE_REQUIRED',at);
       return this._safe(this._job(tenant,jid));
     });
   }
 
-  claim({ proof,workerId,leaseSeconds=60 } = {}) {
+  claim({ proof,workerId,leaseSeconds=60,device='GPU',gpuType='T4' } = {}) {
+    if (device!=='GPU' || gpuType!=='T4')
+      throw new QueueGateClosed('MODAL_GPU_ONLY_REQUIRED');
     if (typeof workerId !== 'string' || !NAME.test(workerId) ||
         !Number.isSafeInteger(leaseSeconds) ||
         leaseSeconds < 10 || leaseSeconds > 600)
       throw new QueueGateClosed('INVALID_WORKER_LEASE');
     if (typeof this.authorizeClaim !== 'function' ||
-        this.authorizeClaim(proof,workerId)!==true)
+        this.authorizeClaim(proof,workerId,'GPU','T4')!==true)
       throw new QueueGateClosed('WORKER_CLAIM_NOT_VERIFIED');
     const at=this._time();
     return this.storage.transactionSync(() => {
       this._open();
       const cap=this._providerBudget(at);
       this._checkHeadroom(cap);
-      // One globally serialized CPU lane, not one lane per tenant. A running,
+      // One globally serialized GPU lane, not one lane per tenant. A running,
       // cancellation-pending or quarantined provider call could still bill
       // after a worker lease expires. Until authoritative reconciliation,
       // refuse further claims rather than letting another tenant spend.
@@ -252,6 +259,8 @@ export class G56DurableQueueController {
       const job=this._row(`SELECT * FROM g56_do_jobs WHERE state='QUEUED'
         ORDER BY created,id LIMIT 1`);
       if (!job)return null;
+      if (job.device!=='GPU' || job.gpu_type!=='T4')
+        throw new QueueGateClosed('MODAL_GPU_ONLY_REQUIRED');
       // Previous external attempts cannot be retried automatically, even
       // after a worker crash. Hold worst-case cost and require review.
       if (job.attempts !== 0 || job.provider_call_id !== null ||
@@ -269,9 +278,10 @@ export class G56DurableQueueController {
       this._run(`INSERT INTO g56_do_attempts
         (job_id,attempt_no,fence,worker_id,started)
         VALUES(?,1,?,?,?)`,job.id,fence,workerId,at);
-      this._event(job.id,'ATTEMPT_CLAIMED_NO_PROVIDER_SPAWN',at);
+      this._event(job.id,'GPU_T4_CLAIMED_NO_PROVIDER_SPAWN',at);
       return {job_id:job.id,tenant:job.tenant,project:job.project,
         payload_sha256:job.payload_sha256,
+        provider:'MODAL',device:job.device,gpu_type:job.gpu_type,
         fence,lease_until:at+leaseSeconds,attempts:1};
     });
   }
