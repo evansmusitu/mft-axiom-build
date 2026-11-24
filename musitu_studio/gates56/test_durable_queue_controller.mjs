@@ -344,6 +344,41 @@ test('fenced claim requires authenticated worker, budget, and denies repeat clai
   assert.equal(f.row(job.job_id).credit_charge,null);
 });
 
+test('a second tenant cannot claim while another provider attempt may still be live', () => {
+  const f=fixture({budget:true,binding:true,quote:true});
+  approveAdmission(f.db);
+  f.seed({jid:'G56_ACTIVE',tenant:'tenantA',key:'busy',state:'RUNNING',
+          attempts:1,fence:'liveFence',lease:1100,provider:'fc-provider-active'});
+  f.seed({jid:'G56_NEXT',tenant:'tenantB',key:'queuedNext'});
+  const next=f.controller.claim({proof:'local-private-worker',workerId:'workerCPU'});
+  assert.equal(next,null);
+  assert.equal(f.row('G56_NEXT').state,'QUEUED');
+  assert.equal(f.row('G56_NEXT').attempts,0);
+  assert.equal(f.row('G56_ACTIVE').provider_call_id,'fc-provider-active');
+  assert.equal(f.db.prepare('SELECT count(*) n FROM g56_do_attempts').get().n,0);
+});
+
+test('expired and cancellation-uncertain prior work blocks fresh claims globally', () => {
+  for(const uncertainState of ['RUNNING','CANCEL_REQUESTED','NEEDS_REVIEW']) {
+    const f=fixture({budget:true,binding:true,quote:true});
+    approveAdmission(f.db);
+    f.seed({jid:'G56_UNCERTAIN',tenant:'tenantA',key:'prior',
+            state:uncertainState,attempts:1,fence:'priorFence',
+            lease:999,provider:'fc-ambiguous'});
+    f.seed({jid:'G56_NEXT',tenant:'tenantB',key:'queuedNext'});
+    assert.equal(f.controller.claim({proof:'local-private-worker',workerId:'workerCPU'}),null);
+    assert.equal(f.row('G56_NEXT').state,'QUEUED');
+    assert.equal(f.row('G56_NEXT').attempts,0);
+    assert.equal(f.row('G56_UNCERTAIN').charged_cents,null);
+    assert.equal(f.row('G56_UNCERTAIN').credit_charge,null);
+    // Recovery is review, not an implicit provider-cancel or refund.
+    if(uncertainState!=='NEEDS_REVIEW')
+      f.controller.quarantineStale({proof:'approved-private-maintainer'});
+    assert.equal(f.controller.claim({proof:'local-private-worker',workerId:'workerCPU'}),null);
+    assert.equal(f.row('G56_NEXT').state,'QUEUED');
+  }
+});
+
 test('potential prior attempt is quarantined; never silently autoreties', () => {
   const f=fixture({budget:true,binding:true,quote:true});
   approveAdmission(f.db);
