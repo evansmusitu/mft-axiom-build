@@ -20,6 +20,7 @@ const auth=token=>({authorization:'Bearer '+token});
 const publicResponse=r=>({http_status:r.http_status,state:r.state,provider_error_codes:r.error_codes||[]});
 const skipped=reason=>({state:reason,denial_verified:false});
 const sealedSource='export default {async fetch(){return new Response(null,{status:404});}};\n';
+const assetsManifest=Object.freeze({manifest:{'/gate3-empty-proof.txt':{hash:'e3b0c44298fc1c149afbf4c8996fb924',size:0}}});
 function previewForm(){
  const f=new FormData();
  f.set('metadata',new Blob([JSON.stringify({main_module:'worker.mjs',compatibility_date:'2026-11-24',bindings:[]})],{type:'application/json'}));
@@ -42,6 +43,8 @@ function transport(fetchImpl,nonce,timeoutMs){
    }
    if(method==='POST'&&path===prefix+'/r2/buckets'&&body&&Object.keys(body).join('|')==='name'&&buckets.includes(body.name))return true;
    const preview=prefix+'/workers/scripts/'+(account===SOURCE?control:worker);
+   if(method==='GET'&&path===preview+'/settings'&&body===undefined)return true;
+   if(method==='POST'&&path===preview+'/assets-upload-session'&&JSON.stringify(body)===JSON.stringify(assetsManifest))return true;
    if(method==='GET'&&path===preview+'/subdomain/edge-preview'&&body===undefined)return true;
    if(method==='POST'&&path===preview+'/edge-preview'&&body instanceof FormData&&capability(headers['cf-preview-upload-config-token']))return true;
   }
@@ -155,12 +158,12 @@ async function deleteAcknowledgedEmptyBucket(api,account,name,headers){
  const read=await api('GET',`/accounts/${account}/r2/buckets/${name}`,headers);
  return {...publicResponse(r),deletion_acknowledged:r.valid===true,readback:publicResponse(read),removed:read.http_status===404&&read.rejected===true};
 }
-export async function runCredentialBoundaryAcceptance({env=process.env,fetchImpl=globalThis.fetch,nonce=randomBytes(16).toString('hex'),timeoutMs=5000,preflightFn=probeBuildCredentials}={}){
+export async function runCredentialBoundaryAcceptance({env=process.env,fetchImpl=globalThis.fetch,nonce=randomBytes(16).toString('hex'),timeoutMs=5000,preflightFn=probeBuildCredentials,includeAssetsProbe=false,includePreviewProbe=true}={}){
  const {api,counts,control,worker}=transport(fetchImpl,nonce,timeoutMs);
  const r={schema:'musitu.axiom.gate3.credential-boundary-acceptance.v1',observed_at_utc:new Date().toISOString(),nonce,
   target_account:A2,positive_control_account:SOURCE,control_bucket_name:control,preview_canary_name:worker,
   subjects:[],controls:{},possible_orphan_bucket_names:[],unexpected_write_observed:false,subject_identity_and_policy_stable:false,
-  bounded_write_denial_tests_passed:false,all_provider_write_denial_verified:false,global_key_custody_verified:false,alternative_credential_inventory_exhaustive:false,provider_write_attempts:0,
+  bounded_write_denial_tests_passed:false,bounded_worker_assets_r2_denial_tests_passed:false,all_provider_write_denial_verified:false,global_key_custody_verified:false,alternative_credential_inventory_exhaustive:false,provider_write_attempts:0,
   independent_operator_custody_qualified:false,gate3_closed:false,hosted_genesis_qualified:false,hosted_retirement_qualified:false,hosted_destructive_recovery_qualified:false,
   B27:'FAILED_IN_SYNTHETIC_ATTACK',parity_superiority:'NOT_CERTIFIED',unavailable_final_usage:'UNKNOWN',release_status:'NOT_RELEASE'};
  let before,after;try{before=await preflightFn({env,fetchImpl,timeoutMs});}catch{}
@@ -168,12 +171,23 @@ export async function runCredentialBoundaryAcceptance({env=process.env,fetchImpl
  r.preconditions_passed=preconditions(before,env);
  if(!r.preconditions_passed){r.status='PINNED_ACTIVE_SUBJECT_AND_CURRENT_POLICY_PRECONDITION_HOLD';r.boundary_request_counts=counts;return r;}
  const source=auth(env.CLOUDFLARE_API_TOKEN),metadata=auth(env.MUSITU_CLOUDFLARE_ADMIN_TOKEN);
- const sourceSession=await previewSession(api,SOURCE,control,source),targetSession=await previewSession(api,A2,worker,metadata);
+ const sourceSession=includePreviewProbe?await previewSession(api,SOURCE,control,source):{public:{state:'NOT_REQUESTED_IN_ASSETS_SCOPE'},token:null};
+ const targetSession=includePreviewProbe?await previewSession(api,A2,worker,metadata):{public:{state:'PRIOR_TARGET_PREVIEW_SESSION_UNAVAILABLE_NOT_RETRIED'},token:null};
  r.controls.worker_source_session=sourceSession.public;r.controls.worker_target_session=targetSession.public;
  if(sourceSession.token){
   const p=await previewWrite(api,SOURCE,control,source,sourceSession.token);
   r.controls.worker_preview={...publicResponse(p),passed:p.valid===true&&capability(p.result?.preview_token),deployment_performed:false,bindings:0,preview_invoked:false};
  }else r.controls.worker_preview={state:'SOURCE_PREVIEW_SESSION_UNAVAILABLE',passed:false};
+ if(includeAssetsProbe){
+  const path=`/accounts/${SOURCE}/workers/scripts/${control}`,beforeScript=await api('GET',path+'/settings',source);
+  r.controls.worker_assets={before_script:publicResponse(beforeScript),passed:false,assets_uploaded:0,code_uploaded:false,deployment_performed:false};
+  if(beforeScript.http_status===404&&beforeScript.rejected){
+   const session=await api('POST',path+'/assets-upload-session',source,assetsManifest),afterScript=await api('GET',path+'/settings',source);
+   Object.assign(r.controls.worker_assets,{session:publicResponse(session),after_script:publicResponse(afterScript),
+    passed:session.valid===true&&capability(session.result?.jwt)&&afterScript.http_status===404&&afterScript.rejected===true,
+    accepted_permissions_contract:['Workers Admin','Workers Scripts Write']});
+  }
+ }
  const bucketPath=`/accounts/${SOURCE}/r2/buckets/${control}`,missing=await api('GET',bucketPath,source);
  r.controls.r2_bucket={before:publicResponse(missing),passed:false,cleanup_verified:false};
  let uncertain=false;
@@ -190,11 +204,16 @@ export async function runCredentialBoundaryAcceptance({env=process.env,fetchImpl
  }
  if(!uncertain&&r.possible_orphan_bucket_names.length===0){
   for(let i=0;i<SUBJECTS.length;i++){
-   const reference=SUBJECTS[i],headers=auth(env[reference]),row={reference,provider_token_identifier_sha256:EXPECTED[i],worker_preview:skipped('VALID_WORKER_CONTROL_OR_TARGET_SESSION_UNAVAILABLE'),r2_bucket_create:skipped('VALID_R2_CONTROL_UNAVAILABLE')};r.subjects.push(row);
+   const reference=SUBJECTS[i],headers=auth(env[reference]),row={reference,provider_token_identifier_sha256:EXPECTED[i],worker_preview:skipped('VALID_WORKER_CONTROL_OR_TARGET_SESSION_UNAVAILABLE'),worker_assets_upload_session:skipped('VALID_WORKER_ASSETS_CONTROL_UNAVAILABLE'),r2_bucket_create:skipped('VALID_R2_CONTROL_UNAVAILABLE')};r.subjects.push(row);
    if(r.controls.worker_preview.passed&&targetSession.token){
     const attempted=await previewWrite(api,A2,worker,headers,targetSession.token);
     row.worker_preview={...publicResponse(attempted),denial_verified:denied(attempted),valid_positive_control:true,valid_target_session:true};
     if(attempted.valid){r.unexpected_write_observed=true;row.worker_preview.state='UNEXPECTED_PRIVATE_PREVIEW_CREATED_DENIAL_FAILED';break;}
+   }
+   if(includeAssetsProbe&&r.controls.worker_assets?.passed){
+    const attempted=await api('POST',`/accounts/${A2}/workers/scripts/${worker}/assets-upload-session`,headers,assetsManifest);
+    row.worker_assets_upload_session={...publicResponse(attempted),denial_verified:denied(attempted),valid_positive_control:true,assets_uploaded:0,code_uploaded:false};
+    if(attempted.valid){r.unexpected_write_observed=true;row.worker_assets_upload_session.state='UNEXPECTED_UPLOAD_CAPABILITY_GRANTED_DENIAL_FAILED';break;}
    }
    if(r.controls.r2_bucket.passed){
     const name=worker+'-'+i,absent=await api('GET',`/accounts/${A2}/r2/buckets/${name}`,metadata);
@@ -213,18 +232,19 @@ export async function runCredentialBoundaryAcceptance({env=process.env,fetchImpl
  try{after=await preflightFn({env,fetchImpl,timeoutMs});}catch{}
  r.subject_identity_and_policy_stable=preconditions(after,env)&&projection(before)===projection(after);
  r.bounded_write_denial_tests_passed=r.subject_identity_and_policy_stable&&!r.unexpected_write_observed&&r.possible_orphan_bucket_names.length===0&&r.subjects.length===3&&r.subjects.every(s=>s.worker_preview.denial_verified&&s.r2_bucket_create.denial_verified);
- r.status=r.bounded_write_denial_tests_passed?'BOUNDED_WORKER_PREVIEW_AND_R2_CREATE_DENIALS_PASSED_CUSTODY_HOLD':'BOUNDED_DENIAL_TESTS_PARTIAL_OR_FAILED_CUSTODY_HOLD';
+ r.bounded_worker_assets_r2_denial_tests_passed=r.subject_identity_and_policy_stable&&!r.unexpected_write_observed&&r.possible_orphan_bucket_names.length===0&&r.subjects.length===3&&r.subjects.every(s=>s.worker_assets_upload_session.denial_verified&&s.r2_bucket_create.denial_verified);
+ r.status=r.bounded_worker_assets_r2_denial_tests_passed?'BOUNDED_WORKER_ASSET_SESSION_AND_R2_CREATE_DENIALS_PASSED_CUSTODY_HOLD':r.bounded_write_denial_tests_passed?'BOUNDED_WORKER_PREVIEW_AND_R2_CREATE_DENIALS_PASSED_CUSTODY_HOLD':'BOUNDED_DENIAL_TESTS_PARTIAL_OR_FAILED_CUSTODY_HOLD';
  r.preflight_get_requests=before.provider_get_requests;r.postflight_get_requests=after?.provider_get_requests??null;r.boundary_request_counts={...counts};
  r.provider_write_attempts=counts.POST+counts.DELETE;r.authority_worker_changed=false;r.retained_bucket_or_customer_state_targeted=false;
  return r;
 }
 async function main(){
  if(process.argv.length!==2||process.env.GITHUB_ACTIONS!=='true'||process.env.GITHUB_EVENT_NAME!=='push'||process.env.GITHUB_REPOSITORY!=='evansmusitu/mft-axiom-build'||
-  process.env.GITHUB_REF!=='refs/heads/build/axiom-gate3-custody-denial-20261124'||process.env.AXIOM_G3_WRITE_DENIAL_RUN!=='bounded_disposable_canaries_v1'){
+  process.env.GITHUB_REF!=='refs/heads/build/axiom-gate3-custody-denial-20261124'||process.env.AXIOM_G3_WRITE_DENIAL_RUN!=='bounded_disposable_canaries_v2_assets'){
   process.stderr.write('BOUNDARY_CONTEXT_REQUIRED_HOLD\n');process.exitCode=2;return;
  }
- try{const result=await runCredentialBoundaryAcceptance();process.stdout.write(JSON.stringify(result)+'\n');
-  if(!result.bounded_write_denial_tests_passed)process.exitCode=2;
+ try{const result=await runCredentialBoundaryAcceptance({includeAssetsProbe:true,includePreviewProbe:false});process.stdout.write(JSON.stringify(result)+'\n');
+  if(!result.bounded_worker_assets_r2_denial_tests_passed)process.exitCode=2;
  }catch{process.stderr.write('CREDENTIAL_BOUNDARY_OUTCOME_UNKNOWN_HOLD\n');process.exitCode=2;}
 }
 if(process.argv[1]&&resolve(process.argv[1])===fileURLToPath(import.meta.url))main();

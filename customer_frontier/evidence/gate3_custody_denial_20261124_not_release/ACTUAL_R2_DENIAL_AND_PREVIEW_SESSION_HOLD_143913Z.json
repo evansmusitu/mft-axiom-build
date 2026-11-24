@@ -1,0 +1,193 @@
+{
+  "schema": "musitu.axiom.gate3.credential-boundary-acceptance.v1",
+  "observed_at_utc": "2026-11-24T14:39:13.706Z",
+  "nonce": "75ab9688ab90fbe18b83b5e860de0d65",
+  "target_account": "67469478aa9349fa0a57fe3a72da200a",
+  "positive_control_account": "93f395f5121954671f92fffa453d6b61",
+  "control_bucket_name": "axiom-g3-ctrl-75ab9688ab90fbe18b83b5e860de0d65",
+  "preview_canary_name": "axiom-g3-deny-75ab9688ab90fbe18b83b5e860de0d65",
+  "subjects": [
+    {
+      "reference": "AXIOM_D1_RECOVERY_CF_API_TOKEN",
+      "provider_token_identifier_sha256": "83eda64c33252d73b0ae28ebcb902d35d5aa081a7b43f77728924820021860f5",
+      "worker_preview": {
+        "state": "VALID_WORKER_CONTROL_OR_TARGET_SESSION_UNAVAILABLE",
+        "denial_verified": false
+      },
+      "r2_bucket_create": {
+        "http_status": 403,
+        "state": "VALID_PROVIDER_REJECTION",
+        "provider_error_codes": [
+          10000
+        ],
+        "canary_bucket_name": "axiom-g3-deny-75ab9688ab90fbe18b83b5e860de0d65-0",
+        "denial_verified": true,
+        "valid_positive_control": true,
+        "precreation_absence_observed": true
+      }
+    },
+    {
+      "reference": "MUSITU_CLOUDFLARE_ADMIN_TOKEN",
+      "provider_token_identifier_sha256": "e2ca57fa6d971286e02a8f02050c53991ab79e3ccc8c958d46dbeaf8ed34f1a2",
+      "worker_preview": {
+        "state": "VALID_WORKER_CONTROL_OR_TARGET_SESSION_UNAVAILABLE",
+        "denial_verified": false
+      },
+      "r2_bucket_create": {
+        "http_status": 403,
+        "state": "VALID_PROVIDER_REJECTION",
+        "provider_error_codes": [
+          10000
+        ],
+        "canary_bucket_name": "axiom-g3-deny-75ab9688ab90fbe18b83b5e860de0d65-1",
+        "denial_verified": true,
+        "valid_positive_control": true,
+        "precreation_absence_observed": true
+      }
+    },
+    {
+      "reference": "CLOUDFLARE_API_TOKEN",
+      "provider_token_identifier_sha256": "bf3d1b9b09d06a396f9e97846f6ed2c6de64e67184c3865d370610e6d0a925c6",
+      "worker_preview": {
+        "state": "VALID_WORKER_CONTROL_OR_TARGET_SESSION_UNAVAILABLE",
+        "denial_verified": false
+      },
+      "r2_bucket_create": {
+        "http_status": 403,
+        "state": "VALID_PROVIDER_REJECTION",
+        "provider_error_codes": [
+          10000
+        ],
+        "canary_bucket_name": "axiom-g3-deny-75ab9688ab90fbe18b83b5e860de0d65-2",
+        "denial_verified": true,
+        "valid_positive_control": true,
+        "precreation_absence_observed": true
+      }
+    }
+  ],
+  "controls": {
+    "worker_source_session": {
+      "http_status": 200,
+      "state": "VALID_PROVIDER_SUCCESS",
+      "provider_error_codes": []
+    },
+    "worker_target_session": {
+      "http_status": 403,
+      "state": "INCONSISTENT_PROVIDER_RESPONSE_UNKNOWN",
+      "provider_error_codes": []
+    },
+    "worker_preview": {
+      "http_status": 200,
+      "state": "VALID_PROVIDER_SUCCESS",
+      "provider_error_codes": [],
+      "passed": true,
+      "deployment_performed": false,
+      "bindings": 0,
+      "preview_invoked": false
+    },
+    "r2_bucket": {
+      "before": {
+        "http_status": 404,
+        "state": "VALID_PROVIDER_REJECTION",
+        "provider_error_codes": [
+          10006
+        ]
+      },
+      "passed": true,
+      "cleanup_verified": true,
+      "creation": {
+        "http_status": 200,
+        "state": "VALID_PROVIDER_SUCCESS",
+        "provider_error_codes": []
+      },
+      "created": true,
+      "private_managed_domain_disabled": true,
+      "cleanup": {
+        "http_status": 200,
+        "state": "VALID_PROVIDER_SUCCESS",
+        "provider_error_codes": [],
+        "deletion_acknowledged": true,
+        "readback": {
+          "http_status": 404,
+          "state": "VALID_PROVIDER_REJECTION",
+          "provider_error_codes": [
+            10006
+          ]
+        },
+        "removed": true
+      }
+    }
+  },
+  "possible_orphan_bucket_names": [],
+  "unexpected_write_observed": false,
+  "subject_identity_and_policy_stable": true,
+  "bounded_write_denial_tests_passed": false,
+  "all_provider_write_denial_verified": false,
+  "global_key_custody_verified": false,
+  "alternative_credential_inventory_exhaustive": false,
+  "provider_write_attempts": 6,
+  "independent_operator_custody_qualified": false,
+  "gate3_closed": false,
+  "hosted_genesis_qualified": false,
+  "hosted_retirement_qualified": false,
+  "hosted_destructive_recovery_qualified": false,
+  "B27": "FAILED_IN_SYNTHETIC_ATTACK",
+  "parity_superiority": "NOT_CERTIFIED",
+  "unavailable_final_usage": "UNKNOWN",
+  "release_status": "NOT_RELEASE",
+  "global_custody": {
+    "execution_origin": "BUILD_CONTROLLED_NOT_INDEPENDENT_OPERATOR",
+    "metadata_principal_get": {
+      "http_status": 200,
+      "state": "VALID_PROVIDER_SUCCESS",
+      "provider_error_codes": []
+    },
+    "metadata_principal_identifier_sha256": "29293f773babce484eb7b17af2b293a083d8311ea296ef8d3e0dac119e63c243",
+    "recorded_ci_email_matches_metadata_principal": true,
+    "keys": [
+      {
+        "reference": "CLOUDFLARE_GLOBAL_API_KEY",
+        "verified_principal_identifier_sha256": null,
+        "attempts": [
+          {
+            "variant": "recorded_ci_email",
+            "http_status": 403,
+            "state": "VALID_PROVIDER_REJECTION",
+            "provider_error_codes": [
+              9103
+            ]
+          }
+        ],
+        "revocation_verified": false,
+        "custody_qualified": false,
+        "state": "NO_PRINCIPAL_VERIFIED_FOR_TESTED_IDENTITIES_NOT_REVOCATION_PROOF"
+      },
+      {
+        "reference": "CLOUDFLARE_API_KEY",
+        "verified_principal_identifier_sha256": null,
+        "attempts": [],
+        "revocation_verified": false,
+        "custody_qualified": false,
+        "state": "NOT_AVAILABLE_OR_FORMAT_UNSUPPORTED_IN_THIS_CONTEXT"
+      }
+    ],
+    "global_key_a2_administrator_membership_observed": false,
+    "alternative_reference_availability": {
+      "MUSITU_CF_STAGING_READ_TOKEN": false,
+      "CLOUDFLARE_API_KEY": false
+    },
+    "exhaustive_inventory": false,
+    "independent_custody_qualified": false
+  },
+  "preconditions_passed": true,
+  "status": "BOUNDED_DENIAL_TESTS_PARTIAL_OR_FAILED_CUSTODY_HOLD",
+  "preflight_get_requests": 20,
+  "postflight_get_requests": 20,
+  "boundary_request_counts": {
+    "GET": 10,
+    "POST": 5,
+    "DELETE": 1
+  },
+  "authority_worker_changed": false,
+  "retained_bucket_or_customer_state_targeted": false
+}

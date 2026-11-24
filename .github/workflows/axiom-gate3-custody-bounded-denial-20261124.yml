@@ -1,4 +1,4 @@
-name: AXIOM Gate3 custody observations and bounded canary denials (NOT RELEASE)
+name: AXIOM Gate3 Worker assets and R2 denial acceptance (NOT RELEASE)
 on:
   push:
     branches: ['build/axiom-gate3-custody-denial-20261124']
@@ -23,7 +23,7 @@ jobs:
         run: node --test customer_frontier/tests/gate3_build_credential_readonly_probe.test.mjs customer_frontier/tests/gate3_credential_boundary_acceptance.test.mjs
       - name: Observe global-key identity and exercise bounded disposable controls and denials
         env:
-          AXIOM_G3_WRITE_DENIAL_RUN: bounded_disposable_canaries_v1
+          AXIOM_G3_WRITE_DENIAL_RUN: bounded_disposable_canaries_v2_assets
           AXIOM_D1_RECOVERY_CF_API_TOKEN: ${{ secrets.AXIOM_D1_RECOVERY_CF_API_TOKEN }}
           MUSITU_CLOUDFLARE_ADMIN_TOKEN: ${{ secrets.MUSITU_CLOUDFLARE_ADMIN_TOKEN }}
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}

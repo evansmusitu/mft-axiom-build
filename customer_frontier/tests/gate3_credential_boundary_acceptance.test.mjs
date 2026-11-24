@@ -25,6 +25,12 @@ function fixture(options={}){
    return refused(403);
   }
   if(path.startsWith('/memberships'))return Response.json({success:true,errors:[],result:[{account:{id:A2,name:'PRIVATE_ACCOUNT'},status:'accepted',roles:['Account Administrator']}],result_info:{page:1,count:1,per_page:50,total_count:1}});
+  if(path.endsWith('/settings'))return refused(404);
+  if(path.endsWith('/assets-upload-session')){
+   const b=await req.clone().json();assert.equal(b.manifest['/gate3-empty-proof.txt'].size,0);assert.match(b.manifest['/gate3-empty-proof.txt'].hash,/^[a-f0-9]{32}$/);
+   if(path.includes(SOURCE))return options.assetsControlFail?refused(400):cf({jwt:'PRIVATE_ASSET_UPLOAD_JWT',buckets:[['opaque-hash']]});
+   return options.assetsUnexpected?cf({jwt:'PRIVATE_UNEXPECTED_ASSET_JWT'}):refused(options.denialStatus||403);
+  }
   if(path.endsWith('/subdomain/edge-preview'))return options.noTargetSession&&path.includes(A2)?refused(403):cf({token:'PRIVATE_PREVIEW_SESSION_TOKEN'});
   if(path.endsWith('/edge-preview')&&method==='POST'){
    const form=await req.clone().formData(),metadata=JSON.parse(await form.get('metadata').text());
@@ -113,4 +119,19 @@ test('duplicate JSON and reflected credentials in a purported403 body cannot qua
 test('global-key membership absence is not inferred from an incomplete provider page',async()=>{
  const f=fixture({globalActive:true}),r=await run(f,{fetchImpl:async req=>req.url.includes('/memberships?')?cf([]):f.fetchImpl(req)});
  const key=r.global_custody.keys.find(k=>k.reference==='CLOUDFLARE_GLOBAL_API_KEY');assert.equal(key.memberships.complete,false);assert.equal(key.memberships.a2_membership_observed,null);holds(r);
+});
+test('a separate asset-session scope proves Workers write denial without waiving the unavailable preview test',async()=>{
+ const f=fixture({noTargetSession:true}),r=await run(f,{includeAssetsProbe:true,includePreviewProbe:false});
+ assert.equal(r.bounded_worker_assets_r2_denial_tests_passed,true);assert.equal(r.bounded_write_denial_tests_passed,false);
+ assert(r.subjects.every(s=>s.worker_assets_upload_session.denial_verified&&!s.worker_preview.denial_verified));assert.equal(f.buckets.size,0);
+ assert(!JSON.stringify(r).includes('PRIVATE_ASSET_UPLOAD_JWT'));assert(!f.requests.some(x=>x.url.endsWith('/edge-preview')));holds(r);
+});
+test('an unavailable or failed asset-session control cannot qualify that permission test',async()=>{
+ const f=fixture({assetsControlFail:true}),r=await run(f,{includeAssetsProbe:true,includePreviewProbe:false});
+ assert.equal(r.bounded_worker_assets_r2_denial_tests_passed,false);assert(!f.requests.some(x=>x.method==='POST'&&x.url.includes(A2)&&x.url.endsWith('/assets-upload-session')));holds(r);
+});
+test('an unexpectedly granted asset-upload capability is a denial failure and is never used',async()=>{
+ const f=fixture({assetsUnexpected:true}),r=await run(f,{includeAssetsProbe:true,includePreviewProbe:false});
+ assert.equal(r.bounded_worker_assets_r2_denial_tests_passed,false);assert.equal(r.unexpected_write_observed,true);
+ assert(!JSON.stringify(r).includes('PRIVATE_UNEXPECTED_ASSET_JWT'));assert(!f.requests.some(x=>/\/workers\/assets\/upload/.test(x.url)));holds(r);
 });
