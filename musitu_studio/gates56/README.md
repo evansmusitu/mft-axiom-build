@@ -314,3 +314,38 @@ Local fake credits must never be confused with settled Paynow credits.
   merchant settlement is evidenced here.
 
 **Formal G5 OPEN; G6 OPEN. NO-GO for public release and paid rendering.**
+
+## 24 November 2026 — provider-neutral continuation without owner UI steps
+
+Per owner direction, use the already connected GitHub Actions repository
+credentials for Modal. Read-only proof on 24 Nov is recorded in
+`evidence/20261124_MODAL_REPO_SECRETS_READONLY_APP_ASSOCIATION.md`.
+Authenticated workspace, billing and existing `musitu-studio-v02/render_cpu_pull`
+readback were verified, with no deployment, billed execution or secret leak.
+
+The published Modal CLI `modal workspace settings list` and Python
+`Workspace.settings.list()` list the workspace default environment and image
+builder version, not the provider-enforced Workspace Budget. As of this source
+review the documented SDK does not provide an authenticated hard-cap balance
+readback. The billing summary and unused free credits cannot prove a zero-cost
+or hard-limited job. Do **not** mint a provider-cap certificate from this data,
+infer an unlimited approved limit, or use arbitrary finite limits selected by
+the coding agent.
+
+### Cross-tenant single-CPU-lane fail-closed patch
+
+The unhosted global-queue controller now blocks any new `claim` while a
+previous job is `RUNNING`, `CANCEL_REQUESTED`, or `NEEDS_REVIEW`, regardless
+of tenant or lease expiry. The queue cannot silently start a second billable
+CPU attempt while the first external call may still be alive. A stale attempt
+must be reconciled independently before new work can proceed; `quarantineStale`
+is not a proof of cost or cancellation and keeps the block in force.
+
+- RED CI (18 existing Node tests passed; 2 new tests failed as intended):
+  https://github.com/evansmusitu/mft-axiom-build/actions/runs/45451679383
+- GREEN CI (41 Python plus 20 Node/SQLite, 61/61):
+  https://github.com/evansmusitu/mft-axiom-build/actions/runs/45451779463
+- No Cloudflare DO migration, Modal spawn, Gemini call, paid render, Paynow
+  settlement, public route or QA alteration occurred in this step.
+
+**GATE 5 OPEN / GATE 6 OPEN / PAID RENDERING DISABLED.**
