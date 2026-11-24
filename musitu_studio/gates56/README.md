@@ -349,3 +349,52 @@ is not a proof of cost or cancellation and keeps the block in force.
   settlement, public route or QA alteration occurred in this step.
 
 **GATE 5 OPEN / GATE 6 OPEN / PAID RENDERING DISABLED.**
+
+## 24 November 2026 — final owner requirement: user-selectable Modal CPU **and** GPU rendering
+
+The owner clarified the permanent Studio product requirement: **both Modal CPU
+and Modal GPU rendering must be available as an explicit per-job choice**.
+The earlier GPU-only instruction was superseded. Do not permanently disable
+CPU and do not silently substitute CPU for GPU, GPU for CPU, or an unapproved
+GPU type. A customer's selected rendering mode must be preserved from UI
+submission through quote, immutable queue record, worker claim, Modal function,
+output proof, cancellation, and billing reconciliation.
+
+**Source-only G5/G6 controller implemented:**
+- `device=CPU` with `gpuType=null`: CPU Blender render on Modal.
+- `device=GPU` with `gpuType=T4`: CUDA/Cycles render on Modal's T4 GPU
+  (the initial approved *technical candidate*, not paid deployment approval).
+- Each submitted job persists its device and GPU type; a reused submission key
+  cannot change either selection. Worker claims filter exactly by matching
+  `device` and NULL-safe `gpu_type` and cannot fall back to another mode.
+- Invalid configurations such as CPU+T4, GPU without a type, GPU+A100 or TPU
+  fail before ledger reservation. The SQL schema independently rejects those
+  values, including NULL on the GPU case (SQLite CHECK rejects only FALSE,
+  not UNKNOWN, so the GPU type comparison uses `IS`).
+- Both modes still require authenticated project roles, exact Modal workspace,
+  genuine hard spending guard, per-mode worst-case quote, global single-worker
+  exposure control, credits and provider cancellation reconciliation.
+- No cloud renderer, chargeable queue, GPU function registration, billing
+  guard or public deployment was activated by this change.
+
+**Existing product boundary:** `musitu_studio/modal/studio_modal.py` already
+defines `render_cpu_pull` and an opt-in `render_gpu` function that requires
+`STUDIO_REGISTER_GPU_FUNCTIONS=1`; GPU runtime requires
+`STUDIO_GPU_GATE_ON_MODAL=1`. Those flags are NOT being switched on.
+The existing Studio v0.3 UI (`edge/public_v03/index.html`), scene submission
+intent, D1/DO schema and HTTP controller remain CPU-only. They are **not**
+connected to the new G5/G6 queue. The user-facing CPU/GPU selection will
+require a separately reviewed versioned storage migration, identity-safe
+submission API, actual GPU pull or result path, separate budget ceilings,
+fresh verified GPU usage and artifact evidence, and new end-to-end tests before
+it may be represented as available in a hosted interface.
+
+TDD evidence:
+- RED selection tests:
+  https://github.com/evansmusitu/mft-axiom-build/actions/runs/45453787080
+  and https://github.com/evansmusitu/mft-axiom-build/actions/runs/45453819454
+- GREEN both-mode queue and schema tests:
+  https://github.com/evansmusitu/mft-axiom-build/actions/runs/45454010646
+  (**43 Python + 22 Node = 65/65 offline tests passed**).
+
+**GATE 5 OPEN; GATE 6 OPEN; paid CPU and GPU rendering disabled.**
