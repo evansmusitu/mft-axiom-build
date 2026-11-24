@@ -50,11 +50,11 @@ export class G56DurableQueueController {
       throw new QueueGateClosed('IDENTITY_NOT_VERIFIED');
   }
 
-  _project(principal, tenant, project) {
+  _project(principal, tenant, project, purpose) {
     // Tenant membership alone does not grant access to another project.
     // This callback must be a trusted, externally verified role check.
     if (typeof this.authorizeProject !== 'function' ||
-        this.authorizeProject(principal, tenant, project) !== true)
+        this.authorizeProject(principal, tenant, project, purpose) !== true)
       throw new QueueGateClosed('PROJECT_ROLE_NOT_VERIFIED');
   }
 
@@ -166,7 +166,7 @@ export class G56DurableQueueController {
            maxCostCents, creditUnits, maxAttempts=1 } = {}) {
     this._selector(tenant, project);
     this._identity(principal,tenant);
-    this._project(principal,tenant,project);
+    this._project(principal,tenant,project,'write');
     if (typeof submissionKey !== 'string' || !NAME.test(submissionKey) ||
         typeof payloadSha256 !== 'string' ||
         !/^[a-f0-9]{64}$/.test(payloadSha256) ||
@@ -271,7 +271,7 @@ export class G56DurableQueueController {
     this._selector(tenant, jid);
     this._identity(principal, tenant);
     const row = this._job(tenant, jid);
-    this._project(principal, tenant, row.project);
+    this._project(principal, tenant, row.project, 'read');
     return this._safe(row);
   }
 
@@ -281,7 +281,7 @@ export class G56DurableQueueController {
     const at = this._time();
     return this.storage.transactionSync(() => {
       const row = this._job(tenant, jid);
-      this._project(principal, tenant, row.project);
+      this._project(principal, tenant, row.project, 'write');
       if (TERMINAL.has(row.state) || row.state === 'CANCEL_REQUESTED' ||
           row.state === 'NEEDS_REVIEW') return this._safe(row);
       if (row.state === 'QUEUED') {
