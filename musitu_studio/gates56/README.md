@@ -151,7 +151,7 @@ The prior local safety suite was expanded with:
   runs ONLY in ephemeral CI SQLite databases; it has not touched any Vercel,
   Supabase, R2, Cloudflare, Modal or payment account.
 
-### Approved read-only path to real account evidence (NOT yet executed)
+### Operator-only read-only account observation (independently attempted on 24 Nov)
 
 On a trusted, private, operator-controlled machine with Modal SDK **1.6.4**
 installed and a minimum-privilege Modal API token supplied as runtime secrets:
@@ -171,7 +171,9 @@ Do NOT add tokens, costs or customer account identifiers to GitHub source or
 public Actions logs. The already existing
 `.github/workflows/studio-v03-modal-spend-readonly-20261018.yml` uses a
 read-only Modal CLI billing summary, but does not provide the missing hard-cap
-attestation either. No new live workflow was triggered here.
+attestation either. The standalone authenticated read-only probe later verified Modal billing access,
+but the exact expected Studio workspace variable remained unset; see
+`evidence/20261124_MODAL_AUTH_AND_DO_QUEUE_NOT_RELEASE.md`.
 
 **Further prerequisites for a live Gate 5:** An independently trusted provider
 control-plane attestation for the exact Workspace enforced budget and actual
@@ -191,3 +193,58 @@ Official docs:
 - https://modal.com/docs/guide/budgets
 - https://modal.com/docs/sdk/py/latest/Workspace
 - https://modal.com/docs/sdk/py/latest/FunctionCall
+
+## 24 November 2026 later — executable unhosted queue controller and financial immutability
+
+The next source-only continuation adds a real, independent implementation of
+non-dispatching queue lifecycle operations in
+`durable_queue_controller.mjs`, running against the actual SQLite engine in
+Node 24 without any Cloudflare, Modal, Gemini, Paynow or R2 request.
+
+**Implemented and unit-tested:** verified-identity-adapter scoped status reads;
+tenant-owned cancel; no-charge cancellation only if attempts=0 and no
+provider-call/fence ever existed; quarantine of queued retries with unknown
+earlier usage; running cancel intent without invented provider refund; no
+released reservation on NEEDS_REVIEW; fenced worker progress with active lease
+and monotonic values; stale-worker quarantine without implicit retries; and
+a maintenance-only emergency stop that switches the queue off and marks
+running jobs CANCEL_REQUESTED, retaining all holds.
+
+**Financial integrity:** database-level triggers now freeze the approved
+tenant, project, idempotency key, payload hash, cost reservation, credit hold,
+attempt ceiling and creation timestamp once admitted. No update to a terminal
+job is allowed, including credit charge or cost changes after settlement.
+These invariants were verified with real SQLite before any hosted migration.
+
+**Offline TDD evidence:**
+- Red financial tests: https://github.com/evansmusitu/mft-axiom-build/actions/runs/45408163345
+- Green financial tests: https://github.com/evansmusitu/mft-axiom-build/actions/runs/45408289176 — Python 41/41.
+- Red queue-controller tests: https://github.com/evansmusitu/mft-axiom-build/actions/runs/45408629371
+- Green controller tests: https://github.com/evansmusitu/mft-axiom-build/actions/runs/45408814831 — Python 41 + Node 8.
+- Red emergency-stop tests: https://github.com/evansmusitu/mft-axiom-build/actions/runs/45409017549
+- Green full suite: https://github.com/evansmusitu/mft-axiom-build/actions/runs/45409134554 — Python 41 + Node 10 = **51/51, zero failures**.
+
+Execute the same local test boundary from the repository root:
+
+```sh
+python -m compileall -q musitu_studio/gates56
+python -m unittest -v musitu_studio.gates56.test_ledger \
+  musitu_studio.gates56.test_blender_bridge \
+  musitu_studio.gates56.test_modal_budget_observer \
+  musitu_studio.gates56.test_durable_queue_schema
+node --check musitu_studio/gates56/durable_queue_controller.mjs
+node --test musitu_studio/gates56/test_durable_queue_controller.mjs
+```
+
+**Not implemented / not approved:** a hosted Durable Object class, isolated DO
+namespace, remote authenticated routing, real end-user or worker credential
+verification, provider attested hard caps, admissions and claims bound to
+provider budgets, actual Modal CPU spawn/poll/cancel, private cloud artifacts,
+real credits/payments, a genuine Blender output check on this controller, or
+cross-worker recovery under real provider failures. The injected test identity
+adapters are simulated and MUST NOT be exposed as live authorization.
+This controller intentionally contains no `submit`, `claim`, `arm` or paid
+dispatch operation. The emergency stop issues local cancellation intent; it
+does NOT prove an existing provider call was actually terminated.
+
+**Gate 5 OPEN; Gate 6 OPEN; PUBLIC LAUNCH NO-GO.**
