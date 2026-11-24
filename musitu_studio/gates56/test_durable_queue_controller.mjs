@@ -296,36 +296,65 @@ test('atomically submit once: duplicate request cannot mint reservation or chang
   assert.equal(f.db.prepare('SELECT count(*) n FROM g56_do_jobs').get().n,1);
 });
 
-test('Studio G5/6 reserves only Modal T4 GPU work and rejects CPU fallback', () => {
+test('Studio accepts explicitly selected Modal CPU and T4 GPU jobs, never mismatched hardware', () => {
   const f=fixture({budget:true,binding:true,quote:true});
   approveAdmission(f.db);
-  assert.throws(()=>f.controller.submit({...submitArgs({key:'cpu-denied'}),device:'CPU',gpuType:'T4'}),
-    /MODAL_GPU_ONLY_REQUIRED/);
-  assert.throws(()=>f.controller.submit({...submitArgs({key:'different-gpu'}),device:'GPU',gpuType:'A100'}),
-    /MODAL_GPU_ONLY_REQUIRED/);
+  for(const invalid of [
+    {device:'CPU',gpuType:'T4'},
+    {device:'GPU',gpuType:null},
+    {device:'GPU',gpuType:'A100'},
+    {device:'TPU',gpuType:null}
+  ]) {
+    assert.throws(()=>f.controller.submit({...submitArgs({key:'badMode'}),...invalid}),
+      /INVALID_MODAL_RENDER_DEVICE/);
+  }
   assert.equal(f.db.prepare('SELECT count(*) n FROM g56_do_jobs').get().n,0);
-  const accepted=f.controller.submit({...submitArgs(),device:'GPU',gpuType:'T4'});
-  assert.equal(accepted.state,'QUEUED');
-  const stored=f.row(accepted.job_id);
-  assert.equal(stored.device,'GPU');
-  assert.equal(stored.gpu_type,'T4');
+  const cpu=f.controller.submit({...submitArgs({key:'cpuChosen'}),device:'CPU',gpuType:null});
+  const gpu=f.controller.submit({...submitArgs({key:'gpuChosen'}),device:'GPU',gpuType:'T4'});
+  assert.equal(cpu.state,'QUEUED');
+  assert.equal(gpu.state,'QUEUED');
+  assert.equal(f.row(cpu.job_id).device,'CPU');
+  assert.equal(f.row(cpu.job_id).gpu_type,null);
+  assert.equal(f.row(gpu.job_id).device,'GPU');
+  assert.equal(f.row(gpu.job_id).gpu_type,'T4');
+  assert.throws(()=>f.controller.submit({
+    ...submitArgs({key:'cpuChosen'}),device:'GPU',gpuType:'T4'
+  }),/IDEMPOTENCY_KEY_PAYLOAD_CONFLICT/);
 });
 
-test('a job claim is GPU only, with exact T4 hardware and no CPU downgrade', () => {
-  const f=fixture({budget:true,binding:true,quote:true});
-  approveAdmission(f.db);
-  const job=f.controller.submit({...submitArgs(),device:'GPU',gpuType:'T4'});
-  assert.throws(()=>f.controller.claim({
+test('Modal worker claims only the requested mode; neither CPU nor GPU is a fallback', () => {
+  const gpu=fixture({budget:true,binding:true,quote:true});
+  approveAdmission(gpu.db);
+  const queuedGPU=gpu.controller.submit({
+    ...submitArgs(),device:'GPU',gpuType:'T4'
+  });
+  assert.throws(()=>gpu.controller.claim({
     proof:'local-private-worker',workerId:'workerCPU',device:'CPU',gpuType:'T4'
-  }),/MODAL_GPU_ONLY_REQUIRED/);
-  assert.equal(f.row(job.job_id).state,'QUEUED');
-  const claim=f.controller.claim({
+  }),/INVALID_MODAL_RENDER_DEVICE/);
+  assert.equal(gpu.controller.claim({
+    proof:'local-private-worker',workerId:'workerCPU',device:'CPU',gpuType:null
+  }),null);
+  assert.equal(gpu.row(queuedGPU.job_id).state,'QUEUED');
+  const gpuClaim=gpu.controller.claim({
     proof:'local-private-worker',workerId:'workerCPU',device:'GPU',gpuType:'T4'
   });
-  assert.equal(claim.device,'GPU');
-  assert.equal(claim.gpu_type,'T4');
-  assert.equal(claim.provider,'MODAL');
-  assert.equal(f.row(job.job_id).state,'RUNNING');
+  assert.equal(gpuClaim.device,'GPU');
+  assert.equal(gpuClaim.gpu_type,'T4');
+  assert.equal(gpuClaim.provider,'MODAL');
+
+  const cpu=fixture({budget:true,binding:true,quote:true});
+  approveAdmission(cpu.db);
+  const queuedCPU=cpu.controller.submit({...submitArgs(),device:'CPU',gpuType:null});
+  assert.equal(cpu.controller.claim({
+    proof:'local-private-worker',workerId:'workerCPU',device:'GPU',gpuType:'T4'
+  }),null);
+  assert.equal(cpu.row(queuedCPU.job_id).state,'QUEUED');
+  const cpuClaim=cpu.controller.claim({
+    proof:'local-private-worker',workerId:'workerCPU',device:'CPU',gpuType:null
+  });
+  assert.equal(cpuClaim.device,'CPU');
+  assert.equal(cpuClaim.gpu_type,null);
+  assert.equal(cpuClaim.provider,'MODAL');
 });
 
 test('global provider remaining headroom cannot be allocated twice across tenants', () => {
