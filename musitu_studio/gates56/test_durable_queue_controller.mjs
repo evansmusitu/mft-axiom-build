@@ -136,6 +136,7 @@ test('cancel on quarantined job does not erase NEEDS_REVIEW or release escrow', 
 
 test('progress needs trusted worker fence, live lease, and monotonic observed value', () => {
   const f = fixture();
+  f.db.exec('UPDATE g56_do_control SET killed=0 WHERE id=1'); // offline simulated approval
   f.seed({ state:'RUNNING',attempts:1,fence:'fenceA',lease:1010,progress:10 });
   assert.throws(() => f.controller.progress({proof:null,tenant:'tenantA',jid:'G56_A',fence:'fenceA',percent:25}), /WORKER_NOT_VERIFIED/);
   assert.throws(() => f.controller.progress({proof:f.worker(),tenant:'tenantA',jid:'G56_A',fence:'wrong',percent:25}), /STALE_FENCE/);
@@ -146,6 +147,43 @@ test('progress needs trusted worker fence, live lease, and monotonic observed va
   f.setNow(1031);
   assert.throws(() => f.controller.progress({proof:f.worker(),tenant:'tenantA',jid:'G56_A',fence:'fenceA',percent:50}), /WORKER_LEASE_EXPIRED/);
   assert.equal(f.row().progress,25);
+});
+
+test('default emergency kill switch blocks any further worker progress', () => {
+  const f = fixture();
+  f.seed({ state:'RUNNING',attempts:1,fence:'fenceA',lease:1020,provider:'fc-real' });
+  assert.throws(
+    () => f.controller.progress({
+      proof:f.worker(),tenant:'tenantA',jid:'G56_A',
+      fence:'fenceA',percent:50
+    }),
+    /STUDIO_COMPUTE_KILL_SWITCH_ON/
+  );
+  assert.equal(f.row().progress,0);
+  assert.equal(f.row().charged_cents,null);
+});
+
+test('emergencyStop denies outsiders, requests provider cancel and never releases holds', () => {
+  const f=fixture();
+  f.db.exec('UPDATE g56_do_control SET killed=0 WHERE id=1'); // offline fixture, not an arming API
+  f.seed({ state:'RUNNING',attempts:1,fence:'fenceA',lease:1020,provider:'fc-real' });
+  f.seed({jid:'G56_B',tenant:'tenantB',key:'submissionB'});
+  assert.throws(
+    () => f.controller.emergencyStop({proof:null}),
+    /MAINTENANCE_AUTHORIZATION_REQUIRED/
+  );
+  assert.equal(f.db.prepare('SELECT killed FROM g56_do_control WHERE id=1').get().killed,0);
+  const result=f.controller.emergencyStop({proof:'approved-private-maintainer'});
+  assert.equal(result.killed,true);
+  assert.equal(result.cancel_requested,1);
+  assert.equal(f.row().state,'CANCEL_REQUESTED');
+  assert.equal(f.row().reserved_cents,60);
+  assert.equal(f.row().credit_hold,3);
+  assert.equal(f.row().charged_cents,null);
+  assert.equal(f.row().credit_charge,null);
+  assert.equal(f.row('G56_B').state,'QUEUED');
+  assert.equal(f.controller.emergencyStop({proof:'approved-private-maintainer'}).cancel_requested,0);
+  assert.equal(f.events().filter(x=>x.event==='EMERGENCY_PROVIDER_CANCEL_REQUIRED').length,1);
 });
 
 test('quarantine stale attempts without retry or refunds and is idempotent', () => {
