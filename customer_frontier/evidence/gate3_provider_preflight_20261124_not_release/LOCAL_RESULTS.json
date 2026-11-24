@@ -1,11 +1,11 @@
 {
-  "node_customer_tests_passed": 539,
+  "node_customer_tests_passed": 545,
   "python_customer_tests_passed": 352,
-  "new_synthetic_get_only_cases": 32,
+  "new_synthetic_get_only_cases": 38,
   "source_syntax_and_diff": "PASS",
-  "actual_provider_observation": "COMPLETED_PROVIDER_WRITE_ALLOW_POLICY_COUNTEREXAMPLES_OBSERVED",
+  "actual_provider_observation": "KNOWN_WRITE_GRANT_REMOVAL_CONFIRMED_NONSTANDARD_LABELS_IDENTIFIED_NOT_CUSTODY",
   "independent_operator_policy_readback": "NOT_RECEIVED",
-  "effective_write_denial": "NOT_RUN_UNSAFE_POLICY_PREREQUISITES_FAILED",
+  "effective_write_denial": "NOT_RUN_INDEPENDENT_CUSTODY_AND_DISPOSABLE_TEST_PREREQUISITES_UNQUALIFIED",
   "private_genesis_retirement_and_hosted_recovery": "BLOCKED_BY_PROVIDER_CUSTODY",
   "gate3_closed": false,
   "B27": "FAILED_IN_SYNTHETIC_ATTACK",
@@ -24,8 +24,8 @@
     "release_status": "NOT_RELEASE"
   },
   "local_workerd_tests_passed": 16,
-  "source_head": "95ff37dcc696ece685801274718d5a2162c2243c",
-  "source_tree": "9036c76e43d12a8bc2165d9fe5c9f67a200b20c6",
-  "provider_run_id": 45401611848,
-  "customer_run_id": 45401625405
+  "source_head": "d22bc554014676e9514500f44c75012f5ba37d86",
+  "source_tree": "a3079a769238bb4de25774bbd1ce92e3e2b2f601",
+  "provider_run_id": 45411478388,
+  "customer_run_id": 45411494332
 }

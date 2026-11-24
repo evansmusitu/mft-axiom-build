@@ -1,5 +1,13 @@
 # MUSITU AXIOM Gate 3 — security, custody and anti-rollback
 
+## 24 November14:12Z registry readback — current dependency
+
+Known recovery/admin write-named grant removal is confirmed again. Source d22bc554014676e9514500f44c75012f5ba37d86, actual run45411478388/job138506130416,20 GETs/zero writes. The exact public permission registry matched all three previously nonstandard admin labels by ID and name: Magic Firewall Packet Captures - Read PCAPs API; Workers Content Read-Only; Workers Metadata Read-Only. Their original suffix-based counters remain unchanged; no qualification flag is promoted. The missing literal “Read” suffix no longer leaves their identities unknown. No extra owner edit of these labels is requested.
+
+The current blocker is global-key/alternative-credential inventory and custody, independently controlled current provider evidence and effective write-denial acceptance. The admin all-account read scope remains an observed scope; full least-privilege/effective-policy acceptance is not inferred. Private genesis, retirement and hosted destructive recovery remain unrun. Actual owner edits resolve the old known-write counterexamples at the observed metadata scope; do not repeat those edits, signer proof or unchanged source/config approval.
+
+Eight attempts total147 GETs and zero assistant provider writes. Source CI45411494332/job138506190000 passed545 Node+352 Python+16 local workerd checks (913), exact tree a3079a769238bb4de25774bbd1ce92e3e2b2f601. Current receipt/report: gate3_provider_preflight_20261124_not_release/VERIFICATION_RECEIPT.json and ACTUAL_OWNER_EDIT_REGISTRY_READBACK_141230Z.json. Historical sections below retain their original times/scopes. Gate3 OPEN/HOLD, B27 FAILED_IN_SYNTHETIC_ATTACK, NOT_RELEASE.
+
 ## 24 November14:03Z owner-edit readback — current dependency
 
 After the owner reported “Done,” unchanged reviewed GET-only source95ff37d was rerun at run45401611848/attempt2/job138500463840. Actual Cloudflare metadata at14:03:42.369Z confirms the SAME provider identifiers: recovery11 read-named groups/zero write-named groups; admin190 read-named groups/zero write-named groups/three unclassified groups. The previously observed known write-policy counterexamples are resolved at this metadata scope. Do not repeat those edits or accepted signer/source approval.
