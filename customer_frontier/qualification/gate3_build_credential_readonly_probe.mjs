@@ -10,6 +10,13 @@ const WORKER=`/accounts/${A2}/workers/scripts/axiom-security-authority2-highwate
 const LOCK=`/accounts/${A2}/r2/buckets/musitu-axiom-b27-highwater-a2/lock`;
 const TOKEN_REFS=['AXIOM_D1_RECOVERY_CF_API_TOKEN','MUSITU_CLOUDFLARE_ADMIN_TOKEN','CLOUDFLARE_API_TOKEN','MUSITU_CF_STAGING_READ_TOKEN'];
 const KEY_REFS=['CLOUDFLARE_GLOBAL_API_KEY','CLOUDFLARE_API_KEY'];
+// Fixed public capability labels only: provider-supplied names are never echoed.
+const WRITE_CAPABILITIES=new Map([
+ ['Workers Scripts','WORKER_SOURCE_WRITE'],['Workers R2 Storage','R2_STORAGE_WRITE'],['R2','R2_STORAGE_WRITE'],
+ ['Workers KV Storage','KV_STORAGE_WRITE'],['D1','D1_WRITE'],['Cloudflare Pages','PAGES_WRITE'],
+ ['Account Settings','ACCOUNT_SETTINGS_WRITE'],['API Tokens','USER_TOKEN_ADMIN_WRITE'],['Account API Tokens','ACCOUNT_TOKEN_ADMIN_WRITE'],
+ ['Memberships','MEMBERSHIP_ADMIN_WRITE'],['Workers Routes','WORKER_ROUTES_WRITE'],['Workers Durable Objects','DURABLE_OBJECT_WRITE']
+].flatMap(([name,code])=>[[' Write',' Edit'].map(suffix=>[name+suffix,code])]).flat());
 const hex32=x=>typeof x==='string'&&/^[a-f0-9]{32}$/.test(x);
 const sha=x=>createHash('sha256').update(x).digest('hex');
 const tokenDetailsPath=path=>/^\/user\/tokens\/[a-f0-9]{32}$/.test(path)||new RegExp('^/accounts/('+A2+'|'+SOURCE_ACCOUNT+')/tokens/[a-f0-9]{32}$').test(path);
@@ -78,7 +85,7 @@ async function tokenPolicy(api,headers,scope,id){
   if(!['allow','deny'].includes(policy?.effect))return hold('POLICY_EFFECT_UNSUPPORTED');
   if(!policy.resources||Array.isArray(policy.resources)||typeof policy.resources!=='object')return hold('RESOURCE_MAP_UNSUPPORTED');
   if(!Array.isArray(policy.permission_groups))return {...hold('PERMISSION_GROUP_ARRAY_UNSUPPORTED'),permission_groups_shape:policy.permission_groups===undefined?'MISSING':policy.permission_groups===null?'NULL':'OTHER_TYPE'};
-  if(policy.permission_groups.length>100)return hold('PERMISSION_GROUP_COUNT_UNSUPPORTED');
+  if(policy.permission_groups.length>2048)return hold('PERMISSION_GROUP_COUNT_UNSUPPORTED');
   const resources=Object.keys(policy.resources);if(resources.length<1||resources.length>100)return hold('RESOURCE_COUNT_UNSUPPORTED');
   let explicit=false,all=false,unknown=false;
   for(const resource of resources){
@@ -87,16 +94,16 @@ async function tokenPolicy(api,headers,scope,id){
    else if(!/^com\.cloudflare\.api\.account\.[a-f0-9]{32}$/.test(resource))unknown=true;
    if(policy.resources[resource]!=='*')unknown=true;
   }
-  let read=0,write=0,unclassified=0;
+  let read=0,write=0,unclassified=0;const capabilities=new Set();
   for(const group of policy.permission_groups){
    if(!hex32(group?.id))return hold('PERMISSION_GROUP_IDENTIFIER_UNSUPPORTED');
    if(group.name!==undefined&&(typeof group.name!=='string'||group.name.length>200))return hold('PERMISSION_GROUP_NAME_UNSUPPORTED');
    if(group.name===undefined)unclassified++;
    else if(/ Read$/.test(group.name))read++;
-   else if(/ (Write|Edit)$/.test(group.name))write++;
+   else if(/ (Write|Edit)$/.test(group.name)){write++;capabilities.add(WRITE_CAPABILITIES.get(group.name)||'OTHER_WRITE_NAMED');}
    else unclassified++;
   }
-  rows.push({effect:policy.effect,explicit_a2_resource:explicit,all_account_resource:all,unclassified_resource_scope:unknown,empty_permission_groups:policy.permission_groups.length===0,read_named_groups:read,write_named_groups:write,unclassified_groups:unclassified});
+  rows.push({effect:policy.effect,explicit_a2_resource:explicit,all_account_resource:all,unclassified_resource_scope:unknown,empty_permission_groups:policy.permission_groups.length===0,permission_group_count:policy.permission_groups.length,read_named_groups:read,write_named_groups:write,unclassified_groups:unclassified,write_capability_codes:[...capabilities].sort()});
  }
  return {...out,policy_metadata_observed:true,policies:rows,
   potential_a2_write_allow_policy_observed:rows.some(p=>p.effect==='allow'&&(p.explicit_a2_resource||p.all_account_resource||p.unclassified_resource_scope)&&p.write_named_groups>0),

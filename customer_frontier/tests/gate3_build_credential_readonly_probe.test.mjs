@@ -126,7 +126,7 @@ test('self-policy GET projects A2 resource/read classifications without exportin
 test('an explicit write allow in policy metadata is observed without claiming effective-policy or custody acceptance',async()=>{
  const f=fake(),r=await probeBuildCredentials({env:tokenEnv,fetchImpl:async req=>/\/tokens\/[a-f0-9]{32}$/.test(new URL(req.url).pathname)?policyResponse({name:'Workers Scripts Write'}):f.fetchImpl(req)});
  const p=r.credentials.find(c=>c.reference==='CLOUDFLARE_API_TOKEN').verification.policy_metadata;
- assert.equal(p.potential_a2_write_allow_policy_observed,true);assert.equal(p.effective_policy_resolution_verified,false);holds(r);
+ assert.equal(p.potential_a2_write_allow_policy_observed,true);assert.deepEqual(p.policies[0].write_capability_codes,['WORKER_SOURCE_WRITE']);assert.equal(p.effective_policy_resolution_verified,false);holds(r);
 });
 test('unclassified resource scope stays explicit rather than being assumed to exclude Authority2',async()=>{
  const f=fake(),r=await probeBuildCredentials({env:tokenEnv,fetchImpl:async req=>/\/tokens\/[a-f0-9]{32}$/.test(new URL(req.url).pathname)?policyResponse({resource:'com.cloudflare.api.account.zone.*'}):f.fetchImpl(req)});
@@ -182,4 +182,10 @@ test('an existing build metadata token may read only the exact previously provid
  assert.equal(p.reference,'MUSITU_CLOUDFLARE_ADMIN_TOKEN');assert.equal(p.policy_metadata.policy_metadata_observed,true);
  assert.equal(calls.filter(x=>x.path.endsWith('/tokens/'+recoveryId)&&x.auth==='Bearer '+adminToken).length,1);
  assert(!JSON.stringify(r).includes(recoveryId));assert(!JSON.stringify(r).includes(adminToken));holds(r);
+});
+test('large provider permission groups remain bounded and project fixed capability codes without dumping names',async()=>{
+ const f=fake(),groups=Array.from({length:201},()=>({id:'d'.repeat(32),name:'UNRECOGNIZED_PROVIDER_CONTENT Write'}));
+ const r=await probeBuildCredentials({env:tokenEnv,fetchImpl:async req=>/\/tokens\/[a-f0-9]{32}$/.test(new URL(req.url).pathname)?policyResponse({extra:{policies:[{effect:'allow',resources:{'com.cloudflare.api.account.*':'*'},permission_groups:groups}]}}):f.fetchImpl(req)});
+ const p=r.credentials.find(c=>c.reference==='CLOUDFLARE_API_TOKEN').verification.policy_metadata;assert.equal(p.policy_metadata_observed,true);assert.equal(p.policies[0].permission_group_count,201);
+ assert.deepEqual(p.policies[0].write_capability_codes,['OTHER_WRITE_NAMED']);assert(!JSON.stringify(r).includes('UNRECOGNIZED_PROVIDER_CONTENT'));holds(r);
 });
