@@ -17,7 +17,6 @@ import hashlib
 import json
 from pathlib import Path
 import re
-import shutil
 import subprocess
 import sys
 
@@ -54,9 +53,10 @@ def main() -> None:
     parser.add_argument("--hashed-requirements", type=Path, required=True)
     args = parser.parse_args()
 
-    if args.workdir.exists():
-        shutil.rmtree(args.workdir)
-    args.workdir.mkdir(parents=True)
+    # Never delete a caller-supplied directory: require a fresh or empty workdir instead.
+    if args.workdir.exists() and (not args.workdir.is_dir() or any(args.workdir.iterdir())):
+        raise SystemExit(f"--workdir must not exist or must be an empty directory: {args.workdir}")
+    args.workdir.mkdir(parents=True, exist_ok=True)
     records = []
 
     for index, requirement in enumerate(pins(args.requirements), 1):

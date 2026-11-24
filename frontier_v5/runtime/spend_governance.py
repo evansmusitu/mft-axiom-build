@@ -18,7 +18,7 @@ Security and correctness properties:
 """
 from __future__ import annotations
 
-from collections.abc import Mapping
+from collections.abc import Callable, Mapping
 from pathlib import Path
 from typing import Any
 from datetime import datetime, timezone
@@ -26,10 +26,12 @@ import hashlib
 import json
 import re
 import sqlite3
+import time
 import uuid
 
 
 _ID = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_.:@/-]{0,191}$")
+_MAX_EPOCH = 253_402_300_799  # 9999-12-31T23:59:59Z, the datetime/ISO-8601 limit
 
 
 class SpendGovernanceError(RuntimeError):
@@ -71,7 +73,10 @@ def _positive_int(value: Any, name: str, *, allow_zero: bool = False) -> int:
 
 
 def _epoch(value: Any, name: str = "now_epoch") -> int:
-    return _positive_int(value, name, allow_zero=True)
+    epoch = _positive_int(value, name, allow_zero=True)
+    if epoch > _MAX_EPOCH:
+        raise SpendGovernanceError(f"{name} is out of range")
+    return epoch
 
 
 def _utc_from_epoch(epoch: int) -> str:
@@ -81,9 +86,12 @@ def _utc_from_epoch(epoch: int) -> str:
 class EnterpriseSpendGovernor:
     """SQLite-backed tenant quota/rate/concurrency/spend governor."""
 
-    def __init__(self, path: str | Path) -> None:
+    def __init__(self, path: str | Path, *, clock: Callable[[], float] | None = None) -> None:
         self.path = Path(path)
         self.path.parent.mkdir(parents=True, exist_ok=True)
+        # Trusted server clock; used only to reject caller timestamps that are
+        # further in the future than the tenant's clock-skew tolerance.
+        self._clock = clock or time.time
         self._db = sqlite3.connect(self.path)
         self._db.row_factory = sqlite3.Row
         self._db.execute("PRAGMA foreign_keys=ON")
@@ -246,30 +254,49 @@ class EnterpriseSpendGovernor:
             raise SpendLimitError("tenant spend policy is not configured")
         return row
 
-    def _check_clock(self, tenant_id: str, now_epoch: int, tolerance: int) -> None:
+    def _check_clock(self, tenant_id: str, now_epoch: int, tolerance: int) -> int:
+        """Validate a caller timestamp and return the monotonic effective epoch.
+
+        All window accounting must use the returned epoch: a timestamp
+        back-dated within tolerance would otherwise hide newer reservations.
+        """
         row = self._db.execute(
             "SELECT last_epoch FROM spend_clock WHERE tenant_id=?", (tenant_id,)
         ).fetchone()
-        if row is not None:
-            last_epoch = int(row["last_epoch"])
-            if now_epoch < last_epoch - tolerance:
-                self._append_audit(
-                    tenant_id,
-                    actor="system",
-                    event_type="request.rejected.clock",
-                    target_id="clock",
-                    payload={"now_epoch": now_epoch, "last_epoch": last_epoch, "tolerance": tolerance},
-                    now_epoch=max(now_epoch, 0),
-                )
-                self._db.commit()
-                raise SpendLimitError("clock rollback exceeds configured tolerance")
-            now_epoch = max(now_epoch, last_epoch)
+        last_epoch = None if row is None else int(row["last_epoch"])
+        server_epoch = int(self._clock())
+        if now_epoch > server_epoch + tolerance:
+            # Reject without advancing spend_clock so one far-future timestamp
+            # cannot lock the tenant out; audit at a non-future time.
+            self._append_audit(
+                tenant_id,
+                actor="system",
+                event_type="request.rejected.clock_future",
+                target_id="clock",
+                payload={"now_epoch": now_epoch, "server_epoch": server_epoch, "tolerance": tolerance},
+                now_epoch=server_epoch if last_epoch is None else last_epoch,
+            )
+            self._db.commit()
+            raise SpendLimitError("clock is ahead of server time beyond configured tolerance")
+        if last_epoch is not None and now_epoch < last_epoch - tolerance:
+            self._append_audit(
+                tenant_id,
+                actor="system",
+                event_type="request.rejected.clock",
+                target_id="clock",
+                payload={"now_epoch": now_epoch, "last_epoch": last_epoch, "tolerance": tolerance},
+                now_epoch=max(now_epoch, 0),
+            )
+            self._db.commit()
+            raise SpendLimitError("clock rollback exceeds configured tolerance")
+        effective = now_epoch if last_epoch is None else max(now_epoch, last_epoch)
         self._db.execute(
             """INSERT INTO spend_clock(tenant_id,last_epoch) VALUES(?,?)
                ON CONFLICT(tenant_id) DO UPDATE SET last_epoch=max(spend_clock.last_epoch,excluded.last_epoch)""",
-            (tenant_id, now_epoch),
+            (tenant_id, effective),
         )
         self._db.commit()
+        return effective
 
     def set_policy(
         self,
@@ -305,11 +332,12 @@ class EnterpriseSpendGovernor:
             "SELECT * FROM spend_policies WHERE tenant_id=?", (tenant_id,)
         ).fetchone()
         if existing is not None:
-            self._check_clock(
+            now_epoch = self._check_clock(
                 tenant_id, now_epoch, int(existing["clock_skew_tolerance_seconds"])
             )
             version = int(existing["version"]) + 1
         else:
+            now_epoch = self._check_clock(tenant_id, now_epoch, clock_skew_tolerance_seconds)
             version = 1
 
         with self._db:
@@ -447,7 +475,7 @@ class EnterpriseSpendGovernor:
         estimated = _positive_int(estimated_cost_microunits, "estimated_cost_microunits")
         now_epoch = _epoch(now_epoch)
         policy = self._policy(tenant_id)
-        self._check_clock(tenant_id, now_epoch, int(policy["clock_skew_tolerance_seconds"]))
+        now_epoch = self._check_clock(tenant_id, now_epoch, int(policy["clock_skew_tolerance_seconds"]))
 
         existing = self._db.execute(
             "SELECT * FROM spend_reservations WHERE tenant_id=? AND request_id=?",
@@ -565,7 +593,7 @@ class EnterpriseSpendGovernor:
         actual = _positive_int(actual_cost_microunits, "actual_cost_microunits", allow_zero=True)
         now_epoch = _epoch(now_epoch)
         policy = self._policy(tenant_id)
-        self._check_clock(tenant_id, now_epoch, int(policy["clock_skew_tolerance_seconds"]))
+        now_epoch = self._check_clock(tenant_id, now_epoch, int(policy["clock_skew_tolerance_seconds"]))
         row = self._db.execute(
             "SELECT * FROM spend_reservations WHERE tenant_id=? AND request_id=?",
             (tenant_id, request_id),
@@ -576,7 +604,22 @@ class EnterpriseSpendGovernor:
             if int(row["actual_cost_microunits"]) != actual:
                 raise SpendLimitError("completed request cost cannot be changed")
             return self._reservation_dict(row, replayed=True)
+        # There is no authorized per-request overrun API, so a caller-reported
+        # cost above the reservation is never recorded; the reservation keeps
+        # charging its full estimate and the attempt is audited.
         if actual > int(row["estimated_cost_microunits"]):
+            self._append_audit(
+                tenant_id,
+                actor=str(row["principal_id"]),
+                event_type="request.rejected.cost_overrun",
+                target_id=request_id,
+                payload={
+                    "reported_cost_microunits": actual,
+                    "reserved_cost_microunits": int(row["estimated_cost_microunits"]),
+                },
+                now_epoch=now_epoch,
+            )
+            self._db.commit()
             raise SpendLimitError("actual cost exceeds reserved amount")
         principal_id = str(row["principal_id"])
         with self._db:
@@ -632,7 +675,9 @@ class EnterpriseSpendGovernor:
         if expires <= now_epoch:
             raise SpendGovernanceError("override expiry must be in the future")
         policy = self._policy(tenant_id)
-        self._check_clock(tenant_id, now_epoch, int(policy["clock_skew_tolerance_seconds"]))
+        now_epoch = self._check_clock(tenant_id, now_epoch, int(policy["clock_skew_tolerance_seconds"]))
+        if expires <= now_epoch:
+            raise SpendGovernanceError("override expiry must be in the future")
 
         existing = self._db.execute(
             "SELECT * FROM spend_overrides WHERE tenant_id=? AND override_id=?",
@@ -686,7 +731,7 @@ class EnterpriseSpendGovernor:
         tenant_id = _required_id(tenant_id, "tenant_id")
         now_epoch = _epoch(now_epoch)
         policy = self._policy(tenant_id)
-        self._check_clock(tenant_id, now_epoch, int(policy["clock_skew_tolerance_seconds"]))
+        now_epoch = self._check_clock(tenant_id, now_epoch, int(policy["clock_skew_tolerance_seconds"]))
         consumed = self._consumed_spend(
             tenant_id, now_epoch=now_epoch, window=int(policy["spend_window_seconds"])
         )

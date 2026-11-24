@@ -8,15 +8,20 @@ executes embedded content, and always treats document text as data-only.
 from __future__ import annotations
 
 from dataclasses import dataclass
+import copy
 import hashlib
+import io
+import math
 from pathlib import Path, PurePosixPath
 import re
-import xml.etree.ElementTree as ET
+import stat
+from xml.parsers import expat
 import zipfile
+import zlib
 
 from .fabric import FrontierError
 from . import fullstack_base as _base
-from .fullstack_base import RetrievedContentFirewall
+from .retrieval_security import RetrievedContentFirewall
 
 
 class ArtifactSecurityError(FrontierError):
@@ -64,6 +69,10 @@ class SecureArtifactIngress:
         "/oleobjects/",
     )
     _XML_DANGEROUS = re.compile(br"<!\s*(?:DOCTYPE|ENTITY)\b", re.IGNORECASE)
+    _SUPPORTED_COMPRESSION = frozenset({zipfile.ZIP_STORED, zipfile.ZIP_DEFLATED})
+    _READ_CHUNK = 65_536
+    _PDF_NAME = re.compile(rb"/[^\x00\t\n\x0c\r ()<>\[\]{}/%]+")
+    _PDF_NAME_ESCAPE = re.compile(rb"#([0-9A-Fa-f]{2})")
     _PDF_ACTIVE = (
         b"/javascript",
         b"/js",
@@ -92,8 +101,9 @@ class SecureArtifactIngress:
             raise ValueError("max_archive_members must be positive")
         if self.max_uncompressed_bytes <= 0:
             raise ValueError("max_uncompressed_bytes must be positive")
-        if self.max_compression_ratio <= 1.0:
-            raise ValueError("max_compression_ratio must exceed 1")
+        # NaN/inf would make every "ratio > limit" comparison false.
+        if not math.isfinite(self.max_compression_ratio) or self.max_compression_ratio <= 1.0:
+            raise ValueError("max_compression_ratio must be a finite number that exceeds 1")
 
     @staticmethod
     def _sha256(payload: bytes) -> str:
@@ -117,15 +127,61 @@ class SecureArtifactIngress:
         text = payload.decode("utf-8", "replace")
         return RetrievedContentFirewall.scan(text)
 
+    @staticmethod
+    def _xml_text(payload: bytes) -> str:
+        """Parse with expat (honours BOM/declared encoding, e.g. UTF-16) and return text.
+
+        DTD/entity declarations are rejected after decoding, so a non-UTF-8
+        encoding cannot hide them from the byte-level check.
+        """
+        parts: list[str] = []
+
+        def forbid(*_args: object) -> None:
+            raise ArtifactSecurityError("XML DTD/entity declarations prohibited")
+
+        parser = expat.ParserCreate()
+        parser.SetParamEntityParsing(expat.XML_PARAM_ENTITY_PARSING_NEVER)
+        parser.StartDoctypeDeclHandler = forbid
+        parser.EntityDeclHandler = forbid
+        parser.CharacterDataHandler = parts.append
+        parser.StartElementHandler = lambda _name, attrs: parts.append("\n" + "\n".join(attrs.values()) + "\n")
+        parser.CommentHandler = lambda text: parts.append("\n" + text + "\n")
+        try:
+            parser.Parse(payload, True)
+        except expat.ExpatError as exc:
+            raise ArtifactSecurityError("malformed XML member") from exc
+        return "".join(parts)
+
+    def _read_member(self, zf: zipfile.ZipFile, info: zipfile.ZipInfo, budget: int, *, keep: bool) -> tuple[bytes, int]:
+        """Inflate one member counting real output bytes, never more than ``budget``.
+
+        zipfile stops at the header's file_size, which an attacker controls; the
+        probe copy lifts that ceiling so the true stream length is observed and
+        the budget is enforced here, chunk by chunk.
+        """
+        probe = copy.copy(info)
+        probe.file_size = 1 << 62
+        data = bytearray()
+        actual = 0
+        with zf.open(probe) as member:
+            while chunk := member.read(self._READ_CHUNK):
+                actual += len(chunk)
+                if actual > budget:
+                    raise ArtifactSecurityError("archive uncompressed size limit exceeded")
+                if keep:
+                    data += chunk
+        return bytes(data), actual
+
     def _inspect_ooxml(self, path: Path, raw: bytes, kind: str, required_root: str) -> ArtifactInspection:
-        if not zipfile.is_zipfile(path):
+        container = io.BytesIO(raw)  # inspect exactly the bytes that were hashed
+        if not zipfile.is_zipfile(container):
             raise ArtifactSecurityError("OOXML container signature mismatch")
 
         flags: set[str] = set()
         total_uncompressed = 0
         names: set[str] = set()
         try:
-            with zipfile.ZipFile(path, "r") as zf:
+            with zipfile.ZipFile(container, "r") as zf:
                 infos = zf.infolist()
                 if len(infos) > self.max_archive_members:
                     raise ArtifactSecurityError("archive member limit exceeded")
@@ -143,27 +199,41 @@ class SecureArtifactIngress:
                         raise ArtifactSecurityError("encrypted archive member prohibited")
                     if any(fragment in "/" + folded for fragment in self._ACTIVE_MEMBER_FRAGMENTS):
                         raise ArtifactSecurityError("active content archive member prohibited")
+                    if stat.S_ISLNK(info.external_attr >> 16):
+                        raise ArtifactSecurityError("symlink archive member prohibited")
+                    if info.compress_type not in self._SUPPORTED_COMPRESSION:
+                        raise ArtifactSecurityError("unsupported archive compression method")
 
-                    total_uncompressed += int(info.file_size)
-                    if total_uncompressed > self.max_uncompressed_bytes:
+                    # Header sizes are untrusted: they only allow an early reject.
+                    declared = int(info.file_size)
+                    if total_uncompressed + declared > self.max_uncompressed_bytes:
                         raise ArtifactSecurityError("archive uncompressed size limit exceeded")
+                    if declared > 1024 and declared / max(1, int(info.compress_size)) > self.max_compression_ratio:
+                        raise ArtifactSecurityError("archive compression ratio limit exceeded")
 
-                    if info.file_size > 1024:
-                        ratio = float(info.file_size) / float(max(1, info.compress_size))
-                        if ratio > self.max_compression_ratio:
-                            raise ArtifactSecurityError("archive compression ratio limit exceeded")
+                    is_xml = folded.endswith((".xml", ".rels"))
+                    payload, actual = self._read_member(
+                        zf, info, self.max_uncompressed_bytes - total_uncompressed, keep=is_xml
+                    )
+                    total_uncompressed += actual
+                    if actual != declared:
+                        raise ArtifactSecurityError("archive member size does not match its header")
+                    if actual > 1024 and actual / max(1, int(info.compress_size)) > self.max_compression_ratio:
+                        raise ArtifactSecurityError("archive compression ratio limit exceeded")
 
-                    if folded.endswith((".xml", ".rels")):
-                        payload = zf.read(info)
+                    if is_xml:
                         if self._XML_DANGEROUS.search(payload):
                             raise ArtifactSecurityError("XML DTD/entity declarations prohibited")
-                        try:
-                            ET.fromstring(payload)
-                        except ET.ParseError as exc:
-                            raise ArtifactSecurityError("malformed XML member") from exc
+                        text = self._xml_text(payload)
                         flags.update(self._text_flags(payload))
+                        flags.update(RetrievedContentFirewall.scan(text))
+        except ArtifactSecurityError:
+            raise
         except zipfile.BadZipFile as exc:
             raise ArtifactSecurityError("malformed OOXML archive container") from exc
+        except (NotImplementedError, RuntimeError, EOFError, OSError, ValueError, OverflowError, zlib.error) as exc:
+            # Fail closed on anything zipfile/zlib cannot decode safely.
+            raise ArtifactSecurityError("unsupported or corrupt OOXML archive member") from exc
 
         if "[content_types].xml" not in names or required_root.casefold() not in names:
             raise ArtifactSecurityError("OOXML container missing required structural member")
@@ -188,7 +258,11 @@ class SecureArtifactIngress:
         if raw[eof + len(b"%%EOF"):].strip():
             raise ArtifactSecurityError("PDF trailing polyglot data prohibited")
 
-        lowered = raw.lower()
+        # PDF names may hex-escape characters (/J#61vaScript == /JavaScript).
+        normalized = self._PDF_NAME.sub(
+            lambda name: self._PDF_NAME_ESCAPE.sub(lambda h: bytes([int(h.group(1), 16)]), name.group(0)), raw
+        )
+        lowered = normalized.lower()
         if any(token in lowered for token in self._PDF_ACTIVE):
             raise ArtifactSecurityError("active PDF content prohibited")
 
@@ -221,7 +295,10 @@ class SecureArtifactIngress:
         if suffix in self._MACRO_SUFFIXES:
             raise ArtifactSecurityError("active macro-enabled document format prohibited")
 
-        raw = artifact.read_bytes()
+        try:
+            raw = artifact.read_bytes()
+        except OSError as exc:
+            raise ArtifactSecurityError("artifact is unreadable") from exc
         if suffix in self._OOXML_ROOTS:
             kind, required_root = self._OOXML_ROOTS[suffix]
             return self._inspect_ooxml(artifact, raw, kind, required_root)

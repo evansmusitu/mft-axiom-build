@@ -13,6 +13,7 @@ component failure without hiding otherwise valid skills.
 from __future__ import annotations
 
 import hashlib
+import ipaddress
 import json
 import re
 import shutil
@@ -52,6 +53,10 @@ _SENSITIVE_HEADER_NAMES = {
     "x-api-key",
     "api-key",
 }
+# Written by build() into each package root it creates; only directories that
+# carry it (or are empty) may be replaced on a rebuild. Never packaged.
+_BUILD_MARKER = ".musitu-agent-plugin-build"
+_BUILD_MARKER_TEXT = "musitu.axiom.agent-plugin.build-marker.v1\n"
 
 
 class AgentPluginError(RuntimeError):
@@ -97,8 +102,15 @@ def _valid_plugin_name(name: str) -> bool:
 def _is_loopback_hostname(hostname: str | None) -> bool:
     if hostname is None:
         return False
-    host = hostname.lower().strip("[]")
-    return host in {"localhost", "127.0.0.1", "::1"} or host.startswith("127.")
+    host = hostname.strip().lower()
+    if host.startswith("[") and host.endswith("]"):
+        host = host[1:-1]
+    if host == "localhost":
+        return True
+    try:
+        return ipaddress.ip_address(host).is_loopback
+    except ValueError:
+        return False
 
 
 def _skill_frontmatter_name(text: str) -> str | None:
@@ -341,13 +353,49 @@ class AgentPluginPackage:
             self._copy_file(shared, references / filename)
 
     @staticmethod
+    def _package_files(package_root: Path) -> list[Path]:
+        return sorted(
+            (
+                path
+                for path in package_root.rglob("*")
+                if path.is_file() and path.relative_to(package_root).as_posix() != _BUILD_MARKER
+            ),
+            key=lambda path: path.relative_to(package_root).as_posix(),
+        )
+
+    def _prepare_package_root(self, destination: Path, package_root: Path) -> None:
+        """Create ``package_root``, replacing only an empty or builder-made directory."""
+        protected = {self.root, Path(destination.anchor)}
+        try:
+            protected.add(Path.home().resolve())
+        except (RuntimeError, OSError):
+            pass
+        if destination in protected:
+            raise AgentPluginError(f"refusing to build into a filesystem root, home directory, or repository root: {destination}")
+        for path in protected | {self.frontier, self.source_package, self.skills_root, self.shared_root}:
+            if package_root == path or package_root in path.parents:
+                raise AgentPluginError(f"refusing to replace a protected path: {package_root}")
+        if package_root.is_symlink() or (package_root.exists() and not package_root.is_dir()):
+            raise AgentPluginError(f"refusing to replace a non-directory package destination: {package_root}")
+        if package_root.exists() and any(package_root.iterdir()):
+            marker = package_root / _BUILD_MARKER
+            try:
+                ours = not marker.is_symlink() and marker.read_text(encoding="utf-8") == _BUILD_MARKER_TEXT
+            except (OSError, UnicodeError):
+                ours = False
+            if not ours:
+                raise AgentPluginError(
+                    f"refusing to delete {package_root}: it is not empty and was not created by this builder"
+                )
+            shutil.rmtree(package_root)
+        package_root.mkdir(parents=True, exist_ok=True)
+        (package_root / _BUILD_MARKER).write_text(_BUILD_MARKER_TEXT, encoding="utf-8", newline="\n")
+
+    @staticmethod
     def _write_deterministic_zip(package_root: Path, archive: Path) -> None:
         if archive.exists():
             archive.unlink()
-        files = sorted(
-            (path for path in package_root.rglob("*") if path.is_file()),
-            key=lambda path: path.relative_to(package_root).as_posix(),
-        )
+        files = AgentPluginPackage._package_files(package_root)
         with zipfile.ZipFile(archive, "w") as bundle:
             for path in files:
                 relative = path.relative_to(package_root).as_posix()
@@ -360,12 +408,9 @@ class AgentPluginPackage:
 
     def build(self, destination: Path | str) -> dict[str, Any]:
         destination = Path(destination).resolve()
-        destination.mkdir(parents=True, exist_ok=True)
         package_root = destination / "musitu-axiom-public"
         archive = destination / "musitu-axiom-public.agent-plugin.zip"
-        if package_root.exists():
-            shutil.rmtree(package_root)
-        package_root.mkdir(parents=True)
+        self._prepare_package_root(destination, package_root)
 
         plugin_source = self.source_package / "plugin.json"
         mcp_source = self.source_package / "mcp.json"
@@ -429,11 +474,7 @@ class AgentPluginPackage:
         if loaded["skills"] != public_skills or loaded["mcp_servers"] != ["musitu-axiom"]:
             raise AgentPluginError("built package failed post-build component validation")
 
-        files = sorted(
-            path.relative_to(package_root).as_posix()
-            for path in package_root.rglob("*")
-            if path.is_file()
-        )
+        files = [path.relative_to(package_root).as_posix() for path in self._package_files(package_root)]
         self._write_deterministic_zip(package_root, archive)
         return {
             "schema": "musitu.axiom.agent-plugin.build-receipt.v1",

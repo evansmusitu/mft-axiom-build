@@ -14,7 +14,6 @@ from __future__ import annotations
 import hashlib
 import json
 import re
-import shutil
 from collections.abc import Mapping, Sequence
 from pathlib import Path
 from typing import Any
@@ -349,9 +348,14 @@ class OpenAIPluginPackage:
         destination.mkdir(parents=True, exist_ok=True)
         package_root = destination / "musitu-axiom-public"
         archive = destination / "musitu-axiom-public.openai-plugin.zip"
-        if package_root.exists():
-            shutil.rmtree(package_root)
-        package_root.mkdir(parents=True)
+        source_dir = self.source.resolve()
+        if package_root == source_dir or package_root in source_dir.parents:
+            raise OpenAIPluginPackageError(f"refusing to build over the plugin source package: {package_root}")
+        try:
+            # Replaces only an empty or builder-created directory; never the repo, home or source trees.
+            self.portable._prepare_package_root(destination, package_root)
+        except AgentPluginError as exc:
+            raise OpenAIPluginPackageError(str(exc)) from exc
 
         plugin_dir = package_root / ".codex-plugin"
         plugin_dir.mkdir(parents=True)
@@ -384,11 +388,7 @@ class OpenAIPluginPackage:
         except AgentPluginError as exc:
             raise OpenAIPluginPackageError(str(exc)) from exc
 
-        files = sorted(
-            path.relative_to(package_root).as_posix()
-            for path in package_root.rglob("*")
-            if path.is_file()
-        )
+        files = [path.relative_to(package_root).as_posix() for path in self.portable._package_files(package_root)]
         skill_names = sorted(path.name for path in (package_root / "skills").iterdir() if path.is_dir())
         if skill_names != public or set(skill_names) & set(private):
             raise OpenAIPluginPackageError("final public skill inventory does not match authority")

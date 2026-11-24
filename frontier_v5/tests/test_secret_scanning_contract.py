@@ -6,9 +6,13 @@ literal is committed to the repository. This contract intentionally predates the
 implementation: the first admissible focused run must be RED because the scanner
 module is missing, then the identical test must turn GREEN after the minimal
 implementation is added.
+
+Report fingerprints are per-scan HMACs, so suppressions are computed from the
+exact approved fixture value rather than copied out of a report.
 """
 from __future__ import annotations
 
+import hashlib
 import json
 import tempfile
 from pathlib import Path
@@ -61,6 +65,15 @@ def main() -> None:
     assert_detects(scanner, private_key, source="bundle.txt", kind="artifact")
     assert_detects(scanner, "auth token=" + assignment_secret, source="worker.log", kind="log")
 
+    # Evidence must not carry a value-derived hash: the emitted fingerprint is
+    # not the unsalted SHA-256 and does not repeat across independent scans.
+    secret_sha256 = hashlib.sha256(assignment_secret.encode("utf-8")).hexdigest()
+    assert assignment_fp != secret_sha256
+    rescan_fp = assert_detects(scanner, assignment_line, source="config.py", kind="source")
+    assert rescan_fp != assignment_fp
+    assert secret_sha256 not in json.dumps(scanner.scan_text(assignment_line, source="config.py", kind="source").to_dict())
+    assert SecretScanner.suppression_fingerprint(assignment_secret) == secret_sha256
+
     # Suppressions are exact secret fingerprints with a non-trivial justification.
     # Broad/wildcard suppressions must fail closed.
     try:
@@ -71,14 +84,14 @@ def main() -> None:
         raise AssertionError("SEC-015 accepted a wildcard secret-scan suppression")
 
     try:
-        SecretScanner(suppressions={assignment_fp: "x"})
+        SecretScanner(suppressions={secret_sha256: "x"})
     except ValueError:
         pass
     else:
         raise AssertionError("SEC-015 accepted an unjustified suppression")
 
     suppressed = SecretScanner(
-        suppressions={assignment_fp: "synthetic fixture approved only for this exact fingerprint"}
+        suppressions={secret_sha256: "synthetic fixture approved only for this exact fingerprint"}
     )
     suppressed_report = suppressed.scan_text(assignment_line, source="fixture.py", kind="source")
     assert suppressed_report.clean is True

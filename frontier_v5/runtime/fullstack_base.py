@@ -25,6 +25,7 @@ import re
 import shutil
 import socket
 import sqlite3
+import stat
 import statistics
 import subprocess
 import tempfile
@@ -40,6 +41,9 @@ from .advanced import (
     MemoryRecord,
 )
 from .fabric import AuthorizationError, FrontierError
+# Single canonical prompt-injection detector. Re-exported here so existing
+# ``fullstack_base``/``fullstack`` imports and LiveResearchAdapter use it.
+from .retrieval_security import RetrievedContentFirewall
 
 
 def _utcnow() -> str:
@@ -85,24 +89,18 @@ class RetrievalSnapshot:
         return x
 
 
-class RetrievedContentFirewall:
-    """Detects common authority-confusion/prompt-injection patterns.
+class _RefuseRedirects(urllib.request.HTTPRedirectHandler):
+    """Treat every 3xx as an error so credential headers never reach a new URL.
 
-    Detection never upgrades retrieved text into instructions. Retrieval is
-    still allowed so an analyst can inspect hostile evidence safely.
+    urllib's default handler re-sends ``Authorization`` to the redirect target.
     """
 
-    PATTERNS = {
-        "ignore-prior": re.compile(r"\bignore\s+(all\s+)?(previous|prior|above)\s+(instructions?|rules?|policy)", re.I),
-        "system-override": re.compile(r"\b(system|developer)\s+(prompt|message|instructions?)\b", re.I),
-        "credential-request": re.compile(r"\b(reveal|print|send|exfiltrate|upload)\b.{0,48}\b(secret|token|credential|api[_ -]?key|password)\b", re.I | re.S),
-        "tool-authority": re.compile(r"\b(call|invoke|run|execute)\b.{0,48}\b(tool|command|shell|terminal|payment|trade|deploy)\b", re.I | re.S),
-        "policy-bypass": re.compile(r"\b(bypass|disable|override)\b.{0,48}\b(policy|safety|authorization|approval|guardrail)\b", re.I | re.S),
-    }
+    def redirect_request(self, req, fp, code, msg, headers, newurl):
+        raise urllib.error.HTTPError(req.full_url, code, "redirect refused for credentialed request", headers, fp)
 
-    @classmethod
-    def scan(cls, text: str) -> tuple[str, ...]:
-        return tuple(sorted(name for name, rx in cls.PATTERNS.items() if rx.search(text)))
+
+# Opener for every request that carries credentials.
+_CREDENTIALED_OPENER = urllib.request.build_opener(_RefuseRedirects())
 
 
 class LiveResearchAdapter:
@@ -275,12 +273,24 @@ class CloudflareD1ProductionStore:
     """
 
     SEALED_AXIOM_DB = "504029cc-f9a5-495e-818f-63c6144b4ea4"
+    _UUID = re.compile(r"^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$")
+    _ACCOUNT_ID = re.compile(r"^[A-Za-z0-9]{1,64}$")
 
     def __init__(self, account_id: str, database_id: str, email: str = "", global_api_key: str = "", api_token: str = "") -> None:
-        if database_id == self.SEALED_AXIOM_DB:
+        # ``email``/``global_api_key`` stay in the signature only so legacy
+        # positional callers fail loudly instead of having arguments shifted.
+        if email or global_api_key:
+            raise AuthorizationError("Cloudflare Global API Key authentication is prohibited; use a scoped D1 API token")
+        # Normalize before comparing so case/format variants cannot reach the
+        # sealed database, and IDs cannot inject URL path segments.
+        database_id = str(database_id or "").strip().lower()
+        account_id = str(account_id or "").strip()
+        if database_id.replace("-", "") == self.SEALED_AXIOM_DB.replace("-", ""):
             raise AuthorizationError("frontier persistence must not use the sealed Axiom production DB")
-        if not account_id or not database_id or not (api_token or (email and global_api_key)):
-            raise ValueError("Cloudflare D1 credentials and IDs required")
+        if not api_token or not account_id or not database_id:
+            raise ValueError("Cloudflare D1 scoped API token and IDs required")
+        if not self._UUID.fullmatch(database_id) or not self._ACCOUNT_ID.fullmatch(account_id):
+            raise ValueError("Cloudflare D1 account/database identifiers are malformed")
         self.account_id = account_id
         self.database_id = database_id
         self.base = "https://api.cloudflare.com/client/v4"
@@ -288,12 +298,8 @@ class CloudflareD1ProductionStore:
             "Accept": "application/json",
             "Content-Type": "application/json",
             "User-Agent": "MUSITU-Axiom-Frontier-Persistence/5.0",
+            "Authorization": f"Bearer {api_token}",
         }
-        if api_token:
-            self.headers["Authorization"] = f"Bearer {api_token}"
-        else:
-            self.headers["X-Auth-Email"] = email
-            self.headers["X-Auth-Key"] = global_api_key
 
     def query(self, sql: str, params: Sequence[Any] | None = None) -> list[dict[str, Any]]:
         obj: dict[str, Any] = {"sql": sql}
@@ -302,7 +308,7 @@ class CloudflareD1ProductionStore:
         url = f"{self.base}/accounts/{self.account_id}/d1/database/{self.database_id}/query"
         req = urllib.request.Request(url, data=_canonical(obj).encode(), headers=self.headers, method="POST")
         try:
-            with urllib.request.urlopen(req, timeout=45) as r:
+            with _CREDENTIALED_OPENER.open(req, timeout=45) as r:
                 raw = json.loads(r.read() or b"{}")
         except Exception as exc:
             raise FrontierError("Cloudflare D1 request failed") from exc
@@ -380,7 +386,16 @@ class PlaywrightBrowserAdapter:
 
 
 class SandboxedComputerAdapter:
-    """Non-shell application/computer adapter constrained to a working root."""
+    """Non-shell application/computer adapter constrained to a working root.
+
+    Allowlisting is by resolved real path, not by name: a symlink or copy named
+    like an allowed program cannot smuggle in another binary. Children never
+    inherit the parent environment (and therefore its secrets).
+    """
+
+    CHILD_PATH = "/usr/local/bin:/usr/bin:/bin"
+    # Loader variables would run injected code inside an allowlisted binary.
+    _FORBIDDEN_ENV_PREFIXES = ("LD_", "DYLD_")
 
     def __init__(self, root: str | Path, allowed_executables: Iterable[str]) -> None:
         self.root = Path(root).resolve()
@@ -388,14 +403,41 @@ class SandboxedComputerAdapter:
         self.allowed = frozenset(str(x) for x in allowed_executables)
         if not self.allowed:
             raise ValueError("allowed executables required")
+        # Resolve once from the construction-time PATH; later PATH changes in
+        # this process cannot redefine what an allowed name means.
+        self._search_path = os.environ.get("PATH", os.defpath)
+        self._trusted: dict[str, dict[str, str]] = {}
+        for name in sorted(self.allowed):
+            found = shutil.which(name, path=self._search_path)
+            if found:
+                launch = os.path.abspath(found)
+                self._trusted.setdefault(os.path.realpath(launch), {}).setdefault(os.path.basename(launch), launch)
+
+    def _launch_path(self, requested: str) -> str:
+        found = shutil.which(requested, path=self._search_path)
+        choices = self._trusted.get(os.path.realpath(found)) if found else None
+        if not choices:
+            if found is None and Path(requested).name in self.allowed:
+                raise FrontierError("allowlisted computer executable is unavailable")
+            raise AuthorizationError("computer executable not allowlisted")
+        # Launch the trusted path itself (never the caller-supplied path), so
+        # argv[0]-sensitive multi-call binaries cannot be steered elsewhere.
+        return choices.get(os.path.basename(found)) or choices[min(choices)]
+
+    def _child_env(self, extra: Mapping[str, str] | None) -> dict[str, str]:
+        child = {"PATH": self.CHILD_PATH, "LANG": "C.UTF-8", "LC_ALL": "C.UTF-8", "HOME": str(self.root)}
+        for key, value in dict(extra or {}).items():
+            if str(key).upper().startswith(self._FORBIDDEN_ENV_PREFIXES):
+                raise AuthorizationError("dynamic-loader environment overrides are prohibited")
+            child[str(key)] = str(value)
+        return child
 
     def run(self, argv: Sequence[str], timeout: int = 30, env: Mapping[str, str] | None = None) -> dict[str, Any]:
         if not argv:
             raise ValueError("argv required")
         exe = Path(argv[0]).name
-        if exe not in self.allowed:
-            raise AuthorizationError("computer executable not allowlisted")
-        proc = subprocess.run(list(argv), cwd=self.root, env=dict(os.environ, **(dict(env or {}))),
+        launch = self._launch_path(str(argv[0]))
+        proc = subprocess.run([launch, *list(argv)[1:]], cwd=self.root, env=self._child_env(env),
                               capture_output=True, text=True, timeout=timeout, shell=False)
         if proc.returncode != 0:
             raise FrontierError(f"computer action failed: {exe} rc={proc.returncode}")
@@ -542,10 +584,38 @@ class MultimodalWorkbench:
         meta["sha256"]=_sha_bytes(p.read_bytes())
         return meta
 
+    # OpenCV/FFmpeg will fetch URLs and open devices/pipelines when given a
+    # string; text playlists/manifests can also reference remote URLs.
+    _URI_SCHEME = re.compile(r"^[A-Za-z][A-Za-z0-9+.-]*:")
+    _REFERENCE_MEDIA = re.compile(rb"^(?:\xef\xbb\xbf)?\s*(?:#EXTM3U|ffconcat|\[playlist\]|v=0|<\?xml|<mpd|<asx|<smil)", re.I)
+
+    @classmethod
+    def _local_media_file(cls, path_or_device: Any) -> str:
+        if isinstance(path_or_device, bool) or not isinstance(path_or_device, (str, os.PathLike)):
+            raise AuthorizationError("camera/video input must be a local file path; devices are prohibited")
+        raw = os.fspath(path_or_device)
+        if not isinstance(raw, str) or not raw or "\x00" in raw:
+            raise AuthorizationError("camera/video input must be a local file path")
+        if "://" in raw or cls._URI_SCHEME.match(raw):
+            raise AuthorizationError("camera/video URLs and stream URIs are prohibited")
+        real = os.path.realpath(raw)
+        try:
+            st = os.stat(real)
+        except OSError as exc:
+            raise FrontierError("camera/video input must be an existing local file") from exc
+        if not stat.S_ISREG(st.st_mode):
+            raise AuthorizationError("camera/video input must be a regular file; devices are prohibited")
+        with open(real, "rb") as fh:
+            head = fh.read(512)
+        if cls._REFERENCE_MEDIA.match(head):
+            raise AuthorizationError("playlist/manifest media inputs are prohibited")
+        return real
+
     @staticmethod
     def camera_stream_frames(path_or_device: str | int, max_frames: int = 12) -> dict[str, Any]:
+        source=MultimodalWorkbench._local_media_file(path_or_device)
         import cv2
-        cap=cv2.VideoCapture(path_or_device)
+        cap=cv2.VideoCapture(source)
         if not cap.isOpened(): raise FrontierError("camera/video stream unavailable")
         hashes=[]; count=0
         try:
@@ -579,7 +649,7 @@ class AxiomMCPAdapter:
             "Content-Type":"application/json","Accept":"application/json","Authorization":"Bearer "+self.access_token,
             "x-musitu-request-id":request_id,"User-Agent":"MUSITU-Axiom-Frontier-Specialist/5.0"},method="POST")
         try:
-            with urllib.request.urlopen(req,timeout=45) as r:
+            with _CREDENTIALED_OPENER.open(req,timeout=45) as r:
                 body=json.loads(r.read() or b"{}")
         except Exception as exc:
             raise FrontierError("Axiom MCP call failed") from exc

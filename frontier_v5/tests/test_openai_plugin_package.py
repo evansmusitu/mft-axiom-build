@@ -139,6 +139,12 @@ def main() -> None:
         assert loaded["skills"] == public_skills
         assert loaded["remote_mcp_binding_status"] == "EXTERNAL_REGISTRATION_REQUIRED"
 
+        # Rebuilding into a builder-created destination replaces it; the build marker never ships.
+        again = package.build(Path(a_raw))
+        assert again["archive_sha256"] == a["archive_sha256"]
+        assert not any(name.startswith(".musitu-agent-plugin-build") for name in again["files"])
+        built = Path(again["package_root"])
+
         # Fatal manifest path and identity attacks.
         valid_manifest = deepcopy(built_manifest)
         bad = deepcopy(valid_manifest)
@@ -190,6 +196,17 @@ def main() -> None:
         bad_market = deepcopy(marketplace)
         bad_market["plugins"][0]["policy"]["authentication"] = "NEVER"
         expect_error(lambda: package.validate_marketplace(bad_market), "authentication policy")
+
+    # The builder must never delete a directory it did not create, including the plugin source itself.
+    source_before = sorted(p.relative_to(SOURCE).as_posix() for p in SOURCE.rglob("*"))
+    expect_error(lambda: package.build(SOURCE.parent), "plugin source package")
+    assert sorted(p.relative_to(SOURCE).as_posix() for p in SOURCE.rglob("*")) == source_before
+    with tempfile.TemporaryDirectory(prefix="musitu-openai-plugin-foreign-") as foreign_raw:
+        foreign = Path(foreign_raw) / "musitu-axiom-public"
+        foreign.mkdir()
+        (foreign / "keep.txt").write_text("not created by the builder", encoding="utf-8")
+        expect_error(lambda: package.build(Path(foreign_raw)), "not created by this builder")
+        assert (foreign / "keep.txt").read_text(encoding="utf-8") == "not created by the builder"
 
     print("MUSITU_AXIOM_FRONTIER_OPENAI_PLUGIN_PACKAGE_PASS")
 

@@ -14,7 +14,7 @@ secret/KMS boundary. Repository fixture keys must never be used in production.
 from __future__ import annotations
 
 from collections.abc import Mapping, Sequence
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Any
 import base64
 import hashlib
@@ -45,9 +45,14 @@ def _b64url_decode(text: str, name: str) -> bytes:
     if not isinstance(text, str) or not text:
         raise OIDCError(f"{name} must be non-empty base64url")
     try:
-        return base64.b64decode(text + "=" * (-len(text) % 4), altchars=b"-_", validate=True)
+        decoded = base64.b64decode(text + "=" * (-len(text) % 4), altchars=b"-_", validate=True)
     except Exception as exc:
         raise OIDCError(f"{name} is invalid base64url") from exc
+    # JWS uses unpadded base64url only. Re-encoding rejects padding, the '+'/'/'
+    # alphabet and non-zero trailing bits, so one value has one encoding.
+    if _b64url(decoded) != text:
+        raise OIDCError(f"{name} is not canonical base64url")
+    return decoded
 
 
 def _int_bytes(value: int) -> bytes:
@@ -101,7 +106,7 @@ class RSAKey:
     kid: str
     n: int
     e: int = 65537
-    d: int | None = None
+    d: int | None = field(default=None, repr=False)  # never print the private exponent
 
     def __post_init__(self) -> None:
         _nonempty(self.kid, "kid")
@@ -159,7 +164,11 @@ def _rs256_sign(signing_input: bytes, key: RSAKey) -> bytes:
 def _rs256_verify(signing_input: bytes, signature: bytes, key: RSAKey) -> bool:
     if len(signature) != key.byte_length:
         return False
-    recovered_int = pow(int.from_bytes(signature, "big"), key.e, key.n)
+    signature_int = int.from_bytes(signature, "big")
+    # RFC 8017 RSAVP1: s must lie in [0, n-1]; otherwise s and s+n both verify.
+    if not 0 <= signature_int < key.n:
+        return False
+    recovered_int = pow(signature_int, key.e, key.n)
     recovered = recovered_int.to_bytes(key.byte_length, "big")
     digest_info = _RS256_DIGEST_INFO_PREFIX + hashlib.sha256(signing_input).digest()
     padding_len = key.byte_length - len(digest_info) - 3
