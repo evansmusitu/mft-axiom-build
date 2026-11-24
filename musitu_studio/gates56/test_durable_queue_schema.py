@@ -101,6 +101,52 @@ class DurableQueueSchemaTests(unittest.TestCase):
         with self.assertRaises(sqlite3.IntegrityError):
             self.db.execute("UPDATE g56_do_jobs SET credit_charge=4 WHERE id='G56_A'")
 
+    def test_financial_reservation_cannot_mutate_after_admission(self):
+        """Changing the reserved ceiling or credit hold invalidates job economics."""
+        self.new_job()
+        for column,value in (
+            ("reserved_cents", 100),
+            ("credit_hold", 9),
+            ("payload_sha256", "c"*64),
+            ("tenant", "tenantB"),
+            ("submission_key", "changed-idempotency"),
+            ("max_attempts", 1),
+        ):
+            with self.subTest(column=column):
+                with self.assertRaisesRegex(sqlite3.IntegrityError,
+                                            "G56_RESERVATION_IMMUTABLE"):
+                    self.db.execute(
+                        f"UPDATE g56_do_jobs SET {column}=? WHERE id='G56_A'",
+                        (value,)
+                    )
+        original=self.db.execute(
+            "SELECT reserved_cents,credit_hold,max_attempts FROM g56_do_jobs WHERE id='G56_A'"
+        ).fetchone()
+        self.assertEqual(original, (60,3,2))
+
+    def test_terminal_cost_and_credit_cannot_change_after_reconciliation(self):
+        """A completed job must not be billed a second time via row updates."""
+        self.new_job()
+        self.db.execute("UPDATE g56_do_jobs SET state='FAILED', charged_cents=12, credit_charge=1 WHERE id='G56_A'")
+        for column,value in (
+            ("charged_cents", 18),
+            ("credit_charge", 2),
+            ("charged_cents", None),
+            ("credit_charge", None),
+            ("outcome_code", "post-settlement-edit"),
+        ):
+            with self.subTest(column=column,value=value):
+                with self.assertRaisesRegex(sqlite3.IntegrityError,
+                                            "G56_TERMINAL_ECONOMICS_IMMUTABLE"):
+                    self.db.execute(
+                        f"UPDATE g56_do_jobs SET {column}=? WHERE id='G56_A'",
+                        (value,)
+                    )
+        row=self.db.execute(
+            "SELECT charged_cents,credit_charge FROM g56_do_jobs WHERE id='G56_A'"
+        ).fetchone()
+        self.assertEqual(row,(12,1))
+
     def test_single_writer_lock_serializes_claims(self):
         other=sqlite3.connect(str(Path(self.work.name)/"queue.db"),
                               timeout=0.05,isolation_level=None)
