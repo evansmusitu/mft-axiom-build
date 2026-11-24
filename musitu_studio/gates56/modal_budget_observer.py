@@ -79,6 +79,9 @@ class ModalBudgetObserver:
         try:
             sdk = self.sdk if self.sdk is not None else importlib.import_module("modal")
             workspace = sdk.Workspace.from_context()
+            # Modal from_context() is lazy. Hydrate via provider WorkspaceNameLookup
+            # before trusting the name to identify the authenticated account.
+            workspace.hydrate()
             name = workspace.name
             workspace_name = name() if callable(name) else name
         except Exception:
