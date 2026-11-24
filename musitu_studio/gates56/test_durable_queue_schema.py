@@ -165,6 +165,33 @@ class DurableQueueSchemaTests(unittest.TestCase):
             "SELECT device,gpu_type FROM g56_do_jobs WHERE id='G56_A'"
         ).fetchone(),("GPU","T4"))
 
+    def test_schema_allows_modal_cpu_and_gpu_but_forbids_mixed_hardware(self):
+        # CPU selected intentionally; it must not implicitly allocate a GPU.
+        self.db.execute("""INSERT INTO g56_do_jobs
+          (id,tenant,project,submission_key,payload_sha256,device,gpu_type,
+           state,reserved_cents,credit_hold,max_attempts,created,updated)
+          VALUES('CPU_TEST','tenantA','projectA','cpu-mode',?,'CPU',NULL,
+                 'QUEUED',60,3,2,1000,1000)""",("a"*64,))
+        self.assertEqual(self.db.execute(
+            "SELECT device,gpu_type FROM g56_do_jobs WHERE id='CPU_TEST'"
+        ).fetchone(),("CPU",None))
+        self.new_job("GPU_TEST",key="gpu-mode")
+        self.assertEqual(self.db.execute(
+            "SELECT device,gpu_type FROM g56_do_jobs WHERE id='GPU_TEST'"
+        ).fetchone(),("GPU","T4"))
+        for device,gpu_type in (("CPU","T4"),("GPU",None),("GPU","A100")):
+            with self.subTest(device=device,gpu_type=gpu_type):
+                with self.assertRaises(sqlite3.IntegrityError):
+                    self.db.execute("""INSERT INTO g56_do_jobs
+                      (id,tenant,project,submission_key,payload_sha256,
+                       device,gpu_type,state,reserved_cents,credit_hold,
+                       max_attempts,created,updated)
+                      VALUES(?,?, 'projectA', ?, ?,?,?,'QUEUED',
+                             60,3,2,1000,1000)""",
+                      ("BAD_"+str(gpu_type), "tenantB",
+                       "bad-"+str(device)+str(gpu_type), "b"*64,
+                       device,gpu_type))
+
     def test_single_writer_lock_serializes_claims(self):
         other=sqlite3.connect(str(Path(self.work.name)/"queue.db"),
                               timeout=0.05,isolation_level=None)
