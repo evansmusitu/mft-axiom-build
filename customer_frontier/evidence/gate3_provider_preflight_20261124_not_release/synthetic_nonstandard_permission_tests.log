@@ -1,0 +1,43 @@
+✔ missing build credentials are unknown, not proof of removal or custody separation (2.688799ms)
+✔ global key with A2 administrator membership is an observed counterexample, never a custody pass (11.205883ms)
+✔ token identifier digest is typed and no bearer, email, private binding or unrelated account name is exported (5.815545ms)
+✔ complete membership readback without A2 does not prove exhaustive credential restriction (1.879925ms)
+✔ unavailable pagination metadata cannot establish absence of membership (2.173229ms)
+✔ membership on the second page is not missed (3.826028ms)
+✔ repeated or excessive pages remain incomplete rather than certifying separation (5.530394ms)
+✔ denied read-only GET is not a successful write-denial test (3.903433ms)
+✔ redirects are never followed and cannot expose credentials to another host (0.755426ms)
+✔ transport errors containing authentication material are never printed or exported (0.868883ms)
+✔ provider success=false, duplicate JSON keys and reflected messages cannot become metadata (1.805296ms)
+✔ oversized response streams are cancelled before parsing (4.249894ms)
+✔ a fetcher ignoring AbortSignal is bounded by an actual deadline (102.580146ms)
+✔ a response stream that never finishes is bounded by the same deadline (102.05847ms)
+✔ account-owned token verification uses the pinned account endpoint without broadening access (2.672966ms)
+✔ malformed local credential and missing companion email cannot issue requests (0.236569ms)
+✔ global and token authentication are isolated per request (2.640669ms)
+✔ a server-reflected credential cannot be exported as an identifier digest (1.331296ms)
+✔ local CLI execution refuses before any provider request (106.92639ms)
+✔ probe workflow is branch-restricted, read-only and excludes signer/initializer/recovery capabilities (0.425138ms)
+✔ an identifier equal to another protected credential is also rejected (2.661099ms)
+✔ self-policy GET projects A2 resource/read classifications without exporting raw policy identifiers or token names (1.689124ms)
+✔ an explicit write allow in policy metadata is observed without claiming effective-policy or custody acceptance (2.475685ms)
+✔ unclassified resource scope stays explicit rather than being assumed to exclude Authority2 (4.716323ms)
+✔ denied or malformed self-policy metadata does not become a read-only permission certificate (3.848862ms)
+✔ account-source token details use the source account endpoint rather than a guessed user-token policy (0.996671ms)
+✔ optional missing permission-group names are unclassified, never inferred to be read-only (0.713563ms)
+✔ policy projection failures export only fixed reason enums and no response field content (1.927866ms)
+✔ empty provider permission-group arrays remain visible and do not certify a read-only grant (0.795815ms)
+✔ a missing permission-group array emits its fixed shape without guessing permissions (0.801213ms)
+✔ an existing build metadata token may read only the exact previously provider-verified recovery token policy (2.593489ms)
+✔ large provider permission groups remain bounded and project fixed capability codes without dumping names (3.098445ms)
+✔ documented read/report labels preserve original unclassified counters without becoming custody proof (1.306949ms)
+✔ non-Read suffixes which revoke, purge, execute or write cannot be relabeled as read-only (4.710104ms)
+✔ unknown names and omitted names remain unmapped without reflected content in the public result (3.7936ms)
+ℹ tests 35
+ℹ suites 0
+ℹ pass 35
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 550.658681

@@ -1,0 +1,31 @@
+{
+  "node_customer_tests_passed": 545,
+  "python_customer_tests_passed": 352,
+  "new_synthetic_get_only_cases": 38,
+  "source_syntax_and_diff": "PASS",
+  "actual_provider_observation": "KNOWN_WRITE_GRANT_REMOVAL_CONFIRMED_NONSTANDARD_LABELS_IDENTIFIED_NOT_CUSTODY",
+  "independent_operator_policy_readback": "NOT_RECEIVED",
+  "effective_write_denial": "NOT_RUN_INDEPENDENT_CUSTODY_AND_DISPOSABLE_TEST_PREREQUISITES_UNQUALIFIED",
+  "private_genesis_retirement_and_hosted_recovery": "BLOCKED_BY_PROVIDER_CUSTODY",
+  "gate3_closed": false,
+  "B27": "FAILED_IN_SYNTHETIC_ATTACK",
+  "release_status": "NOT_RELEASE",
+  "historical_initial_local_results": {
+    "node_customer_tests_passed": 528,
+    "python_customer_tests_passed": 352,
+    "new_synthetic_get_only_cases": 21,
+    "source_syntax_and_diff": "PASS",
+    "actual_provider_observation": "PENDING_GITHUB_GET_ONLY_JOB",
+    "independent_operator_policy_readback": "NOT_RECEIVED",
+    "effective_write_denial": "NOT_RUN",
+    "private_genesis_retirement_and_hosted_recovery": "BLOCKED_BY_PROVIDER_CUSTODY",
+    "gate3_closed": false,
+    "B27": "FAILED_IN_SYNTHETIC_ATTACK",
+    "release_status": "NOT_RELEASE"
+  },
+  "local_workerd_tests_passed": 16,
+  "source_head": "d22bc554014676e9514500f44c75012f5ba37d86",
+  "source_tree": "a3079a769238bb4de25774bbd1ce92e3e2b2f601",
+  "provider_run_id": 45411478388,
+  "customer_run_id": 45411494332
+}

@@ -1,0 +1,300 @@
+{
+  "schema": "musitu.axiom.gate3.build-credential-readonly-observation.v1",
+  "observed_at_utc": "2026-11-24T13:16:02.141Z",
+  "status": "BUILDER_GET_OBSERVATIONS_ONLY_CUSTODY_HOLD",
+  "account_id": "67469478aa9349fa0a57fe3a72da200a",
+  "execution_origin": "BUILD_CONTROLLED_NOT_INDEPENDENT_OPERATOR",
+  "credentials": [
+    {
+      "reference": "AXIOM_D1_RECOVERY_CF_API_TOKEN",
+      "type": "API_TOKEN",
+      "status": "GET_OBSERVATIONS_ONLY_NOT_PERMISSION_QUALIFICATION",
+      "verification": {
+        "attempts": [
+          {
+            "scope": "user",
+            "state": "PROVIDER_GET_OBSERVED_NOT_POLICY",
+            "http_status": 200
+          }
+        ],
+        "token_identifier_sha256": "83eda64c33252d73b0ae28ebcb902d35d5aa081a7b43f77728924820021860f5",
+        "token_status": "active",
+        "verification_scope": "user",
+        "policy_metadata": {
+          "state": "HTTP_NON200_NOT_WRITE_DENIAL",
+          "http_status": 403,
+          "policy_metadata_observed": false,
+          "effective_write_denial_verified": false,
+          "effective_policy_resolution_verified": false,
+          "projection_hold_reason": "NO_VALID_RESULT"
+        },
+        "existing_build_metadata_reader": {
+          "reference": "MUSITU_CLOUDFLARE_ADMIN_TOKEN",
+          "policy_metadata": {
+            "state": "PROVIDER_GET_OBSERVED_NOT_POLICY",
+            "http_status": 200,
+            "policy_metadata_observed": true,
+            "effective_write_denial_verified": false,
+            "effective_policy_resolution_verified": false,
+            "policies": [
+              {
+                "effect": "allow",
+                "explicit_a2_resource": true,
+                "all_account_resource": false,
+                "unclassified_resource_scope": false,
+                "empty_permission_groups": false,
+                "permission_group_count": 12,
+                "read_named_groups": 11,
+                "write_named_groups": 1,
+                "unclassified_groups": 0,
+                "write_capability_codes": [
+                  "ACCOUNT_SETTINGS_WRITE"
+                ]
+              }
+            ],
+            "potential_a2_write_allow_policy_observed": true,
+            "limit": "Names/resources are observations, not a complete policy evaluator or custody/denial proof"
+          }
+        }
+      },
+      "worker_settings": {
+        "state": "HTTP_NON200_NOT_WRITE_DENIAL",
+        "http_status": 404
+      },
+      "bucket_lock": {
+        "state": "HTTP_NON200_NOT_WRITE_DENIAL",
+        "http_status": 403
+      }
+    },
+    {
+      "reference": "MUSITU_CLOUDFLARE_ADMIN_TOKEN",
+      "type": "API_TOKEN",
+      "status": "GET_OBSERVATIONS_ONLY_NOT_PERMISSION_QUALIFICATION",
+      "verification": {
+        "attempts": [
+          {
+            "scope": "user",
+            "state": "PROVIDER_GET_OBSERVED_NOT_POLICY",
+            "http_status": 200
+          }
+        ],
+        "token_identifier_sha256": "e2ca57fa6d971286e02a8f02050c53991ab79e3ccc8c958d46dbeaf8ed34f1a2",
+        "token_status": "active",
+        "verification_scope": "user",
+        "policy_metadata": {
+          "state": "PROVIDER_GET_OBSERVED_NOT_POLICY",
+          "http_status": 200,
+          "policy_metadata_observed": true,
+          "effective_write_denial_verified": false,
+          "effective_policy_resolution_verified": false,
+          "policies": [
+            {
+              "effect": "allow",
+              "explicit_a2_resource": false,
+              "all_account_resource": false,
+              "unclassified_resource_scope": true,
+              "empty_permission_groups": false,
+              "permission_group_count": 6,
+              "read_named_groups": 3,
+              "write_named_groups": 3,
+              "unclassified_groups": 0,
+              "write_capability_codes": [
+                "MEMBERSHIP_ADMIN_WRITE",
+                "OTHER_WRITE_NAMED",
+                "USER_TOKEN_ADMIN_WRITE"
+              ]
+            },
+            {
+              "effect": "allow",
+              "explicit_a2_resource": false,
+              "all_account_resource": false,
+              "unclassified_resource_scope": true,
+              "empty_permission_groups": false,
+              "permission_group_count": 97,
+              "read_named_groups": 47,
+              "write_named_groups": 45,
+              "unclassified_groups": 5,
+              "write_capability_codes": [
+                "OTHER_WRITE_NAMED",
+                "WORKER_ROUTES_WRITE"
+              ]
+            },
+            {
+              "effect": "allow",
+              "explicit_a2_resource": false,
+              "all_account_resource": true,
+              "unclassified_resource_scope": false,
+              "empty_permission_groups": false,
+              "permission_group_count": 296,
+              "read_named_groups": 138,
+              "write_named_groups": 124,
+              "unclassified_groups": 34,
+              "write_capability_codes": [
+                "ACCOUNT_SETTINGS_WRITE",
+                "ACCOUNT_TOKEN_ADMIN_WRITE",
+                "D1_WRITE",
+                "KV_STORAGE_WRITE",
+                "OTHER_WRITE_NAMED",
+                "R2_STORAGE_WRITE",
+                "WORKER_SOURCE_WRITE"
+              ]
+            }
+          ],
+          "potential_a2_write_allow_policy_observed": true,
+          "limit": "Names/resources are observations, not a complete policy evaluator or custody/denial proof"
+        }
+      },
+      "worker_settings": {
+        "state": "HTTP_NON200_NOT_WRITE_DENIAL",
+        "http_status": 404
+      },
+      "bucket_lock": {
+        "state": "PROVIDER_GET_OBSERVED_NOT_POLICY",
+        "http_status": 200,
+        "indefinite_b27_rule_observed": true
+      }
+    },
+    {
+      "reference": "CLOUDFLARE_API_TOKEN",
+      "type": "API_TOKEN",
+      "status": "GET_OBSERVATIONS_ONLY_NOT_PERMISSION_QUALIFICATION",
+      "verification": {
+        "attempts": [
+          {
+            "scope": "user",
+            "state": "HTTP_NON200_NOT_WRITE_DENIAL",
+            "http_status": 401
+          },
+          {
+            "scope": "account_a2",
+            "state": "HTTP_NON200_NOT_WRITE_DENIAL",
+            "http_status": 401
+          },
+          {
+            "scope": "account_source",
+            "state": "PROVIDER_GET_OBSERVED_NOT_POLICY",
+            "http_status": 200
+          }
+        ],
+        "token_identifier_sha256": "bf3d1b9b09d06a396f9e97846f6ed2c6de64e67184c3865d370610e6d0a925c6",
+        "token_status": "active",
+        "verification_scope": "account_source",
+        "policy_metadata": {
+          "state": "PROVIDER_GET_OBSERVED_NOT_POLICY",
+          "http_status": 200,
+          "policy_metadata_observed": true,
+          "effective_write_denial_verified": false,
+          "effective_policy_resolution_verified": false,
+          "policies": [
+            {
+              "effect": "allow",
+              "explicit_a2_resource": false,
+              "all_account_resource": false,
+              "unclassified_resource_scope": false,
+              "empty_permission_groups": false,
+              "permission_group_count": 279,
+              "read_named_groups": 134,
+              "write_named_groups": 119,
+              "unclassified_groups": 26,
+              "write_capability_codes": [
+                "ACCOUNT_SETTINGS_WRITE",
+                "ACCOUNT_TOKEN_ADMIN_WRITE",
+                "D1_WRITE",
+                "KV_STORAGE_WRITE",
+                "OTHER_WRITE_NAMED",
+                "R2_STORAGE_WRITE",
+                "WORKER_SOURCE_WRITE"
+              ]
+            },
+            {
+              "effect": "allow",
+              "explicit_a2_resource": false,
+              "all_account_resource": false,
+              "unclassified_resource_scope": false,
+              "empty_permission_groups": false,
+              "permission_group_count": 149,
+              "read_named_groups": 146,
+              "write_named_groups": 0,
+              "unclassified_groups": 3,
+              "write_capability_codes": []
+            },
+            {
+              "effect": "allow",
+              "explicit_a2_resource": false,
+              "all_account_resource": false,
+              "unclassified_resource_scope": true,
+              "empty_permission_groups": false,
+              "permission_group_count": 45,
+              "read_named_groups": 45,
+              "write_named_groups": 0,
+              "unclassified_groups": 0,
+              "write_capability_codes": []
+            }
+          ],
+          "potential_a2_write_allow_policy_observed": false,
+          "limit": "Names/resources are observations, not a complete policy evaluator or custody/denial proof"
+        }
+      },
+      "worker_settings": {
+        "state": "HTTP_NON200_NOT_WRITE_DENIAL",
+        "http_status": 403
+      },
+      "bucket_lock": {
+        "state": "HTTP_NON200_NOT_WRITE_DENIAL",
+        "http_status": 403
+      }
+    },
+    {
+      "reference": "MUSITU_CF_STAGING_READ_TOKEN",
+      "type": "API_TOKEN",
+      "status": "NOT_AVAILABLE_IN_THIS_WORKFLOW_CONTEXT"
+    },
+    {
+      "reference": "CLOUDFLARE_GLOBAL_API_KEY",
+      "type": "GLOBAL_KEY",
+      "status": "GET_OBSERVATIONS_ONLY_NOT_PERMISSION_QUALIFICATION",
+      "principal": {
+        "state": "HTTP_NON200_NOT_WRITE_DENIAL",
+        "http_status": 403,
+        "principal_identifier_sha256": null
+      },
+      "memberships": {
+        "state": "MEMBERSHIP_READ_INCOMPLETE_UNKNOWN",
+        "pages": 1,
+        "complete": false,
+        "a2_accepted_membership_observed": null,
+        "a2_administrator_role_observed": false,
+        "a2_any_reported_write_permission": false,
+        "independent_custody_qualified": false,
+        "last_http_status": 403
+      },
+      "worker_settings": {
+        "state": "HTTP_NON200_NOT_WRITE_DENIAL",
+        "http_status": 403
+      },
+      "bucket_lock": {
+        "state": "HTTP_NON200_NOT_WRITE_DENIAL",
+        "http_status": 403
+      }
+    },
+    {
+      "reference": "CLOUDFLARE_API_KEY",
+      "type": "GLOBAL_KEY",
+      "status": "NOT_AVAILABLE_IN_THIS_WORKFLOW_CONTEXT"
+    }
+  ],
+  "provider_get_requests": 19,
+  "provider_write_requests": 0,
+  "credential_values_exported": false,
+  "build_global_key_a2_administrative_membership_observed": false,
+  "build_credential_inventory_exhaustive": false,
+  "build_credential_restrictions_verified": false,
+  "effective_write_denial_verified": false,
+  "independent_admin_separation_verified": false,
+  "hosted_genesis_qualified": false,
+  "hosted_retirement_qualified": false,
+  "hosted_destructive_recovery_qualified": false,
+  "gate3_closed": false,
+  "B27": "FAILED_IN_SYNTHETIC_ATTACK",
+  "release_status": "NOT_RELEASE"
+}

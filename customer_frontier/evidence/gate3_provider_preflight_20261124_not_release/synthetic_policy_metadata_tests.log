@@ -1,0 +1,34 @@
+✔ missing build credentials are unknown, not proof of removal or custody separation (2.25183ms)
+✔ global key with A2 administrator membership is an observed counterexample, never a custody pass (10.868313ms)
+✔ token identifier digest is typed and no bearer, email, private binding or unrelated account name is exported (4.620025ms)
+✔ complete membership readback without A2 does not prove exhaustive credential restriction (1.506318ms)
+✔ unavailable pagination metadata cannot establish absence of membership (1.430584ms)
+✔ membership on the second page is not missed (2.09218ms)
+✔ repeated or excessive pages remain incomplete rather than certifying separation (3.949937ms)
+✔ denied read-only GET is not a successful write-denial test (3.039646ms)
+✔ redirects are never followed and cannot expose credentials to another host (0.620474ms)
+✔ transport errors containing authentication material are never printed or exported (0.614976ms)
+✔ provider success=false, duplicate JSON keys and reflected messages cannot become metadata (1.637115ms)
+✔ oversized response streams are cancelled before parsing (4.009106ms)
+✔ a fetcher ignoring AbortSignal is bounded by an actual deadline (100.450207ms)
+✔ a response stream that never finishes is bounded by the same deadline (103.089122ms)
+✔ account-owned token verification uses the pinned account endpoint without broadening access (1.699198ms)
+✔ malformed local credential and missing companion email cannot issue requests (0.151999ms)
+✔ global and token authentication are isolated per request (1.470854ms)
+✔ a server-reflected credential cannot be exported as an identifier digest (0.736118ms)
+✔ local CLI execution refuses before any provider request (104.347166ms)
+✔ probe workflow is branch-restricted, read-only and excludes signer/initializer/recovery capabilities (0.28618ms)
+✔ an identifier equal to another protected credential is also rejected (1.710005ms)
+✔ self-policy GET projects A2 resource/read classifications without exporting raw policy identifiers or token names (1.210392ms)
+✔ an explicit write allow in policy metadata is observed without claiming effective-policy or custody acceptance (0.981618ms)
+✔ unclassified resource scope stays explicit rather than being assumed to exclude Authority2 (1.246547ms)
+✔ denied or malformed self-policy metadata does not become a read-only permission certificate (4.126382ms)
+✔ account-source token details use the source account endpoint rather than a guessed user-token policy (1.548822ms)
+ℹ tests 26
+ℹ suites 0
+ℹ pass 26
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 490.631213
