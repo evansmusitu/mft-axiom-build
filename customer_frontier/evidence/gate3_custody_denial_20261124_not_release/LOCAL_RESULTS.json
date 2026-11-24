@@ -1,0 +1,14 @@
+{
+  "schema": "musitu.axiom.gate3.custody-boundary-local-source-results.v1",
+  "node_tests": 562,
+  "node_pass": 562,
+  "node_fail": 0,
+  "node_skips": 0,
+  "focused_boundary_cases": 17,
+  "local_node_log_sha256": "2c7f11a592cda9dcfd509be1ec0a2356011dde3d3a0acd3f48fc6ee1837a6f0d",
+  "actual_provider_acceptance": "PENDING",
+  "independent_custody_qualified": false,
+  "gate3_closed": false,
+  "B27": "FAILED_IN_SYNTHETIC_ATTACK",
+  "release_status": "NOT_RELEASE"
+}
