@@ -1,0 +1,42 @@
+{
+  "schema": "musitu.axiom.frontier.supply-chain-lock.v1",
+  "source_evidence": {
+    "full_stack_run": 34061726464,
+    "head_sha": "0ad205cf288f000e052b52b3ae16cdc39e310e38"
+  },
+  "runner": {
+    "label": "ubuntu-24.04",
+    "python": "3.12.14",
+    "pip": "26.2.1"
+  },
+  "github_actions": {
+    "actions/checkout": "11d5960a326750d5838078e36cf38b85af677262",
+    "actions/setup-python": "a26af69be951a213d495a4c3e4e4022e16d87065",
+    "actions/upload-artifact": "ea165f8d65b6e75b540449e92b4886f43607fa02"
+  },
+  "python_lock": "frontier_v5/requirements/fullstack.lock.txt",
+  "playwright": {
+    "python_package_version": "1.62.0",
+    "chromium_build": "1234",
+    "chrome_for_testing_version": "151.0.7922.34",
+    "playwright_ffmpeg_build": "1011"
+  },
+  "external_assets": [
+    {
+      "id": "vosk-model-small-en-us-0.15",
+      "url": "https://alphacephei.com/vosk/models/vosk-model-small-en-us-0.15.zip",
+      "sha256": "30f26242c4eb449f948e42cb302dd7a686cb29a3423a8367f99ff41780942498",
+      "license": "Apache-2.0",
+      "required": true
+    }
+  ],
+  "status": {
+    "versions_pinned": true,
+    "github_actions_commit_pinned": true,
+    "external_asset_digest_pinned": true,
+    "python_distribution_hashes_complete": false,
+    "os_package_snapshot_pinned": false,
+    "supply_chain_level": "PARTIAL"
+  },
+  "claim_boundary": "This lock improves reproducibility but is not a complete supply-chain attestation until Python distribution hashes and OS package snapshot integrity are pinned and verified."
+}
