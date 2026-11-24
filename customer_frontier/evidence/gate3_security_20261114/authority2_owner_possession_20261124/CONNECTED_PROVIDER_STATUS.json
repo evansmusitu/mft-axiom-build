@@ -1,0 +1,10 @@
+{
+  "schema": "musitu.axiom.operator-provider-status.v1",
+  "status": "UNAVAILABLE",
+  "external_provider_execution_authority": false,
+  "provider_admission_required": true,
+  "production_authority": false,
+  "observed_at_utc": "2026-11-24T07:44:33.039164+00:00",
+  "does_not_establish_cloudflare_management_access": true,
+  "evidence_origin": "ACTUAL_CONNECTED_READONLY_STATUS_RESPONSE"
+}

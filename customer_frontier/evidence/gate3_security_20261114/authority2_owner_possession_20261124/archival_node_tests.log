@@ -1,0 +1,14 @@
+✔ actual upload and independently issued challenge remain byte-exact (1.506438ms)
+✔ actual owner signature verifies at the recorded original fresh acceptance time (3.482432ms)
+✔ altered challenge or signature cannot reuse this actual archived proof (1.514049ms)
+✔ a later expired verification cannot be promoted into a newly fresh proof (0.380222ms)
+✔ actual possession signature does not verify without its dedicated domain (0.449727ms)
+✔ current records resolve possession while retaining every hosted/custody/release hold (1.054567ms)
+ℹ tests 6
+ℹ suites 0
+ℹ pass 6
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 156.104

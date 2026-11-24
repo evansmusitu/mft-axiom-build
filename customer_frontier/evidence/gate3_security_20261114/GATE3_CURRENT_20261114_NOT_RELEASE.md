@@ -2,6 +2,17 @@
 
 **Gate 2 CLOSED. Gate 3 OPEN / HOLD. Whole-product NOT_RELEASE.**
 
+## Current checkpoint — 24 November 2026
+
+The uploaded 1,166-byte OWNER_A2_SIGNER_POSSESSION_PROOF.json is cryptographically valid against the exact independently issued challenge and trusted Authority2 SPKI pin. The original reviewed Node verifier and independent Python Ed25519 implementation both passed while the challenge was fresh at 07:37:52 UTC. Signed at 07:34:08 UTC. Proof SHA-256: aed75f46b6d207ab8cea730baa25718af9f3c5fed85bf37c515c035aae2302d7. Exact public bytes and verification receipt are in authority2_owner_possession_20261124/.
+
+Matching dedicated-key possession is complete. Do not ask for another signer, private PEM, passphrase, repeat public proof, repeated source/config approval or completed backup recovery. This signature alone does not attest Windows execution, nonexportable custody, provider/MFA administration or separation from builder credentials. Those unqualified fields remain false.
+
+The next dependency is actual current provider-policy and effective build-write denial evidence under the owner's independent Cloudflare administration. Original owner dashboard reports remain accepted at their recorded scope; a signature does not strengthen them into provider-origin policy verification. After that boundary, qualify the unused disposable namespace and fresh operator-reviewed immutable genesis commitment, actual private initialization/retirement and hosted separate-host destructive/replay acceptance. No provider write or credential probe occurred in this checkpoint. B27 FAILED_IN_SYNTHETIC_ATTACK; Gate3 OPEN/HOLD; NOT_RELEASE.
+
+The following dated entries are historical records and remain unchanged; this checkpoint supersedes their earlier pending-possession statements.
+
+
 Gate 2 was accepted at recovery commit `5c03cf457fa0e2bdee7103e2d9f0e4bfd32d9e50`
 after matching the complete owner-terminal production backup proof. Its candidate
 CI [43636844294](https://github.com/evansmusitu/mft-axiom-build/actions/runs/43636844294)

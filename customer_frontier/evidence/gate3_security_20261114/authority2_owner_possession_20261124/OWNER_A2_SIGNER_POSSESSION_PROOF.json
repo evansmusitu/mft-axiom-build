@@ -1,0 +1,25 @@
+{
+  "schema": "musitu.axiom.authority2.local-possession-proof.v1",
+  "statement": {
+    "schema": "musitu.axiom.authority2.local-possession-statement.v1",
+    "challenge": {
+      "account_id": "67469478aa9349fa0a57fe3a72da200a",
+      "approved_config_sha256": "bc09d63349f611a71f0eef6c1ad1d00bd861454aeab7c41f9565056758f2f8e3",
+      "approved_source_commit": "68799a41a367865649b833de649edcb26f77c0d3",
+      "challenge_id": "1a9bfe868be22ffc0ef041cd2e87cdee7c7a27a12084ffb910b7e943ea2e18f6",
+      "expected_spki_sha256": "6792c82b245cd45051052cc1b00eb5f99a99489829c3f0567c7c15f741389d8a",
+      "expires_at_utc": "2026-11-24T10:46:41.122Z",
+      "issued_at_utc": "2026-11-23T10:46:41.122Z",
+      "purpose": "EXISTING_A2_KEY_POSSESSION_ONLY_NOT_AUTHORITY",
+      "release_status": "NOT_RELEASE",
+      "schema": "musitu.axiom.authority2.possession-challenge.v1"
+    },
+    "signed_at_utc": "2026-11-24T07:34:08.996Z"
+  },
+  "public_key_jwk": {
+    "crv": "Ed25519",
+    "x": "9G3Dzw62h9a094zdQFLO5AfoI637Su8Y9mMT-k0ynrs",
+    "kty": "OKP"
+  },
+  "signature_base64url": "-uWtcctF7hHXbUbZ0uv-FbiVXlK7HfLWXrZgM8wPKPQTOnC-M4rzPVAMg6XdkMKfAhHlGe9UgSSA99tjglrSAQ"
+}
