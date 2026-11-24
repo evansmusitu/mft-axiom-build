@@ -11,6 +11,9 @@ or artifacts from a real tenant are included in this public source receipt.
   existing ledger and local artifact boundary):
   https://github.com/evansmusitu/mft-axiom-build/actions/runs/45354699091
   result SUCCESS; 39 source-only Python/SQLite tests, 0 failures.
+  Latest unchanged-test coverage was revalidated at
+  https://github.com/evansmusitu/mft-axiom-build/actions/runs/45354920020
+  (39/39 PASS).
 - Isolated proposed new DO schema (unapplied):
   `musitu_studio/gates56/durable_queue_schema.sql`.
   This is NOT proof of cross-worker durability in Cloudflare.
@@ -28,6 +31,11 @@ or artifacts from a real tenant are included in this public source receipt.
   `provider_hard_cap_verified=false`,
   `compute_enabled=false`, `render_jobs_spawned=false`,
   `provider_settings_mutated=false`.
+  An additional sanitized diagnostic run confirmed the exact cause:
+  https://github.com/evansmusitu/mft-axiom-build/actions/runs/45354949005
+  `expected_workspace_configured=false`, while authenticated workspace
+  and billing usage readback are true. This is missing operator-specified
+  workspace identity, NOT an established provider-authentication failure.
   GitHub Actions overall result is intentionally FAIL because an unbound
   workspace must not qualify Studio production admission.
 
