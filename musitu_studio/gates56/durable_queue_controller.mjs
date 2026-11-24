@@ -97,6 +97,11 @@ export class G56DurableQueueController {
     };
   }
 
+  // No admission or claim can succeed until all independently controlled
+  // provider-budget and identity adapters have been reviewed.
+  submit() { throw new QueueGateClosed('NOT_IMPLEMENTED'); }
+  claim() { throw new QueueGateClosed('NOT_IMPLEMENTED'); }
+
   status({ principal, tenant, jid } = {}) {
     this._selector(tenant, jid);
     this._identity(principal, tenant);
