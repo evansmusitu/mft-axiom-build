@@ -255,7 +255,7 @@ function approveAdmission(db) {
   // Simulates a separate owner ceremony ONLY in disposable SQLite.
   db.exec('UPDATE g56_do_control SET killed=0 WHERE id=1');
 }
-function submitArgs({ principal = {tenant:'tenantA',project:'projectA',signed:true},
+function submitArgs({ principal = {tenant:'tenantA',project:'projectA',role:'owner',signed:true},
                       tenant='tenantA', key='key1', cost=60, credits=3,
                       hash='a'.repeat(64), attempts=2 } = {}) {
   return {principal,tenant,project:'projectA',submissionKey:key,
