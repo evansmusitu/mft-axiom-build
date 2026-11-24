@@ -248,3 +248,69 @@ dispatch operation. The emergency stop issues local cancellation intent; it
 does NOT prove an existing provider call was actually terminated.
 
 **Gate 5 OPEN; Gate 6 OPEN; PUBLIC LAUNCH NO-GO.**
+
+## 24 November 2026 evening — atomic budget reservations and fenced queue claims (SOURCE ONLY)
+
+Source: `durable_queue_controller.mjs` with the independent
+`test_durable_queue_controller.mjs` Node 24/real-SQLite contract suite.
+
+The isolated controller now implements:
+
+1. User-scoped **read** status and project-scoped **write** permissions for
+   cancellation and job submission. A signed user in the same tenant but a
+   different project cannot read or cancel the job; a project viewer cannot
+   submit chargeable work or cancel another user's job.
+2. `submit` with a single `transactionSync`:
+   tenant/project authorization; immutable payload SHA-256 and tenant-scoped
+   idempotency key; independently provided worst-case all-attempt quote
+   callback; provider Workspace identity+hard-cap+freshness checks; global
+   unsettled reservations across tenants; tenant daily/monthly limits;
+   outstanding credit holds; concurrency; and one new QUEUED record.
+   Identical replay returns the original job without another reservation.
+   Changed payload/price/credit/attempt fields with the same key are rejected.
+3. `claim` with private worker authorization, fresh provider-cap verification,
+   single-fence lease and transactional insertion into `g56_do_attempts`.
+   Claims **never spawn or call** a Modal function. A QUEUED record with any
+   prior attempt/fence/provider-call evidence is moved to NEEDS_REVIEW, keeping
+   spending and credit exposure held; it is not automatically rendered again.
+4. Existing cancellation, progress, quarantine, immutable settlement,
+   emergency stop, and private-local-artifact invariants remain under test.
+
+**Critical trust boundary:** All successful admission test paths use obviously
+fake offline provider attestations, quotes and role-verifier functions. No
+trusted, authenticated provider-*enforced* budget readback adapter exists in
+this branch. `readProviderCap` is a synchronous injection seam, not a method
+for live provider network calls inside a SQLite transaction. Integrating it
+requires a separately reviewed, independently verified and sufficiently fresh
+attestation sourced outside the transaction and bound to the exact Modal
+Workspace. **The existing Modal billing observer CANNOT satisfy it.** The
+`expectedWorkspace` binding and the genuine provider hard budget remain
+unverified. There is deliberately no `arm` API or HTTP entrypoint. These
+methods cannot be reached by a live worker or customer.
+
+**Global budget accounting requires one single-writer ledger for ALL Studio
+tenants.** Sharding tenants into independent Durable Object instances would
+bypass the global outstanding cap. A hosted routing/identity/migration plan
+and Cloudflare transactional worker proof are still missing. Clock/budget
+freshness and cross-provider Gemini/storage charges need independent review.
+Local fake credits must never be confused with settled Paynow credits.
+
+### Red/green verification
+
+- Same-tenant cross-project unauthorized access RED:
+  https://github.com/evansmusitu/mft-axiom-build/actions/runs/45437731823
+  then GREEN: https://github.com/evansmusitu/mft-axiom-build/actions/runs/45437851217
+- Admission+claim missing implementation RED:
+  https://github.com/evansmusitu/mft-axiom-build/actions/runs/45438160302
+  then GREEN:
+  https://github.com/evansmusitu/mft-axiom-build/actions/runs/45438560912
+- Viewer cancellation/submission escalation RED:
+  https://github.com/evansmusitu/mft-axiom-build/actions/runs/45438758717
+  then GREEN:
+  https://github.com/evansmusitu/mft-axiom-build/actions/runs/45439006438
+- Latest green boundary: **41 Python tests + 18 Node SQLite tests =
+  59/59**, zero failures. No deployed Durable Object, real provider hard
+  cap, actual CPU render, provider cancel, private cloud download or real
+  merchant settlement is evidenced here.
+
+**Formal G5 OPEN; G6 OPEN. NO-GO for public release and paid rendering.**
