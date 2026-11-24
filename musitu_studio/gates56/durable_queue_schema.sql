@@ -32,7 +32,7 @@ CREATE TABLE IF NOT EXISTS g56_do_jobs(
   device TEXT NOT NULL DEFAULT 'GPU' CHECK(device IN ('CPU','GPU')),
   gpu_type TEXT DEFAULT 'T4' CHECK(
     (device='CPU' AND gpu_type IS NULL)
-    OR (device='GPU' AND gpu_type='T4')),
+    OR (device='GPU' AND gpu_type IS 'T4')),
   state TEXT NOT NULL CHECK(state IN (
      'QUEUED','RUNNING','CANCEL_REQUESTED','NEEDS_REVIEW',
      'COMPLETED','FAILED','CANCELED')),
