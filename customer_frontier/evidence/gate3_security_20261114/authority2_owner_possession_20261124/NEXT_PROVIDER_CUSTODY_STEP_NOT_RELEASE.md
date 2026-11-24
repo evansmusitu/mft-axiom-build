@@ -1,5 +1,7 @@
 # Next Gate3 dependency — actual provider credential/custody qualification
 
+**Current provider update, 24 November13:16Z:** actual policy readback now shows Authority2 Account Settings Write on the recovery token, and all-account Worker/R2 plus token/membership write grants on the build admin token. Prior owner statements below remain historical and cannot establish the current restriction. Use [the actual receipt and owner correction sequence](../../gate3_provider_preflight_20261124_not_release/OWNER_CORRECTION_AND_ACCEPTANCE_ORDER_NOT_RELEASE.md). Private genesis/retirement/destructive acceptance remain blocked. Do not repeat the accepted possession proof.
+
 Matching-key possession is VERIFIED by the actual returned signature. Do not repeat the signer check, key creation, backup recovery, reviewer identity or unchanged source/config approval. The proof is possession-only; no private key/passphrase was obtained. Current Gate3 status remains OPEN/HOLD.
 
 Retained owner reports already say AXIOM_D1_RECOVERY_CF_API_TOKEN was saved with Read-only Pages/D1/Workers Scripts permissions; MUSITU_CLOUDFLARE_ADMIN_TOKEN grants no Authority2 write; and CLOUDFLARE_API_TOKEN is limited to another account. Accept those reports at their existing scope. Repeating the same statements would not independently qualify provider policies or effective denial.

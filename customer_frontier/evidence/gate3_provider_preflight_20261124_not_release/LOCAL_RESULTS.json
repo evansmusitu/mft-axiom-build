@@ -1,13 +1,31 @@
 {
-  "node_customer_tests_passed": 528,
+  "node_customer_tests_passed": 539,
   "python_customer_tests_passed": 352,
-  "new_synthetic_get_only_cases": 21,
+  "new_synthetic_get_only_cases": 32,
   "source_syntax_and_diff": "PASS",
-  "actual_provider_observation": "PENDING_GITHUB_GET_ONLY_JOB",
+  "actual_provider_observation": "COMPLETED_PROVIDER_WRITE_ALLOW_POLICY_COUNTEREXAMPLES_OBSERVED",
   "independent_operator_policy_readback": "NOT_RECEIVED",
-  "effective_write_denial": "NOT_RUN",
+  "effective_write_denial": "NOT_RUN_UNSAFE_POLICY_PREREQUISITES_FAILED",
   "private_genesis_retirement_and_hosted_recovery": "BLOCKED_BY_PROVIDER_CUSTODY",
   "gate3_closed": false,
   "B27": "FAILED_IN_SYNTHETIC_ATTACK",
-  "release_status": "NOT_RELEASE"
+  "release_status": "NOT_RELEASE",
+  "historical_initial_local_results": {
+    "node_customer_tests_passed": 528,
+    "python_customer_tests_passed": 352,
+    "new_synthetic_get_only_cases": 21,
+    "source_syntax_and_diff": "PASS",
+    "actual_provider_observation": "PENDING_GITHUB_GET_ONLY_JOB",
+    "independent_operator_policy_readback": "NOT_RECEIVED",
+    "effective_write_denial": "NOT_RUN",
+    "private_genesis_retirement_and_hosted_recovery": "BLOCKED_BY_PROVIDER_CUSTODY",
+    "gate3_closed": false,
+    "B27": "FAILED_IN_SYNTHETIC_ATTACK",
+    "release_status": "NOT_RELEASE"
+  },
+  "local_workerd_tests_passed": 16,
+  "source_head": "95ff37dcc696ece685801274718d5a2162c2243c",
+  "source_tree": "9036c76e43d12a8bc2165d9fe5c9f67a200b20c6",
+  "provider_run_id": 45401611848,
+  "customer_run_id": 45401625405
 }

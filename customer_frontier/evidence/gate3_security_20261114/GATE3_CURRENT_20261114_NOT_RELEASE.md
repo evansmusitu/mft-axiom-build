@@ -1,5 +1,13 @@
 # MUSITU AXIOM Gate 3 — security, custody and anti-rollback
 
+## 24 November actual provider policy counterexamples — current dependency
+
+At13:16:02.141Z (15:16 Harare), run45401611848/job138471362266 made19 bounded Cloudflare GETs and zero writes from source95ff37dcc696ece685801274718d5a2162c2243c. The recovery token still has an explicit Authority2 Account Settings Write allow group. The build-held admin token still has all-account Worker/R2 write allow policies plus user-token/membership administration. Current provider policy evidence supersedes earlier owner no-write statements at this observed policy scope; retain the earlier statements as historical reports. Exact resource GET403/404, source CI and metadata read success do not supply complete effective-policy evaluation or write-denial acceptance.
+
+Credential restrictions are **not established**. Owner-side correction/consumer/recovery review, independently controlled policy readback and bounded effective-denial acceptance are required before private genesis/retirement or hosted destructive recovery. These hosted operations were not run. The actual accepted signer proof and identical approved source/config do not need repetition. Gate2 stays CLOSED; Gate3 OPEN/HOLD; B27 FAILED_IN_SYNTHETIC_ATTACK; parity/superiority NOT_CERTIFIED; unavailable final usage UNKNOWN; NOT_RELEASE.
+
+Current exact receipt and owner sequence: [owner correction and acceptance order](../gate3_provider_preflight_20261124_not_release/OWNER_CORRECTION_AND_ACCEPTANCE_ORDER_NOT_RELEASE.md). The unchanged historical sections below retain their original scopes. Five observation runs made89 GETs and zero writes in total; no provider policy, Worker, retained history or customer state changed.
+
 **Gate 2 CLOSED. Gate 3 OPEN / HOLD. Whole-product NOT_RELEASE.**
 
 ## Current checkpoint — 24 November 2026
