@@ -1,0 +1,7 @@
+Actual GitHub Windows2022 failure at fba81acd63f34f7748790cc083f074e06e40a697.
+Run45344799987 job138276659129. Public fixture only; no owner key used.
+2026-11-24T07:01:57.8019367Z A2_SINGLE_FILE_STOPPED:The term 'C:\hostedtoolcache\windows\node\22.23.5\x64\node.exe C:\Program Files\nodejs\node.exe' is not recognized as the name of a cmdlet, function, script file, or operable program. Check the spelling of the name, or if a path was included, verify that the path is correct and try again.
+2026-11-24T07:01:57.9455312Z Public single-file check failed: powershell.exe
+2026-11-24T07:01:57.9457920Z + ... LASTEXITCODE -ne 0){throw ('Public single-file check failed: '+$exe)}
+2026-11-24T07:01:57.9459826Z     + FullyQualifiedErrorId : Public single-file check failed: powershell.exe
+2026-11-24T07:01:58.2173530Z ##[error]Process completed with exit code 1.

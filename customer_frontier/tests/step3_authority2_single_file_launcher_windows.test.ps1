@@ -2,6 +2,7 @@
 param([Parameter(Mandatory=$true)][string]$Launcher)
 $ErrorActionPreference='Stop'
 if(-not $env:GITHUB_ACTIONS){throw 'SYNTHETIC_WINDOWS_CI_ONLY'}
+Write-Output ('NODE_EXECUTABLE_CANDIDATES:'+@(Get-Command node.exe -CommandType Application).Count)
 $syntaxErrors=$null;$tokens=$null
 [void][Management.Automation.Language.Parser]::ParseFile($Launcher,[ref]$tokens,[ref]$syntaxErrors)
 if(@($syntaxErrors).Count -ne 0){throw ('PowerShell syntax failed: '+($syntaxErrors|Out-String))}
@@ -11,6 +12,9 @@ foreach($exe in @('powershell.exe','pwsh')){
  $r=$lines[-1]|ConvertFrom-Json
  if($r.status -cne 'SINGLE_FILE_PUBLIC_INSPECTION_PASS_NOT_OWNER_PROOF' -or $r.private_key_accessed -ne $false -or $r.owner_proof_observed -ne $false -or $r.gate3_closed -ne $false -or $r.release_status -cne 'NOT_RELEASE'){throw 'Inspection tried to qualify owner/hosted evidence'}
  Write-Output ('NATIVE_SINGLE_FILE_PUBLIC_INSPECTION_PASS:'+ $exe)
+ & $exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File (Join-Path $r.packet_directory 'Run_MUSITU_AXIOM_Authority2_Signer_Check.ps1') -PublicSelfTest
+ if($LASTEXITCODE -ne 0){throw ('Unchanged reviewed wrapper public checks failed: '+$exe)}
+ Write-Output ('NATIVE_REVIEWED_WRAPPER_PUBLIC_PASS:'+ $exe)
 }
 $log=Join-Path $env:RUNNER_TEMP 'single-file-owner-guard.log'
 $prior=$ErrorActionPreference

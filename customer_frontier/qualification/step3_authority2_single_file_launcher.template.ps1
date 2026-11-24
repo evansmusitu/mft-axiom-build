@@ -49,7 +49,7 @@ function WriteNew([string]$path,[byte[]]$bytes){
 try{
   if([Environment]::OSVersion.Platform -ne [PlatformID]::Win32NT){Deny 'WINDOWS_REQUIRED'}
   if(-not $InspectOnly -and ($env:CI -or $env:GITHUB_ACTIONS -or $env:TF_BUILD -or -not [Environment]::UserInteractive -or [Console]::IsInputRedirected -or [Console]::IsOutputRedirected)){Deny 'OWNER_WINDOWS_CONSOLE_REQUIRED'}
-  $node=Get-Command node.exe -CommandType Application -ErrorAction Stop
+  $node=@(Get-Command node.exe -CommandType Application -ErrorAction Stop)[0]
   $version=& $node.Source --version
   if($LASTEXITCODE -ne 0 -or $version -notmatch '^v([0-9]+)\.' -or [int]$Matches[1] -lt 20){Deny 'EXISTING_NODE_20_PLUS_REQUIRED'}
   $bytes=[Convert]::FromBase64String($PacketBase64)
@@ -100,7 +100,7 @@ try {
   console.log(JSON.stringify({status:'CHALLENGE_FRESH',expires_at_utc:challenge.expires_at_utc,gate3_closed:false}));
  }else if(mode==='inspect'){
   m.validateChallenge(challenge,{expectedPin:m.EXPECTED_PIN,fresh:false});
-  console.log(JSON.stringify({status:'SINGLE_FILE_PUBLIC_INSPECTION_PASS_NOT_OWNER_PROOF',challenge_id:challenge.challenge_id,
+  console.log(JSON.stringify({status:'SINGLE_FILE_PUBLIC_INSPECTION_PASS_NOT_OWNER_PROOF',packet_directory:root,challenge_id:challenge.challenge_id,
    expires_at_utc:challenge.expires_at_utc,private_key_accessed:false,owner_proof_observed:false,gate3_closed:false,release_status:'NOT_RELEASE'}));
  }else if(mode==='verify'){
   const raw=readFileSync(process.argv[4]);if(raw.length>16384)throw Error('PUBLIC_PROOF_TOO_LARGE');
