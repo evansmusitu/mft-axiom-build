@@ -296,6 +296,38 @@ test('atomically submit once: duplicate request cannot mint reservation or chang
   assert.equal(f.db.prepare('SELECT count(*) n FROM g56_do_jobs').get().n,1);
 });
 
+test('Studio G5/6 reserves only Modal T4 GPU work and rejects CPU fallback', () => {
+  const f=fixture({budget:true,binding:true,quote:true});
+  approveAdmission(f.db);
+  assert.throws(()=>f.controller.submit({...submitArgs({key:'cpu-denied'}),device:'CPU',gpuType:'T4'}),
+    /MODAL_GPU_ONLY_REQUIRED/);
+  assert.throws(()=>f.controller.submit({...submitArgs({key:'different-gpu'}),device:'GPU',gpuType:'A100'}),
+    /MODAL_GPU_ONLY_REQUIRED/);
+  assert.equal(f.db.prepare('SELECT count(*) n FROM g56_do_jobs').get().n,0);
+  const accepted=f.controller.submit({...submitArgs(),device:'GPU',gpuType:'T4'});
+  assert.equal(accepted.state,'QUEUED');
+  const stored=f.row(accepted.job_id);
+  assert.equal(stored.device,'GPU');
+  assert.equal(stored.gpu_type,'T4');
+});
+
+test('a job claim is GPU only, with exact T4 hardware and no CPU downgrade', () => {
+  const f=fixture({budget:true,binding:true,quote:true});
+  approveAdmission(f.db);
+  const job=f.controller.submit({...submitArgs(),device:'GPU',gpuType:'T4'});
+  assert.throws(()=>f.controller.claim({
+    proof:'local-private-worker',workerId:'workerCPU',device:'CPU',gpuType:'T4'
+  }),/MODAL_GPU_ONLY_REQUIRED/);
+  assert.equal(f.row(job.job_id).state,'QUEUED');
+  const claim=f.controller.claim({
+    proof:'local-private-worker',workerId:'workerCPU',device:'GPU',gpuType:'T4'
+  });
+  assert.equal(claim.device,'GPU');
+  assert.equal(claim.gpu_type,'T4');
+  assert.equal(claim.provider,'MODAL');
+  assert.equal(f.row(job.job_id).state,'RUNNING');
+});
+
 test('global provider remaining headroom cannot be allocated twice across tenants', () => {
   const f=fixture({budget:true,binding:true,quote:true});
   approveAdmission(f.db);
