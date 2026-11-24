@@ -34,6 +34,8 @@ jobs:
           outcome={
             'schema':'musitu.studio.g56.modal-auth-readonly.v1',
             'credentials_provided':False,
+            'failure_stage':'UNTESTED',
+            'error_class':'NONE',
             'workspace_authenticated':False,
             'expected_workspace_bound':False,
             'billing_usage_readable':False,
@@ -43,6 +45,7 @@ jobs:
             'provider_settings_mutated':False,
             'commercial_release_authorized':False,
           }
+          stage='CHECK_CREDENTIALS'
           try:
               tid=os.environ.get('MODAL_TOKEN_ID','')
               secret=os.environ.get('MODAL_TOKEN_SECRET','')
@@ -51,25 +54,32 @@ jobs:
                       len(tid)>=11 and len(secret)>=11):
                   raise ValueError('MISSING_EXPLICIT_MODAL_API_AUTH')
               outcome['credentials_provided']=True
+              stage='IMPORT_MODAL_SDK'
               import modal
+              stage='WORKSPACE_CONTEXT'
               workspace=modal.Workspace.from_context()
+              stage='WORKSPACE_NAME_READ'
               attr=workspace.name
               actual=attr() if callable(attr) else attr
               if not isinstance(actual,str) or not actual:
                   raise ValueError('WORKSPACE_NOT_VERIFIABLE')
               outcome['workspace_authenticated']=True
+              stage='WORKSPACE_TARGET_BINDING'
               if not expected or expected!=actual:
                   raise ValueError('EXPECTED_WORKSPACE_NOT_BOUND')
               outcome['expected_workspace_bound']=True
+              stage='BILLING_USAGE_READ'
               summary=workspace.billing.summary(cycle='this month')
               for item in ('metered_cost','billed_cost'):
                   value=getattr(summary,item,None)
                   if type(value) is not Decimal or not value.is_finite() or value<0:
                       raise ValueError('BILLING_USAGE_NOT_VERIFIABLE')
               outcome['billing_usage_readable']=True
-          except Exception:
-              # Do not expose provider error text, credentials, identity or costs.
-              pass
+              outcome['failure_stage']='NONE'
+          except Exception as exc:
+              # Only a fixed stage and exception class; never print provider text.
+              outcome['failure_stage']=stage
+              outcome['error_class']=type(exc).__name__[:64]
           print('MUSITU_STUDIO_MODAL_PROVIDER_READBACK='+json.dumps(outcome,sort_keys=True))
           # An authenticated usage response is still NOT hard-cap attestation.
           sys.exit(0 if outcome['billing_usage_readable'] else 1)
