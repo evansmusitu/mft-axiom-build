@@ -1,0 +1,17 @@
+✔ owner-local provider and GitHub metadata collection remains GET-only and is not automatic custody acceptance (16.420949ms)
+✔ missing GitHub metadata authorization stays incomplete rather than proving no alternatives exist (4.19814ms)
+✔ repository identity drift stops private GitHub inventory reads (3.655268ms)
+✔ missing CF pagination metadata cannot certify an empty member inventory (2.554513ms)
+✔ expired owner inventory challenge is refused before provider access without repeating signer proof (0.461381ms)
+✔ an API token whose verification is unavailable cannot be called an independent owner credential (1.048388ms)
+✔ a valid owner API-token identifier uses a typed digest and never exports the identifier (4.693971ms)
+✔ credential-reflecting provider identifiers do not become credential hashes (0.611323ms)
+✔ CLI inspection requires no credentials and actual collection refuses outside owner Windows context (209.877955ms)
+ℹ tests 9
+ℹ suites 0
+ℹ pass 9
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 376.214647

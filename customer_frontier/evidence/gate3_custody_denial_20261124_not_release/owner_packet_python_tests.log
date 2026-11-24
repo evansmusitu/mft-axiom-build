@@ -1,0 +1,9 @@
+test_challenge_is_fresh_bounded_and_no_gate_approval (test_gate3_owner_custody_packet.OwnerCustodyPacketTests.test_challenge_is_fresh_bounded_and_no_gate_approval) ... ok
+test_embedded_source_hashes_and_parser_only_dependency (test_gate3_owner_custody_packet.OwnerCustodyPacketTests.test_embedded_source_hashes_and_parser_only_dependency) ... ok
+test_missing_or_malformed_source_commit_is_rejected (test_gate3_owner_custody_packet.OwnerCustodyPacketTests.test_missing_or_malformed_source_commit_is_rejected) ... ok
+test_owner_credential_uses_hidden_prompt_and_stdin_not_arguments_or_environment (test_gate3_owner_custody_packet.OwnerCustodyPacketTests.test_owner_credential_uses_hidden_prompt_and_stdin_not_arguments_or_environment) ... ok
+
+----------------------------------------------------------------------
+Ran 4 tests in 0.004s
+
+OK

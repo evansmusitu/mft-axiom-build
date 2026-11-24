@@ -1,0 +1,35 @@
+name: AXIOM Gate3 owner custody packet Windows inspection (NOT OWNER PROOF)
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/axiom-gate3-owner-custody-packet-windows-20261124.yml'
+      - 'scripts/build_gate3_owner_custody_readback.py'
+      - 'customer_frontier/qualification/gate3_owner_custody_readback*'
+      - 'customer_frontier/tests/gate3_owner_custody*'
+      - 'customer_frontier/tests/test_gate3_owner_custody_packet.py'
+permissions: {contents: read}
+jobs:
+  public-source-only:
+    runs-on: windows-2022
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with: {persist-credentials: false}
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with: {node-version: '22'}
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065
+        with: {python-version: '3.12'}
+      - name: Synthetic owner metadata and package checks only
+        shell: pwsh
+        run: |
+          node --test customer_frontier/tests/gate3_owner_custody_readback.test.mjs
+          if($LASTEXITCODE -ne 0){throw 'Synthetic readback tests failed'}
+          python -m unittest discover -s customer_frontier/tests -p test_gate3_owner_custody_packet.py -v
+          if($LASTEXITCODE -ne 0){throw 'Public package checks failed'}
+      - name: Build exact public source and inspect on native PowerShell 5.1 and 7
+        shell: pwsh
+        run: |
+          python scripts/build_gate3_owner_custody_readback.py --out "$env:RUNNER_TEMP/OWNER_CUSTODY_READBACK.ps1" --source-commit $env:GITHUB_SHA
+          if($LASTEXITCODE -ne 0){throw 'Packet generation failed'}
+          powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File customer_frontier/tests/gate3_owner_custody_windows.test.ps1 -Packet "$env:RUNNER_TEMP/OWNER_CUSTODY_READBACK.ps1"
+          if($LASTEXITCODE -ne 0){throw 'Native public inspection failed'}
