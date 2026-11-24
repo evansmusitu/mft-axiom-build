@@ -12,6 +12,7 @@ from musitu_studio.gates56.ledger import GateClosed
 class ModalBudgetObserverTests(unittest.TestCase):
     def setUp(self):
         self.calls = []
+        self.hydrate_count = 0
         self.env = {
             "MODAL_TOKEN_ID": "ak-offline-test-only",
             "MODAL_TOKEN_SECRET": "as-offline-test-only",
@@ -23,7 +24,10 @@ class ModalBudgetObserverTests(unittest.TestCase):
         def summary(*, cycle):
             self.calls.append(("summary", cycle))
             return self.usage
+        def hydrate():
+            self.hydrate_count += 1
         ws = SimpleNamespace(name=lambda: "expected-studio-workspace",
+                             hydrate=hydrate,
                              billing=SimpleNamespace(summary=summary))
         self.sdk = SimpleNamespace(
             Workspace=SimpleNamespace(from_context=lambda: ws)
@@ -46,6 +50,7 @@ class ModalBudgetObserverTests(unittest.TestCase):
         self.assertIsNone(o.provider_remaining_cents)
         self.assertFalse(o.rendering_authorized)
         self.assertEqual(self.calls, [("summary", "this month")])
+        self.assertEqual(self.hydrate_count, 1)
 
     def test_even_authenticated_billing_cannot_arm_ledger(self):
         observer = self.make_observer()
