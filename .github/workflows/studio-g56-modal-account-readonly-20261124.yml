@@ -38,6 +38,7 @@ jobs:
             'error_class':'NONE',
             'workspace_authenticated':False,
             'expected_workspace_bound':False,
+            'expected_workspace_configured':False,
             'billing_usage_readable':False,
             'provider_hard_cap_verified':False,
             'compute_enabled':False,
@@ -50,6 +51,7 @@ jobs:
               tid=os.environ.get('MODAL_TOKEN_ID','')
               secret=os.environ.get('MODAL_TOKEN_SECRET','')
               expected=os.environ.get('EXPECTED_STUDIO_MODAL_WORKSPACE','')
+              outcome['expected_workspace_configured']=bool(expected)
               if not (tid.startswith('ak-') and secret.startswith('as-') and
                       len(tid)>=11 and len(secret)>=11):
                   raise ValueError('MISSING_EXPLICIT_MODAL_API_AUTH')
