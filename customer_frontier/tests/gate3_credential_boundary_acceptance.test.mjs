@@ -28,7 +28,7 @@ function fixture(options={}){
   if(path.endsWith('/settings'))return refused(404);
   if(path.endsWith('/assets-upload-session')){
    const b=await req.clone().json();assert.equal(b.manifest['/gate3-empty-proof.txt'].size,0);assert.match(b.manifest['/gate3-empty-proof.txt'].hash,/^[a-f0-9]{32}$/);
-   if(path.includes(SOURCE))return options.assetsControlFail?refused(400):cf({jwt:'PRIVATE_ASSET_UPLOAD_JWT',buckets:[['opaque-hash']]});
+   if(path.includes(SOURCE))return options.assetsControlFail?refused(400):cf({jwt:'PRIVATE_ASSET_UPLOAD_JWT',buckets:[['e3b0c44298fc1c149afbf4c8996fb924']]});
    return options.assetsUnexpected?cf({jwt:'PRIVATE_UNEXPECTED_ASSET_JWT'}):refused(options.denialStatus||403);
   }
   if(path.endsWith('/subdomain/edge-preview'))return options.noTargetSession&&path.includes(A2)?refused(403):cf({token:'PRIVATE_PREVIEW_SESSION_TOKEN'});
@@ -153,4 +153,25 @@ test('nullable asset error containers preserve explicit200 success and403 refusa
   if(req.url.endsWith('/assets-upload-session'))return req.url.includes(SOURCE)?Response.json({success:true,errors:null,result:{jwt:'PRIVATE_NULL_ERRORS_JWT',buckets:[['e3b0c44298fc1c149afbf4c8996fb924']]}}):Response.json({success:false,errors:null,result:null},{status:403});
   return f.fetchImpl(req);
  }});assert.equal(r.bounded_worker_assets_r2_denial_tests_passed,true);assert.equal(r.bounded_write_denial_tests_passed,false);assert(!JSON.stringify(r).includes('PRIVATE_NULL_ERRORS_JWT'));holds(r);
+});
+test('Workers message-only and string-code403 errors need no numeric diagnostic code to be an explicit refusal',async()=>{
+ for(const errors of [[{message:'PRIVATE_MESSAGE_ONLY_ERROR'}],[{code:'PRIVATE_STRING_CODE',message:'PRIVATE_MESSAGE_ONLY_ERROR'}]]){
+  const f=fixture(),r=await run(f,{includeAssetsProbe:true,includePreviewProbe:false,fetchImpl:async req=>req.method==='POST'&&req.url.includes(A2)&&req.url.endsWith('/assets-upload-session')?Response.json({success:false,errors,result:null},{status:403}):f.fetchImpl(req)});
+  assert.equal(r.bounded_worker_assets_r2_denial_tests_passed,true);assert.equal(r.bounded_write_denial_tests_passed,false);
+  assert(r.subjects.every(s=>s.worker_assets_upload_session.provider_json_shape.errors_without_numeric_codes));
+  const out=JSON.stringify(r);assert(!out.includes('PRIVATE_MESSAGE_ONLY_ERROR'));assert(!out.includes('PRIVATE_STRING_CODE'));holds(r);
+ }
+});
+test('Workers403 contradictions or returned capabilities cannot qualify despite a nonnumeric error',async()=>{
+ for(const body of [{success:true,errors:[{message:'PRIVATE_ERROR'}],result:null},{success:false,errors:[{message:'PRIVATE_ERROR'}],result:{jwt:'PRIVATE_CAPABILITY'}},{success:false,errors:[null],result:null},{success:false,errors:[],result:null,jwt:'PRIVATE_CAPABILITY'}]){
+  const f=fixture(),r=await run(f,{includeAssetsProbe:true,includePreviewProbe:false,fetchImpl:async req=>req.method==='POST'&&req.url.includes(A2)&&req.url.endsWith('/assets-upload-session')?Response.json(body,{status:403}):f.fetchImpl(req)});
+  assert.equal(r.bounded_worker_assets_r2_denial_tests_passed,false);assert(!JSON.stringify(r).includes('PRIVATE_CAPABILITY'));assert(!JSON.stringify(r).includes('PRIVATE_ERROR'));holds(r);
+ }
+});
+test('a malformed assets success cannot fall through to the generic provider success rule',async()=>{
+ for(const buckets of ['PRIVATE_MALFORMED_BUCKETS',[['not-a-hash']]]){
+  const f=fixture(),r=await run(f,{includeAssetsProbe:true,includePreviewProbe:false,fetchImpl:async req=>req.method==='POST'&&req.url.includes(SOURCE)&&req.url.endsWith('/assets-upload-session')?Response.json({success:true,errors:[],result:{jwt:'PRIVATE_BAD_CONTROL',buckets}}):f.fetchImpl(req)});
+  assert.equal(r.controls.worker_assets.passed,false);assert.equal(r.bounded_worker_assets_r2_denial_tests_passed,false);
+  assert(!f.requests.some(q=>q.method==='POST'&&q.url.includes(A2)&&q.url.endsWith('/assets-upload-session')));assert(!JSON.stringify(r).includes('PRIVATE_BAD_CONTROL'));holds(r);
+ }
 });

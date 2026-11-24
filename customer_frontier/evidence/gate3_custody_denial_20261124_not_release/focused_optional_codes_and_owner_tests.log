@@ -1,0 +1,43 @@
+✔ valid source controls and six real-endpoint authorization denials qualify only the bounded checks (47.642545ms)
+✔ global key is checked against the provider-verified principal without exporting email or credential values (9.727895ms)
+✔ inactive or mismatched subjects cannot trigger canary mutation attempts (1.020077ms)
+✔ 401,404,429,500 responses cannot be promoted to effective authorization denial (26.24175ms)
+✔ failed positive controls leave the affected endpoint tests unqualified (2.67483ms)
+✔ missing Authority2 upload session prevents a malformed Worker request from being called a denial (4.078863ms)
+✔ an unexpected private bucket creation fails denial and cleans only its acknowledged new empty name (5.69519ms)
+✔ failed cleanup is retained as a blocker with its exact disposable name (3.373081ms)
+✔ provider identifier drift after denied calls invalidates the acceptance (6.579406ms)
+✔ bad nonce values are refused before any network request (0.849745ms)
+✔ untrusted transport errors never leak secrets and never become denied writes (0.891195ms)
+✔ CLI refuses outside its exact isolated push context before provider access (65.319002ms)
+✔ all mutation requests remain outside retained buckets, authority scripts, D1, tokens and routing settings (10.440838ms)
+✔ redirects cannot forward credentials and cannot supply a successful control or denial (1.076189ms)
+✔ hanging fetches have a real deadline and cannot become qualified failures (103.999205ms)
+✔ duplicate JSON and reflected credentials in a purported403 body cannot qualify denial (4.601505ms)
+✔ global-key membership absence is not inferred from an incomplete provider page (8.880544ms)
+✔ a separate asset-session scope proves Workers write denial without waiving the unavailable preview test (4.617748ms)
+✔ an unavailable or failed asset-session control cannot qualify that permission test (2.741178ms)
+✔ an unexpectedly granted asset-upload capability is a denial failure and is never used (2.348028ms)
+✔ the documented assets success without an errors member qualifies only that endpoint control (6.94102ms)
+✔ contradictory or malformed asset envelopes remain unqualified and diagnostic shape reveals no values (6.658432ms)
+✔ nullable asset error containers preserve explicit200 success and403 refusal without affecting other endpoints (3.713423ms)
+✔ Workers message-only and string-code403 errors need no numeric diagnostic code to be an explicit refusal (9.834842ms)
+✔ Workers403 contradictions or returned capabilities cannot qualify despite a nonnumeric error (11.719055ms)
+✔ a malformed assets success cannot fall through to the generic provider success rule (8.087973ms)
+✔ owner-local provider and GitHub metadata collection remains GET-only and is not automatic custody acceptance (12.020611ms)
+✔ missing GitHub metadata authorization stays incomplete rather than proving no alternatives exist (2.643804ms)
+✔ repository identity drift stops private GitHub inventory reads (2.656784ms)
+✔ missing CF pagination metadata cannot certify an empty member inventory (2.561913ms)
+✔ expired owner inventory challenge is refused before provider access without repeating signer proof (0.40619ms)
+✔ an API token whose verification is unavailable cannot be called an independent owner credential (1.33413ms)
+✔ a valid owner API-token identifier uses a typed digest and never exports the identifier (5.166328ms)
+✔ credential-reflecting provider identifiers do not become credential hashes (0.503102ms)
+✔ CLI inspection requires no credentials and actual collection refuses outside owner Windows context (141.812346ms)
+ℹ tests 35
+ℹ suites 0
+ℹ pass 35
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 474.662724

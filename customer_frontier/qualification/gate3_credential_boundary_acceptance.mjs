@@ -77,15 +77,20 @@ function transport(fetchImpl,nonce,timeoutMs){
     capability(d.result?.jwt)&&Array.isArray(d.result?.buckets)&&d.result.buckets.length<=100&&d.result.buckets.every(b=>Array.isArray(b)&&b.length<=100&&b.every(h=>typeof h==='string'&&/^[a-f0-9]{32}$/.test(h)))){
     return {http_status:r.status,state:'VALID_ASSETS_SUCCESS_NULL_OR_OPTIONAL_ERRORS',valid:true,result:d.result,error_codes:[],provider_json_shape:{errors_is_null:d.errors===null,errors_absent:d.errors===undefined}};
    }
-   // The internal Workers service may return a null/empty error container.
-   // HTTP403 plus explicit success=false at this endpoint is a refusal, not
-   // a success/control. Stable active identities and a live positive control
-   // are still mandatory in the caller; other statuses/endpoints are unchanged.
-   if(assetsEndpoint&&r.status===403&&d?.success===false&&noAssetErrors&&d.result==null)
-    return {http_status:r.status,state:'ASSETS_HTTP403_EXPLICIT_PROVIDER_REFUSAL',rejected:true,error_codes:[],provider_json_shape:{errors_is_null:d.errors===null,errors_absent:d.errors===undefined}};
+   // Wrangler cfetch permits errors?: {message?:string}[] | null. Numeric
+   // error codes are diagnostic, not a required part of this service contract.
+   // Accept only this exact endpoint's explicit403 refusal, no result/capability,
+   // and an optional/null or well-shaped error container. Active pinned subjects
+   // and the live successful identical-body control remain mandatory below.
+   const assetErrorObjects=Array.isArray(d?.errors)&&d.errors.length<=100&&d.errors.every(e=>e!==null&&typeof e==='object'&&!Array.isArray(e));
+   if(assetsEndpoint&&r.status===403&&d?.success===false&&(noAssetErrors||assetErrorObjects)&&d.result==null&&d.jwt===undefined){
+    const codes=Array.isArray(d.errors)?[...new Set(d.errors.map(e=>e?.code).filter(n=>Number.isInteger(n)&&n>=0&&n<=999999999))].slice(0,10):[];
+    return {http_status:r.status,state:'ASSETS_HTTP403_EXPLICIT_PROVIDER_REFUSAL',rejected:true,error_codes:codes,provider_json_shape:{errors_is_null:d.errors===null,errors_absent:d.errors===undefined,errors_count:Array.isArray(d.errors)?d.errors.length:null,errors_without_numeric_codes:assetErrorObjects&&d.errors.length>0&&codes.length===0}};
+   }
    const shape={success_type:typeof d?.success,errors_type:d?.errors===undefined?'ABSENT':Array.isArray(d.errors)?'ARRAY':typeof d.errors,
     errors_count:Array.isArray(d?.errors)?d.errors.length:null,errors_is_null:d?.errors===null,result_has_jwt:typeof d?.result?.jwt==='string',top_level_has_jwt:typeof d?.jwt==='string'};
-   if(!d||!Array.isArray(d.errors)||![true,false].includes(d.success))return {http_status:r.status,state:'INVALID_PROVIDER_ENVELOPE_UNKNOWN',provider_json_shape:shape};
+   if(assetsEndpoint&&(capability(d?.result?.jwt)||capability(d?.jwt)))return {http_status:r.status,state:'ASSET_CAPABILITY_RETURNED_UNQUALIFIED_ENVELOPE',capability_observed:true,provider_json_shape:shape};
+   if(assetsEndpoint||!d||!Array.isArray(d.errors)||![true,false].includes(d.success))return {http_status:r.status,state:'INVALID_PROVIDER_ENVELOPE_UNKNOWN',provider_json_shape:shape};
    const error_codes=[...new Set(d.errors.map(e=>e?.code).filter(n=>Number.isInteger(n)&&n>=0&&n<=999999999))].slice(0,10);
    if(d.success===true&&d.errors.length===0&&r.status>=200&&r.status<300&&Object.hasOwn(d,'result'))return {http_status:r.status,state:'VALID_PROVIDER_SUCCESS',valid:true,result:d.result,pagination:d.result_info,error_codes};
    if(d.success===false&&d.errors.length>0&&error_codes.length>0&&r.status>=400)return {http_status:r.status,state:'VALID_PROVIDER_REJECTION',rejected:true,error_codes};
@@ -228,7 +233,7 @@ export async function runCredentialBoundaryAcceptance({env=process.env,fetchImpl
    if(includeAssetsProbe&&r.controls.worker_assets?.passed){
     const attempted=await api('POST',`/accounts/${A2}/workers/scripts/${worker}/assets-upload-session`,headers,assetsManifest);
     row.worker_assets_upload_session={...publicResponse(attempted),denial_verified:denied(attempted),valid_positive_control:true,assets_uploaded:0,code_uploaded:false};
-    if(attempted.valid){r.unexpected_write_observed=true;row.worker_assets_upload_session.state='UNEXPECTED_UPLOAD_CAPABILITY_GRANTED_DENIAL_FAILED';break;}
+    if(attempted.valid||attempted.capability_observed){r.unexpected_write_observed=true;row.worker_assets_upload_session.state='UNEXPECTED_UPLOAD_CAPABILITY_RETURNED_DENIAL_FAILED';break;}
    }
    if(r.controls.r2_bucket.passed){
     const name=worker+'-'+i,absent=await api('GET',`/accounts/${A2}/r2/buckets/${name}`,metadata);
