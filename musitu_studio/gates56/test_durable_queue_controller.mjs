@@ -43,24 +43,27 @@ function fixture() {
   let now = 1000;
   const authorizeUser = (principal, tenant) =>
     principal?.signed === true && principal.tenant === tenant;
+  const authorizeProject = (principal, tenant, project) =>
+    principal?.signed === true && principal.tenant === tenant &&
+    principal.project === project;
   const authorizeWorker = (proof, job) =>
     proof?.signed === true && proof.job === job;
   const authorizeMaintenance = (proof) => proof === 'approved-private-maintainer';
   const controller = new G56DurableQueueController(storage, {
-    authorizeUser, authorizeWorker, authorizeMaintenance,
+    authorizeUser, authorizeProject, authorizeWorker, authorizeMaintenance,
     now: () => now,
   });
   function seed({ jid = 'G56_A', tenant = 'tenantA', key = 'submissionA',
-                  state = 'QUEUED', attempts = 0, fence = null,
+                  project = 'projectA', state = 'QUEUED', attempts = 0, fence = null,
                   lease = null, provider = null, progress = 0 } = {}) {
     db.prepare(`INSERT INTO g56_do_jobs
       (id,tenant,project,submission_key,payload_sha256,state,reserved_cents,
        credit_hold,max_attempts,attempts,current_fence,lease_until,
        provider_call_id,progress,created,updated)
-      VALUES(?,?, 'projectA', ?, ?, ?,60,3,2,?,?,?,?,?,900,900)`)
-      .run(jid,tenant,key,'a'.repeat(64),state,attempts,fence,lease,provider,progress);
+      VALUES(?,?, ?, ?, ?, ?,60,3,2,?,?,?,?,?,900,900)`)
+      .run(jid,tenant,project,key,'a'.repeat(64),state,attempts,fence,lease,provider,progress);
   }
-  const user = (tenant = 'tenantA') => ({ tenant, signed: true });
+  const user = (tenant = 'tenantA', project = 'projectA') => ({ tenant, project, signed: true });
   const worker = (job = 'G56_A') => ({ job, signed: true });
   return {
     db, controller, seed, user, worker, setNow: value => { now = value; },
@@ -83,6 +86,23 @@ test('unverified principals and foreign tenants cannot read or cancel jobs', () 
   assert.equal(visible.progress, 0);
   assert.equal('current_fence' in visible, false);
   assert.equal('provider_call_id' in visible, false);
+});
+
+test('same-tenant members cannot read or cancel another private project', () => {
+  const f = fixture();
+  f.seed({project:'projectB'});
+  assert.throws(() => f.controller.status({
+    principal:f.user('tenantA','projectA'),tenant:'tenantA',jid:'G56_A'
+  }), /PROJECT_ROLE_NOT_VERIFIED/);
+  assert.throws(() => f.controller.cancel({
+    principal:f.user('tenantA','projectA'),tenant:'tenantA',jid:'G56_A'
+  }), /PROJECT_ROLE_NOT_VERIFIED/);
+  assert.equal(f.row().state,'QUEUED');
+  assert.equal(f.events().length,0);
+  const allowed=f.controller.status({
+    principal:f.user('tenantA','projectB'),tenant:'tenantA',jid:'G56_A'
+  });
+  assert.equal(allowed.state,'QUEUED');
 });
 
 test('genuinely never-dispatched queued cancellation releases holds only once', () => {
