@@ -53,9 +53,10 @@ function fixture({ budget = false, quote = false, binding = false } = {}) {
     proof === 'local-private-worker' && workerId === 'workerCPU';
   const authorizeUser = (principal, tenant) =>
     principal?.signed === true && principal.tenant === tenant;
-  const authorizeProject = (principal, tenant, project) =>
+  const authorizeProject = (principal, tenant, project, action='read') =>
     principal?.signed === true && principal.tenant === tenant &&
-    principal.project === project;
+    principal.project === project && (action !== 'write' ||
+      principal.role === 'editor' || principal.role === 'owner');
   const authorizeWorker = (proof, job) =>
     proof?.signed === true && proof.job === job;
   const authorizeMaintenance = (proof) => proof === 'approved-private-maintainer';
@@ -75,7 +76,7 @@ function fixture({ budget = false, quote = false, binding = false } = {}) {
       VALUES(?,?, ?, ?, ?, ?,60,3,2,?,?,?,?,?,900,900)`)
       .run(jid,tenant,project,key,'a'.repeat(64),state,attempts,fence,lease,provider,progress);
   }
-  const user = (tenant = 'tenantA', project = 'projectA') => ({ tenant, project, signed: true });
+  const user = (tenant = 'tenantA', project = 'projectA', role='owner') => ({ tenant, project, role, signed: true });
   const worker = (job = 'G56_A') => ({ job, signed: true });
   return {
     db, controller, seed, user, worker, setNow: value => { now = value; },
@@ -116,6 +117,23 @@ test('same-tenant members cannot read or cancel another private project', () => 
     principal:f.user('tenantA','projectB'),tenant:'tenantA',jid:'G56_A'
   });
   assert.equal(allowed.state,'QUEUED');
+});
+
+test('project viewer can read but cannot cancel or create chargeable work', () => {
+  const f=fixture({budget:true,binding:true,quote:true});
+  f.db.exec('UPDATE g56_do_control SET killed=0 WHERE id=1'); // offline proof only
+  f.seed();
+  const viewer=f.user('tenantA','projectA','viewer');
+  assert.equal(f.controller.status({principal:viewer,tenant:'tenantA',jid:'G56_A'}).state,'QUEUED');
+  assert.throws(() => f.controller.cancel({
+    principal:viewer,tenant:'tenantA',jid:'G56_A'
+  }), /PROJECT_ROLE_NOT_VERIFIED/);
+  assert.throws(() => f.controller.submit({
+    principal:viewer,tenant:'tenantA',project:'projectA',submissionKey:'viewerCharge',
+    payloadSha256:'a'.repeat(64),maxCostCents:20,creditUnits:1,maxAttempts:1
+  }), /PROJECT_ROLE_NOT_VERIFIED/);
+  assert.equal(f.row().state,'QUEUED');
+  assert.equal(f.db.prepare('SELECT count(*) n FROM g56_do_jobs').get().n,1);
 });
 
 test('genuinely never-dispatched queued cancellation releases holds only once', () => {
