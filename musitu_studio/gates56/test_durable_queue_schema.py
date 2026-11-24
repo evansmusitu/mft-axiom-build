@@ -147,6 +147,24 @@ class DurableQueueSchemaTests(unittest.TestCase):
         ).fetchone()
         self.assertEqual(row,(12,1))
 
+    def test_schema_persists_only_modal_t4_gpu_jobs(self):
+        self.new_job()
+        gpu=self.db.execute(
+            "SELECT device,gpu_type FROM g56_do_jobs WHERE id='G56_A'"
+        ).fetchone()
+        self.assertEqual(gpu, ("GPU","T4"))
+        with self.assertRaises(sqlite3.IntegrityError):
+            self.db.execute(
+                "UPDATE g56_do_jobs SET device='CPU' WHERE id='G56_A'"
+            )
+        with self.assertRaises(sqlite3.IntegrityError):
+            self.db.execute(
+                "UPDATE g56_do_jobs SET gpu_type='A100' WHERE id='G56_A'"
+            )
+        self.assertEqual(self.db.execute(
+            "SELECT device,gpu_type FROM g56_do_jobs WHERE id='G56_A'"
+        ).fetchone(),("GPU","T4"))
+
     def test_single_writer_lock_serializes_claims(self):
         other=sqlite3.connect(str(Path(self.work.name)/"queue.db"),
                               timeout=0.05,isolation_level=None)
