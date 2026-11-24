@@ -67,7 +67,7 @@ class ModalBudgetObserverTests(unittest.TestCase):
 
     def test_workspace_mismatch_is_a_hard_denial(self):
         self.sdk.Workspace.from_context = lambda: SimpleNamespace(
-            name=lambda: "unrelated-workspace",
+            name=lambda: "unrelated-workspace", hydrate=lambda: None,
             billing=SimpleNamespace(summary=lambda **kw: self.usage))
         with self.assertRaisesRegex(GateClosed, "MODAL_WORKSPACE_IDENTITY_MISMATCH"):
             self.make_observer().read_usage()
