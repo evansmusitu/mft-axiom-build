@@ -17,7 +17,7 @@ const capability=x=>typeof x==='string'&&x.length>=6&&x.length<=16000&&!/[\r\n\x
 const digest=x=>createHash('sha256').update(x).digest('hex');
 const stop=()=>{throw Error('BOUNDARY_INPUT_OR_REQUEST_OUTSIDE_SCOPE');};
 const auth=token=>({authorization:'Bearer '+token});
-const publicResponse=r=>({http_status:r.http_status,state:r.state,provider_error_codes:r.error_codes||[]});
+const publicResponse=r=>({http_status:r.http_status,state:r.state,provider_error_codes:r.error_codes||[],...(r.provider_json_shape?{provider_json_shape:r.provider_json_shape}:{})});
 const skipped=reason=>({state:reason,denial_verified:false});
 const sealedSource='export default {async fetch(){return new Response(null,{status:404});}};\n';
 const assetsManifest=Object.freeze({manifest:{'/gate3-empty-proof.txt':{hash:'e3b0c44298fc1c149afbf4c8996fb924',size:0}}});
@@ -70,11 +70,19 @@ function transport(fetchImpl,nonce,timeoutMs){
     if(!(p.value instanceof Uint8Array)||(size+=p.value.byteLength)>131072)stop();chunks.push(p.value);}
    const raw=new Uint8Array(size);let at=0;for(const part of chunks){raw.set(part,at);at+=part.length;}
    const d=parseIdentityJson(new TextDecoder('utf-8',{fatal:true}).decode(raw));
-   if(!d||!Array.isArray(d.errors)||![true,false].includes(d.success))return {http_status:r.status,state:'INVALID_PROVIDER_ENVELOPE_UNKNOWN'};
+   // Cloudflare's direct-upload contract omits errors on a successful assets
+   // session response. This exception is exact-endpoint and success-only.
+   if(path.endsWith('/assets-upload-session')&&r.status===200&&d?.success===true&&(d.errors===undefined||Array.isArray(d.errors)&&d.errors.length===0)&&
+    capability(d.result?.jwt)&&Array.isArray(d.result?.buckets)&&d.result.buckets.length<=100&&d.result.buckets.every(b=>Array.isArray(b)&&b.length<=100&&b.every(h=>typeof h==='string'&&/^[a-f0-9]{32}$/.test(h)))){
+    return {http_status:r.status,state:'VALID_DOCUMENTED_ASSETS_SESSION_RESPONSE',valid:true,result:d.result,error_codes:[]};
+   }
+   const shape={success_type:typeof d?.success,errors_type:d?.errors===undefined?'ABSENT':Array.isArray(d.errors)?'ARRAY':typeof d.errors,
+    errors_count:Array.isArray(d?.errors)?d.errors.length:null,result_has_jwt:typeof d?.result?.jwt==='string',top_level_has_jwt:typeof d?.jwt==='string'};
+   if(!d||!Array.isArray(d.errors)||![true,false].includes(d.success))return {http_status:r.status,state:'INVALID_PROVIDER_ENVELOPE_UNKNOWN',provider_json_shape:shape};
    const error_codes=[...new Set(d.errors.map(e=>e?.code).filter(n=>Number.isInteger(n)&&n>=0&&n<=999999999))].slice(0,10);
    if(d.success===true&&d.errors.length===0&&r.status>=200&&r.status<300&&Object.hasOwn(d,'result'))return {http_status:r.status,state:'VALID_PROVIDER_SUCCESS',valid:true,result:d.result,pagination:d.result_info,error_codes};
    if(d.success===false&&d.errors.length>0&&error_codes.length>0&&r.status>=400)return {http_status:r.status,state:'VALID_PROVIDER_REJECTION',rejected:true,error_codes};
-   return {http_status:r.status,state:'INCONSISTENT_PROVIDER_RESPONSE_UNKNOWN',error_codes};
+   return {http_status:r.status,state:'INCONSISTENT_PROVIDER_RESPONSE_UNKNOWN',error_codes,provider_json_shape:shape};
   }catch{return {http_status:null,state:'TRANSPORT_OR_BODY_OUTCOME_UNKNOWN'};}
   finally{clearTimeout(timer);if(reader){try{void reader.cancel().catch(()=>{});}catch{}try{reader.releaseLock();}catch{}}}
  };

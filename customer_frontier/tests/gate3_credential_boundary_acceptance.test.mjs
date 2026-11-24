@@ -135,3 +135,16 @@ test('an unexpectedly granted asset-upload capability is a denial failure and is
  assert.equal(r.bounded_worker_assets_r2_denial_tests_passed,false);assert.equal(r.unexpected_write_observed,true);
  assert(!JSON.stringify(r).includes('PRIVATE_UNEXPECTED_ASSET_JWT'));assert(!f.requests.some(x=>/\/workers\/assets\/upload/.test(x.url)));holds(r);
 });
+test('the documented assets success without an errors member qualifies only that endpoint control',async()=>{
+ const f=fixture(),r=await run(f,{includeAssetsProbe:true,includePreviewProbe:false,fetchImpl:async req=>{
+  if(req.method==='POST'&&req.url.includes(SOURCE)&&req.url.endsWith('/assets-upload-session'))return Response.json({success:true,result:{jwt:'PRIVATE_DOCUMENTED_ASSET_JWT',buckets:[['e3b0c44298fc1c149afbf4c8996fb924']]}});
+  return f.fetchImpl(req);
+ }});
+ assert.equal(r.controls.worker_assets.passed,true);assert.equal(r.bounded_worker_assets_r2_denial_tests_passed,true);assert(!JSON.stringify(r).includes('PRIVATE_DOCUMENTED_ASSET_JWT'));holds(r);
+});
+test('contradictory or malformed asset envelopes remain unqualified and diagnostic shape reveals no values',async()=>{
+ for(const body of [{success:false,result:{jwt:'PRIVATE_REJECTED_JWT',buckets:[]}},{success:true,result:{jwt:'PRIVATE_REJECTED_JWT',buckets:'PRIVATE_BUCKET_CONTENT'}}]){
+  const f=fixture(),r=await run(f,{includeAssetsProbe:true,includePreviewProbe:false,fetchImpl:async req=>req.method==='POST'&&req.url.includes(SOURCE)&&req.url.endsWith('/assets-upload-session')?Response.json(body):f.fetchImpl(req)});
+  assert.equal(r.controls.worker_assets.passed,false);assert.equal(r.bounded_worker_assets_r2_denial_tests_passed,false);assert(!JSON.stringify(r).includes('PRIVATE_REJECTED_JWT'));assert(!JSON.stringify(r).includes('PRIVATE_BUCKET_CONTENT'));holds(r);
+ }
+});
