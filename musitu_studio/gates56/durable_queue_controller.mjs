@@ -168,8 +168,9 @@ export class G56DurableQueueController {
     this._selector(tenant, project);
     this._identity(principal,tenant);
     this._project(principal,tenant,project,'write');
-    if (device!=='GPU' || gpuType!=='T4')
-      throw new QueueGateClosed('MODAL_GPU_ONLY_REQUIRED');
+    if (!((device==='CPU' && gpuType===null) ||
+          (device==='GPU' && gpuType==='T4')))
+      throw new QueueGateClosed('INVALID_MODAL_RENDER_DEVICE');
     if (typeof submissionKey !== 'string' || !NAME.test(submissionKey) ||
         typeof payloadSha256 !== 'string' ||
         !/^[a-f0-9]{64}$/.test(payloadSha256) ||
@@ -233,14 +234,15 @@ export class G56DurableQueueController {
   }
 
   claim({ proof,workerId,leaseSeconds=60,device='GPU',gpuType='T4' } = {}) {
-    if (device!=='GPU' || gpuType!=='T4')
-      throw new QueueGateClosed('MODAL_GPU_ONLY_REQUIRED');
+    if (!((device==='CPU' && gpuType===null) ||
+          (device==='GPU' && gpuType==='T4')))
+      throw new QueueGateClosed('INVALID_MODAL_RENDER_DEVICE');
     if (typeof workerId !== 'string' || !NAME.test(workerId) ||
         !Number.isSafeInteger(leaseSeconds) ||
         leaseSeconds < 10 || leaseSeconds > 600)
       throw new QueueGateClosed('INVALID_WORKER_LEASE');
     if (typeof this.authorizeClaim !== 'function' ||
-        this.authorizeClaim(proof,workerId,'GPU','T4')!==true)
+        this.authorizeClaim(proof,workerId,device,gpuType)!==true)
       throw new QueueGateClosed('WORKER_CLAIM_NOT_VERIFIED');
     const at=this._time();
     return this.storage.transactionSync(() => {
@@ -256,11 +258,15 @@ export class G56DurableQueueController {
         ('RUNNING','CANCEL_REQUESTED','NEEDS_REVIEW')`);
       if (!uncertain || uncertain.unsettled > 0)
         return null;
-      const job=this._row(`SELECT * FROM g56_do_jobs WHERE state='QUEUED'
-        ORDER BY created,id LIMIT 1`);
+      // A worker only claims jobs for its requested provider compute mode.
+      // The NULL-safe SQLite IS comparison matches CPU (gpu_type NULL) and
+      // GPU T4, without silently upgrading or downgrading either.
+      const job=this._row(`SELECT * FROM g56_do_jobs
+        WHERE state='QUEUED' AND device=? AND gpu_type IS ?
+        ORDER BY created,id LIMIT 1`,device,gpuType);
       if (!job)return null;
-      if (job.device!=='GPU' || job.gpu_type!=='T4')
-        throw new QueueGateClosed('MODAL_GPU_ONLY_REQUIRED');
+      if (job.device!==device || job.gpu_type!==gpuType)
+        throw new QueueGateClosed('MODAL_DEVICE_MISMATCH');
       // Previous external attempts cannot be retried automatically, even
       // after a worker crash. Hold worst-case cost and require review.
       if (job.attempts !== 0 || job.provider_call_id !== null ||
@@ -278,7 +284,7 @@ export class G56DurableQueueController {
       this._run(`INSERT INTO g56_do_attempts
         (job_id,attempt_no,fence,worker_id,started)
         VALUES(?,1,?,?,?)`,job.id,fence,workerId,at);
-      this._event(job.id,'GPU_T4_CLAIMED_NO_PROVIDER_SPAWN',at);
+      this._event(job.id,'MODAL_DEVICE_CLAIMED_NO_PROVIDER_SPAWN',at);
       return {job_id:job.id,tenant:job.tenant,project:job.project,
         payload_sha256:job.payload_sha256,
         provider:'MODAL',device:job.device,gpu_type:job.gpu_type,
