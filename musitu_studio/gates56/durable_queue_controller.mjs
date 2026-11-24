@@ -155,6 +155,8 @@ export class G56DurableQueueController {
     });
   }
 
+  emergencyStop() { throw new QueueGateClosed('NOT_IMPLEMENTED'); }
+
   quarantineStale({ proof } = {}) {
     this._maintenance(proof);
     const at = this._time();
