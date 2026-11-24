@@ -503,5 +503,69 @@
     },
     "actual_owner_execution": false,
     "receipt_returned": false
+  },
+  "hosted_environment_custody_attempt_20261124": {
+    "source_commit": "119d9d2863c9bae6c836cfd45116241406119ead",
+    "source_tree": "3cfbb20afcdabc2de10f0d6b7a9da4dfb3d4cca4",
+    "tested_merge": "0eb59e8000549e43a5b43dac1207166390d93172",
+    "windows_ci": {
+      "run_id": 45463011438,
+      "run_attempt": 1,
+      "job_id": 138690399281,
+      "conclusion": "success",
+      "public_inspection_passed": true,
+      "native_full_mode_results": [
+        {
+          "status": "HOSTED_WINDOWS_FULL_MODE_BLOCKED_OWNER_CONTEXT_REQUIRED",
+          "shell": "powershell.exe",
+          "exit_code": 2,
+          "owner_credential_supplied": false,
+          "provider_collection_started": false,
+          "owner_receipt_produced": false,
+          "gate3_closed": false,
+          "release_status": "NOT_RELEASE"
+        },
+        {
+          "status": "HOSTED_WINDOWS_FULL_MODE_BLOCKED_OWNER_CONTEXT_REQUIRED",
+          "shell": "pwsh",
+          "exit_code": 2,
+          "owner_credential_supplied": false,
+          "provider_collection_started": false,
+          "owner_receipt_produced": false,
+          "gate3_closed": false,
+          "release_status": "NOT_RELEASE"
+        }
+      ]
+    },
+    "source_ci": {
+      "run_id": 45463011424,
+      "run_attempt": 1,
+      "job_id": 138690402590,
+      "conclusion": "success",
+      "node_checks": 580,
+      "python_checks": 356,
+      "local_workerd_checks": 16,
+      "total_checks": 952
+    },
+    "environment_observations": {
+      "scratch_os": "Linux",
+      "local_powershell_available": false,
+      "known_cloudflare_credentials_available_in_scratch": false,
+      "github_cli_secret_metadata_available": false,
+      "github_cli_reason": "GITHUB_CLI_AUTHORIZATION_NOT_CONFIGURED",
+      "provider_status": {
+        "schema": "musitu.axiom.operator-provider-status.v1",
+        "status": "UNAVAILABLE",
+        "external_provider_execution_authority": false,
+        "provider_admission_required": true,
+        "production_authority": false
+      }
+    },
+    "owner_provider_receipt_produced": false,
+    "additional_provider_write_attempts": 0,
+    "independent_operator_custody_qualified": false,
+    "gate3_closed": false,
+    "report_path": "../gate3_custody_denial_20261124_not_release/HOSTED_WINDOWS_FULL_MODE_ATTEMPT_20261124_NOT_OWNER_PROOF.json",
+    "report_sha256": "097516158b84f74b9c5c3d8900a539d9f4f462318d2d477d7a8df2afe01ec7aa"
   }
 }
