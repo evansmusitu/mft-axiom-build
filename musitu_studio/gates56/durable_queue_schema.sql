@@ -27,10 +27,12 @@ CREATE TABLE IF NOT EXISTS g56_do_jobs(
   project TEXT NOT NULL,
   submission_key TEXT NOT NULL,
   payload_sha256 TEXT NOT NULL CHECK(length(payload_sha256)=64),
-  -- MUSITU G5/G6 will never fall back to CPU rendering. Hardware is pinned
-  -- to the existing Modal T4 GPU adapter until a separate review revises it.
-  device TEXT NOT NULL DEFAULT 'GPU' CHECK(device='GPU'),
-  gpu_type TEXT NOT NULL DEFAULT 'T4' CHECK(gpu_type='T4'),
+  -- The user chooses Modal CPU or Modal GPU per job. There is no fallback.
+  -- For CPU gpu_type is NULL; currently GPU is restricted to T4.
+  device TEXT NOT NULL DEFAULT 'GPU' CHECK(device IN ('CPU','GPU')),
+  gpu_type TEXT DEFAULT 'T4' CHECK(
+    (device='CPU' AND gpu_type IS NULL)
+    OR (device='GPU' AND gpu_type='T4')),
   state TEXT NOT NULL CHECK(state IN (
      'QUEUED','RUNNING','CANCEL_REQUESTED','NEEDS_REVIEW',
      'COMPLETED','FAILED','CANCELED')),
