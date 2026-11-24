@@ -19,6 +19,10 @@ class DurableQueueSchemaTests(unittest.TestCase):
         self.addCleanup(self.db.close)
         self.db.execute("PRAGMA foreign_keys=ON")
         self.db.executescript(SQL.read_text())
+        for tenant in ("tenantA", "tenantB"):
+            self.db.execute("""INSERT INTO g56_do_tenants
+              (tenant,daily_cents,monthly_cents,max_active,total_credit_units)
+              VALUES(?,150,450,2,10)""",(tenant,))
 
     def new_job(self, jid="G56_A", tenant="tenantA", key="submissionA"):
         self.db.execute("""INSERT INTO g56_do_jobs
