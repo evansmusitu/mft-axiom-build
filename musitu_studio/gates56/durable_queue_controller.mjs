@@ -14,7 +14,7 @@ const NAME = /^[A-Za-z0-9_-]{1,128}$/;
 const TERMINAL = new Set(['COMPLETED', 'FAILED', 'CANCELED']);
 
 export class G56DurableQueueController {
-  constructor(storage, { authorizeUser, authorizeProject, authorizeWorker, authorizeMaintenance, now } = {}) {
+  constructor(storage, { authorizeUser, authorizeProject, authorizeWorker, authorizeMaintenance, authorizeClaim, readProviderCap, verifyWorstCaseQuote, expectedWorkspace, now } = {}) {
     if (!storage?.sql?.exec || typeof storage.transactionSync !== 'function')
       throw new QueueGateClosed('SQLITE_DURABLE_STORAGE_REQUIRED');
     this.storage = storage;
@@ -22,6 +22,12 @@ export class G56DurableQueueController {
     this.authorizeProject = authorizeProject;
     this.authorizeWorker = authorizeWorker;
     this.authorizeMaintenance = authorizeMaintenance;
+    // These must be independently verified trusted backend adapters. They are
+    // unavailable in the hosted app and all default to fail closed.
+    this.authorizeClaim = authorizeClaim;
+    this.readProviderCap = readProviderCap;
+    this.verifyWorstCaseQuote = verifyWorstCaseQuote;
+    this.expectedWorkspace = expectedWorkspace;
     this.now = now || (() => Math.floor(Date.now() / 1000));
   }
 
@@ -97,10 +103,167 @@ export class G56DurableQueueController {
     };
   }
 
-  // No admission or claim can succeed until all independently controlled
-  // provider-budget and identity adapters have been reviewed.
-  submit() { throw new QueueGateClosed('NOT_IMPLEMENTED'); }
-  claim() { throw new QueueGateClosed('NOT_IMPLEMENTED'); }
+  _open() {
+    const status=this._row('SELECT killed FROM g56_do_control WHERE id=1');
+    if (!status || status.killed !== 0)
+      throw new QueueGateClosed('STUDIO_COMPUTE_KILL_SWITCH_ON');
+  }
+
+  _providerBudget(at) {
+    // NEVER source this from the client or a self-asserted billing summary.
+    // A real adapter must independently attest the *enforced* provider cap,
+    // identity, net available headroom, and freshness BEFORE entering here.
+    // Billing readback alone does not qualify; all defaults deny.
+    if (typeof this.readProviderCap !== 'function')
+      throw new QueueGateClosed('PROVIDER_HARD_BUDGET_NOT_VERIFIED');
+    if (typeof this.expectedWorkspace !== 'string' ||
+        !NAME.test(this.expectedWorkspace))
+      throw new QueueGateClosed('MODAL_WORKSPACE_NOT_BOUND');
+    let cap;
+    try { cap=this.readProviderCap(); }
+    catch { throw new QueueGateClosed('PROVIDER_HARD_BUDGET_UNAVAILABLE'); }
+    if (!cap || cap.provider !== 'MODAL' ||
+        cap.workspace !== this.expectedWorkspace ||
+        typeof cap.controlId !== 'string' || cap.controlId.length < 8 ||
+        cap.hardEnforced !== true ||
+        !Number.isSafeInteger(cap.monthlyCapCents) ||
+        !Number.isSafeInteger(cap.remainingCents) ||
+        !Number.isSafeInteger(cap.checkedUnix) ||
+        cap.monthlyCapCents <= 0 || cap.remainingCents < 0 ||
+        cap.checkedUnix > at || at-cap.checkedUnix > 60)
+      throw new QueueGateClosed('PROVIDER_HARD_BUDGET_NOT_VERIFIED');
+    return cap;
+  }
+
+  _reservedProviderExposure() {
+    return this._row(`SELECT COALESCE(SUM(reserved_cents),0) AS exposure
+      FROM g56_do_jobs WHERE state IN
+      ('QUEUED','RUNNING','CANCEL_REQUESTED','NEEDS_REVIEW')`)?.exposure ?? 0;
+  }
+
+  _checkHeadroom(cap, additional=0) {
+    const need=this._reservedProviderExposure()+additional;
+    if (!Number.isSafeInteger(need) ||
+        need > cap.remainingCents || need > cap.monthlyCapCents)
+      throw new QueueGateClosed('PROVIDER_GLOBAL_UNSETTLED_CAP');
+  }
+
+  _tenantSpend(tenant, since) {
+    return this._row(`SELECT COALESCE(SUM(
+      CASE WHEN state IN ('QUEUED','RUNNING','CANCEL_REQUESTED','NEEDS_REVIEW')
+        THEN reserved_cents ELSE COALESCE(charged_cents,0) END),0) AS spent
+      FROM g56_do_jobs WHERE tenant=? AND created>=?`,tenant,since)?.spent ?? 0;
+  }
+
+  _tenantCredits(tenant) {
+    return this._row(`SELECT COALESCE(SUM(
+      CASE WHEN state IN ('QUEUED','RUNNING','CANCEL_REQUESTED','NEEDS_REVIEW')
+        THEN credit_hold ELSE COALESCE(credit_charge,0) END),0) AS used
+      FROM g56_do_jobs WHERE tenant=?`,tenant)?.used ?? 0;
+  }
+
+  submit({ principal, tenant, project, submissionKey, payloadSha256,
+           maxCostCents, creditUnits, maxAttempts=1 } = {}) {
+    this._selector(tenant, project);
+    this._identity(principal,tenant);
+    this._project(principal,tenant,project);
+    if (typeof submissionKey !== 'string' || !NAME.test(submissionKey) ||
+        typeof payloadSha256 !== 'string' ||
+        !/^[a-f0-9]{64}$/.test(payloadSha256) ||
+        !Number.isSafeInteger(maxCostCents) || maxCostCents <= 0 ||
+        maxCostCents > 100000000 ||
+        !Number.isSafeInteger(creditUnits) || creditUnits < 0 ||
+        !Number.isSafeInteger(maxAttempts) ||
+        maxAttempts < 1 || maxAttempts > 2)
+      throw new QueueGateClosed('INVALID_BOUNDED_RESERVATION');
+
+    const at=this._time();
+    return this.storage.transactionSync(() => {
+      const old=this._row(
+        'SELECT * FROM g56_do_jobs WHERE tenant=? AND submission_key=?',
+        tenant,submissionKey);
+      if (old) {
+        if (old.project!==project || old.payload_sha256!==payloadSha256 ||
+            old.reserved_cents!==maxCostCents ||
+            old.credit_hold!==creditUnits || old.max_attempts!==maxAttempts)
+          throw new QueueConflict('IDEMPOTENCY_KEY_PAYLOAD_CONFLICT');
+        return this._safe(old);
+      }
+      this._open();
+      if (typeof this.verifyWorstCaseQuote !== 'function' ||
+          this.verifyWorstCaseQuote({
+            tenant,project,payloadSha256,maxCostCents,maxAttempts
+          }) !== true)
+        throw new QueueGateClosed('WORST_CASE_QUOTE_NOT_VERIFIED');
+      const cap=this._providerBudget(at);
+      this._checkHeadroom(cap,maxCostCents);
+      const settings=this._row(
+        'SELECT * FROM g56_do_tenants WHERE tenant=?',tenant);
+      if (!settings)throw new QueueGateClosed('TENANT_NOT_APPROVED');
+      const count=this._row(`SELECT COUNT(*) AS active
+        FROM g56_do_jobs WHERE tenant=? AND state IN
+        ('QUEUED','RUNNING','CANCEL_REQUESTED','NEEDS_REVIEW')`,tenant)?.active ?? 0;
+      if (count >= settings.max_active)
+        throw new QueueGateClosed('TENANT_CONCURRENCY_CAP');
+      const day=Math.floor(at/86400)*86400;
+      const date=new Date(at*1000);
+      const month=Date.UTC(date.getUTCFullYear(),date.getUTCMonth(),1)/1000;
+      if (this._tenantSpend(tenant,day)+maxCostCents > settings.daily_cents ||
+          this._tenantSpend(tenant,month)+maxCostCents > settings.monthly_cents)
+        throw new QueueGateClosed('TENANT_COST_CAP');
+      if (this._tenantCredits(tenant)+creditUnits > settings.total_credit_units)
+        throw new QueueGateClosed('INSUFFICIENT_VERIFIED_CREDITS');
+      const jid='G56_'+crypto.randomUUID().replaceAll('-','');
+      this._run(`INSERT INTO g56_do_jobs(
+        id,tenant,project,submission_key,payload_sha256,state,
+        reserved_cents,credit_hold,max_attempts,created,updated)
+        VALUES(?,?,?,?,?,'QUEUED',?,?,?,?,?)`,
+        jid,tenant,project,submissionKey,payloadSha256,maxCostCents,
+        creditUnits,maxAttempts,at,at);
+      this._event(jid,'RESERVED_PROVIDER_QUOTE_REQUIRED',at);
+      return this._safe(this._job(tenant,jid));
+    });
+  }
+
+  claim({ proof,workerId,leaseSeconds=60 } = {}) {
+    if (typeof workerId !== 'string' || !NAME.test(workerId) ||
+        !Number.isSafeInteger(leaseSeconds) ||
+        leaseSeconds < 10 || leaseSeconds > 600)
+      throw new QueueGateClosed('INVALID_WORKER_LEASE');
+    if (typeof this.authorizeClaim !== 'function' ||
+        this.authorizeClaim(proof,workerId)!==true)
+      throw new QueueGateClosed('WORKER_CLAIM_NOT_VERIFIED');
+    const at=this._time();
+    return this.storage.transactionSync(() => {
+      this._open();
+      const cap=this._providerBudget(at);
+      this._checkHeadroom(cap);
+      const job=this._row(`SELECT * FROM g56_do_jobs WHERE state='QUEUED'
+        ORDER BY created,id LIMIT 1`);
+      if (!job)return null;
+      // Previous external attempts cannot be retried automatically, even
+      // after a worker crash. Hold worst-case cost and require review.
+      if (job.attempts !== 0 || job.provider_call_id !== null ||
+          job.current_fence !== null) {
+        this._run(`UPDATE g56_do_jobs SET state='NEEDS_REVIEW',
+          outcome_code='AUTO_RETRY_FORBIDDEN',updated=? WHERE id=? AND state='QUEUED'`,
+          at,job.id);
+        this._event(job.id,'AUTO_RETRY_QUARANTINED',at);
+        return null;
+      }
+      const fence=crypto.randomUUID();
+      this._run(`UPDATE g56_do_jobs SET state='RUNNING',attempts=1,
+        current_fence=?,lease_until=?,progress=1,updated=?
+        WHERE id=? AND state='QUEUED'`,fence,at+leaseSeconds,at,job.id);
+      this._run(`INSERT INTO g56_do_attempts
+        (job_id,attempt_no,fence,worker_id,started)
+        VALUES(?,1,?,?,?)`,job.id,fence,workerId,at);
+      this._event(job.id,'ATTEMPT_CLAIMED_NO_PROVIDER_SPAWN',at);
+      return {job_id:job.id,tenant:job.tenant,project:job.project,
+        payload_sha256:job.payload_sha256,
+        fence,lease_until:at+leaseSeconds,attempts:1};
+    });
+  }
 
   status({ principal, tenant, jid } = {}) {
     this._selector(tenant, jid);
