@@ -28,7 +28,8 @@ from typing import Any
 ROOT = pathlib.Path(__file__).resolve().parents[2]
 LOCK_PATH = ROOT / "frontier_v5/supply_chain/LOCK.json"
 ACTION_SHA = re.compile(r"^[0-9a-f]{40}$")
-USES = re.compile(r"^\s*uses:\s*([^\s@]+)@([^\s#]+)", re.MULTILINE)
+# Matches both "uses:" under a named step and the "- uses:" list-item form.
+USES = re.compile(r"^\s*(?:-\s+)?uses:\s*([^\s@]+)@([^\s#]+)", re.MULTILINE)
 PIN = re.compile(r"^([A-Za-z0-9_.-]+)==([^\s]+)$")
 
 

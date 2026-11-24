@@ -3,8 +3,8 @@
 
 This test uses only the standard library so it can execute before third-party
 packages are installed. It verifies repository-owned reproducibility policy;
-runtime package versions and downloaded-asset bytes are separately verified by
-``frontier_v5/scripts/verify_supply_chain.py`` in the Full-Stack gate.
+runtime package versions are separately verified by
+``frontier_v5/scripts/verify_supply_chain.py`` in the full-stack CI job.
 """
 from __future__ import annotations
 
@@ -16,48 +16,25 @@ ROOT = Path(__file__).resolve().parents[2]
 FRONTIER = ROOT / "frontier_v5"
 LOCK = FRONTIER / "supply_chain" / "LOCK.json"
 REQ = FRONTIER / "requirements" / "fullstack.lock.txt"
-WORKFLOWS = {
-    "fullstack": ROOT / ".github/workflows/axiom-frontier-v5-fullstack-verification.yml",
-    "security": ROOT / ".github/workflows/axiom-frontier-v5-security-regression.yml",
-    "comparative": ROOT / ".github/workflows/axiom-frontier-v5-external-comparative-gate.yml",
-    "skill": ROOT / ".github/workflows/axiom-frontier-v5-skill-gate.yml",
-    "objective": ROOT / ".github/workflows/axiom-frontier-v5-objective-gate.yml",
-    "supply_chain": ROOT / ".github/workflows/axiom-frontier-v5-supply-chain-gate.yml",
-    "python_hash_capture": ROOT / ".github/workflows/axiom-frontier-v5-python-hash-capture.yml",
-    "durable_tasks": ROOT / ".github/workflows/axiom-frontier-v5-durable-task-gate.yml",
-    "mcp_2026": ROOT / ".github/workflows/axiom-frontier-v5-mcp-2026-gate.yml",
-    "cimd": ROOT / ".github/workflows/axiom-frontier-v5-cimd-gate.yml",
-    "oidc": ROOT / ".github/workflows/axiom-frontier-v5-oidc-gate.yml",
-    "enterprise_identity": ROOT / ".github/workflows/axiom-frontier-v5-enterprise-identity-gate.yml",
-    "data_lifecycle": ROOT / ".github/workflows/axiom-frontier-v5-data-lifecycle-gate.yml",
-    "enterprise_spend": ROOT / ".github/workflows/axiom-frontier-v5-enterprise-spend-gate.yml",
-    "enterprise_slo": ROOT / ".github/workflows/axiom-frontier-v5-enterprise-slo-gate.yml",
-    "enterprise_incident_response": ROOT / ".github/workflows/axiom-frontier-v5-enterprise-incident-response-gate.yml",
-    "enterprise_disaster_recovery": ROOT / ".github/workflows/axiom-frontier-v5-enterprise-disaster-recovery-gate.yml",
-    "migration_safety": ROOT / ".github/workflows/axiom-frontier-v5-migration-safety-gate.yml",
-    "agent_plugin": ROOT / ".github/workflows/axiom-frontier-v5-agent-plugin-gate.yml",
-    "openai_plugin_package": ROOT / ".github/workflows/axiom-frontier-v5-openai-plugin-package-gate.yml",
-    "persistent_planner": ROOT / ".github/workflows/axiom-frontier-v5-persistent-planner-gate.yml",
-    "workspace_licensing": ROOT / ".github/workflows/axiom-frontier-v5-workspace-licensing-gate.yml",
-    "circuit_breaker": ROOT / ".github/workflows/axiom-frontier-v5-circuit-breaker-gate.yml",
-    "provider_fallback": ROOT / ".github/workflows/axiom-frontier-v5-provider-fallback-gate.yml",
-    "freshness": ROOT / ".github/workflows/axiom-frontier-v5-freshness-gate.yml",
-    "incident_forensics": ROOT / ".github/workflows/axiom-frontier-v5-incident-forensics-gate.yml",
-    "secret_scanning": ROOT / ".github/workflows/axiom-frontier-v5-secret-scanning-gate.yml",
-    "failure_corpus": ROOT / ".github/workflows/axiom-frontier-v5-failure-corpus-gate.yml",
-    "financial_ontology": ROOT / ".github/workflows/axiom-frontier-v5-financial-ontology-gate.yml",
-    "latency_performance": ROOT / ".github/workflows/axiom-frontier-v5-latency-performance-gate.yml",
-    "privacy_analytics": ROOT / ".github/workflows/axiom-frontier-v5-privacy-analytics-gate.yml",
-    "enterprise_contracts": ROOT / ".github/workflows/axiom-frontier-v5-enterprise-contracts-gate.yml",
-}
+CI = ROOT / ".github/workflows/axiom-frontier-v5-ci.yml"
 HEX40 = re.compile(r"^[0-9a-f]{40}$")
-ACTION = re.compile(r"^\s*uses:\s*(actions/(?:checkout|setup-python|upload-artifact))@([^\s#]+)", re.M)
+# Matches both "uses:" under a named step and the "- uses:" list-item form.
+USES = re.compile(r"^\s*(?:-\s+)?uses:\s*([^\s@#]+)@([^\s#]+)", re.M)
+ANY_USES = re.compile(r"^\s*(?:-\s+)?uses:", re.M)
+RUNS_ON = re.compile(r"^\s*runs-on:\s*(\S+)", re.M)
 PYTHON_VERSION = re.compile(r"python-version:\s*['\"]?([^'\"\s]+)")
 PINNED_REQ = re.compile(r"^[A-Za-z0-9_.-]+==[^=\s]+$")
 
 
 def fail(message: str) -> None:
     raise AssertionError(message)
+
+
+def job_block(text: str, job: str) -> str:
+    match = re.search(rf"^  {re.escape(job)}:\n(.*?)(?=^  [A-Za-z0-9_-]+:\n|\Z)", text, re.M | re.S)
+    if not match:
+        fail(f"CI workflow job missing: {job}")
+    return match.group(1)
 
 
 def main() -> None:
@@ -74,9 +51,9 @@ def main() -> None:
     assert re.fullmatch(r"3\.12\.\d+", expected_python), "Python must be patch-pinned"
 
     action_pins = lock.get("github_actions") or {}
-    for action in ("actions/checkout", "actions/setup-python", "actions/upload-artifact"):
-        value = str(action_pins.get(action) or "")
-        assert HEX40.fullmatch(value), f"{action} must be pinned to an immutable 40-hex commit"
+    assert action_pins, "LOCK.json must pin the GitHub Actions used by Frontier workflows"
+    for action, sha in action_pins.items():
+        assert HEX40.fullmatch(str(sha)), f"{action} must be pinned to an immutable 40-hex commit"
 
     required: list[str] = []
     for line in REQ.read_text(encoding="utf-8").splitlines():
@@ -89,40 +66,55 @@ def main() -> None:
     assert required, "full-stack dependency lock cannot be empty"
     assert required == sorted(required, key=str.casefold), "dependency lock must be deterministically sorted"
 
-    for name, path in WORKFLOWS.items():
-        if not path.is_file():
-            fail(f"required Frontier workflow missing: {path.name}")
+    workflows = sorted((ROOT / ".github/workflows").glob("axiom-frontier-v5-*.yml"))
+    if CI not in workflows:
+        fail(f"required Frontier workflow missing: {CI.name}")
+    used_actions: set[str] = set()
+    for path in workflows:
         text = path.read_text(encoding="utf-8")
-        if "runs-on: ubuntu-latest" in text:
-            fail(f"{name} workflow uses mutable ubuntu-latest")
-        if "runs-on: ubuntu-24.04" not in text:
-            fail(f"{name} workflow must pin ubuntu-24.04")
-        for action, ref in ACTION.findall(text):
+        runners = RUNS_ON.findall(text)
+        if not runners:
+            fail(f"{path.name} declares no runner")
+        for label in runners:
+            if label != "ubuntu-24.04":
+                fail(f"{path.name} uses runner {label}; every job must pin ubuntu-24.04")
+        refs = USES.findall(text)
+        if len(refs) != len(ANY_USES.findall(text)):
+            fail(f"{path.name} has a uses: reference this contract cannot parse")
+        for action, ref in refs:
             if not HEX40.fullmatch(ref):
-                fail(f"{name} workflow action {action} uses mutable ref {ref}")
-            expected = action_pins.get(action)
-            if expected and ref != expected:
-                fail(f"{name} workflow action {action} differs from LOCK.json")
-        version = PYTHON_VERSION.search(text)
-        if version and version.group(1) != expected_python:
-            fail(f"{name} workflow Python {version.group(1)} differs from lock {expected_python}")
+                fail(f"{path.name} action {action} uses mutable ref {ref}")
+            if action_pins.get(action) != ref:
+                fail(f"{path.name} action {action}@{ref} is not the commit recorded in LOCK.json")
+            used_actions.add(action)
+        for version in PYTHON_VERSION.findall(text):
+            if version != expected_python:
+                fail(f"{path.name} Python {version} differs from lock {expected_python}")
+    unused = sorted(set(action_pins) - used_actions)
+    if unused:
+        fail(f"LOCK.json pins actions no Frontier workflow uses: {unused}")
 
-    full = WORKFLOWS["fullstack"].read_text(encoding="utf-8")
-    for fragment in ("python -m pip install --upgrade pip", "python -m pip install pillow python-docx"):
+    ci = CI.read_text(encoding="utf-8")
+    for fragment in ("frontier_v5/**", ".github/workflows/axiom-frontier-v5-ci.yml"):
+        if ci.count(f"'{fragment}'") < 2:
+            fail(f"CI workflow must re-run on pull requests and main pushes that change {fragment}")
+
+    full = job_block(ci, "fullstack-local")
+    for fragment in ("pip install --upgrade pip", "pip install pillow", "pip install -U"):
         if fragment in full:
-            fail(f"fullstack workflow contains mutable dependency install: {fragment}")
+            fail(f"full-stack job contains a mutable dependency install: {fragment}")
     if "-r frontier_v5/requirements/fullstack.lock.txt" not in full:
-        fail("fullstack workflow must install the checked-in dependency lock")
+        fail("full-stack job must install the checked-in dependency lock")
     if "verify_supply_chain.py" not in full:
-        fail("fullstack workflow must execute the runtime supply-chain verifier")
+        fail("full-stack job must execute the runtime supply-chain verifier")
 
     assets = lock.get("external_assets") or []
-    assert len(assets) == 1, "current contract expects exactly one external runtime asset"
-    model = assets[0]
-    model_sha = str(model.get("sha256") or "")
-    assert re.fullmatch(r"[0-9a-f]{64}", model_sha), "Vosk model SHA-256 must be pinned"
-    if model_sha not in full or "sha256sum -c" not in full:
-        fail("fullstack workflow must verify the Vosk model archive SHA-256 before unzip")
+    for asset in assets:
+        sha = str(asset.get("sha256") or "")
+        assert re.fullmatch(r"[0-9a-f]{64}", sha), f"external asset {asset.get('id')} SHA-256 must be pinned"
+        assert isinstance(asset.get("required"), bool), f"external asset {asset.get('id')} must declare required"
+        if asset["required"] and (sha not in full or "sha256sum -c" not in full):
+            fail(f"full-stack job must verify required asset {asset.get('id')} with sha256sum -c before use")
 
     playwright = lock.get("playwright") or {}
     required_names = {line.split("==", 1)[0].casefold(): line for line in required}
@@ -131,19 +123,13 @@ def main() -> None:
         fail("Playwright package version differs from supply-chain lock")
     assert str(playwright.get("chromium_build") or "").isdigit()
 
-    capture = WORKFLOWS["python_hash_capture"].read_text(encoding="utf-8")
+    capture = job_block(ci, "python-hash-capture")
     if "capture_distribution_hashes.py" not in capture:
-        fail("Python hash-capture workflow must execute the reviewed capture utility")
+        fail("hash-capture job must execute the reviewed capture utility")
+    if "github.event_name == 'workflow_dispatch'" not in capture:
+        fail("hash-capture job must only run on manual dispatch")
     if "capture_is_attestation" in capture:
-        fail("Python hash-capture workflow must not self-promote captured hashes to attestation")
-
-    supply_text = WORKFLOWS["supply_chain"].read_text(encoding="utf-8")
-    for name, path in WORKFLOWS.items():
-        if name == "supply_chain":
-            continue
-        relative = path.relative_to(ROOT).as_posix()
-        if relative not in supply_text:
-            fail(f"supply-chain gate does not trigger on governed workflow: {relative}")
+        fail("hash-capture job must not self-promote captured hashes to attestation")
 
     status = lock.get("status") or {}
     assert status.get("versions_pinned") is True
