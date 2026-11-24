@@ -3,8 +3,9 @@
   "upload_policy": "The v5 OpenAI skill profile may proceed to portal validation only from a CI-certified package at or after an objective-passing head SHA, while preserving the sealed v4 production surface and current OpenAI policy boundaries.",
   "status_values": ["TARGET", "PARTIAL", "IMPLEMENTED_CORE", "VERIFIED"],
   "verification": {
-    "status": "PASS",
-    "gate": "MUSITU_AXIOM_FIVE_YEAR_FRONTIER_OBJECTIVE_PASS",
+    "status": "SUPERSEDED",
+    "superseded_reason": "Recorded by commit 17150627 with the pre-fix objective gate, which ignored the renamed `continuing_hardening` open-item lists. Under the fixed gate every workstream still has open items, so this run does not certify the objective. The remaining fields are kept unchanged as an audit record of what that run reported.",
+    "recorded_gate_marker": "MUSITU_AXIOM_FIVE_YEAR_FRONTIER_OBJECTIVE_PASS",
     "workflow": "MUSITU Axiom Frontier v5 Full-Stack Verification",
     "run_id": 34046583704,
     "head_sha": "bbb826834ee0924e5c9b84d030d7532c0e080ead",
@@ -16,7 +17,7 @@
     {
       "id": "persistent-memory",
       "required": true,
-      "status": "VERIFIED",
+      "status": "PARTIAL",
       "runtime": [
         "frontier_v5/runtime/advanced.py::DurableMemoryStore",
         "frontier_v5/runtime/fullstack.py::SQLiteProductionStore",
@@ -26,12 +27,12 @@
         "multi-tenant memory round-trip and tenant isolation in MUSITU_AXIOM_FRONTIER_FULLSTACK_LOCAL_PASS",
         "isolated Cloudflare D1 production persistence create/migrate/write/read/delete verification in MUSITU_AXIOM_FRONTIER_LIVE_ADAPTERS_PASS"
       ],
-      "continuing_hardening": ["retention/privacy lifecycle policy integration", "larger long-horizon retrieval corpus"]
+      "remaining": ["retention/privacy lifecycle policy integration", "larger long-horizon retrieval corpus"]
     },
     {
       "id": "digital-twins",
       "required": true,
-      "status": "VERIFIED",
+      "status": "PARTIAL",
       "runtime": [
         "frontier_v5/runtime/advanced.py::CausalModel",
         "frontier_v5/runtime/advanced.py::DigitalTwin",
@@ -42,12 +43,12 @@
         "portfolio calibration from aligned external AAPL/MSFT market history with NumPy independent validation",
         "US economic calibration from World Bank indicators with historical holdout and scikit-learn independent validation"
       ],
-      "continuing_hardening": ["more entities, regimes and nonlinear structural models", "ongoing out-of-time recalibration"]
+      "remaining": ["more entities, regimes and nonlinear structural models", "ongoing out-of-time recalibration"]
     },
     {
       "id": "specialist-agent-execution",
       "required": true,
-      "status": "VERIFIED",
+      "status": "PARTIAL",
       "runtime": [
         "frontier_v5/runtime/advanced.py::SpecialistSociety",
         "frontier_v5/runtime/advanced.py::IndependentVerifier",
@@ -57,12 +58,12 @@
         "six verified specialist bindings executed through production OAuth -> public MCP -> metered Axiom runtime",
         "fail-closed routing and independent-verifier tests"
       ],
-      "continuing_hardening": ["broader specialist operation coverage", "ongoing latency/cost/calibration profiling"]
+      "remaining": ["broader specialist operation coverage", "ongoing latency/cost/calibration profiling"]
     },
     {
       "id": "research-adapters",
       "required": true,
-      "status": "VERIFIED",
+      "status": "PARTIAL",
       "runtime": [
         "frontier_v5/runtime/fullstack.py::LiveResearchAdapter",
         "frontier_v5/runtime/secure_research.py::SecureLiveResearchAdapter",
@@ -75,23 +76,23 @@
         "retrieved-content authority fixed to data-only",
         "20/20 adversarial retrieval/injection corpus pass including Unicode zero-width obfuscation and benign-negative cases"
       ],
-      "continuing_hardening": ["expand provider diversity and citation-fidelity corpus", "continuous prompt-injection red teaming"]
+      "remaining": ["expand provider diversity and citation-fidelity corpus", "continuous prompt-injection red teaming"]
     },
     {
       "id": "artifact-workbenches",
       "required": true,
-      "status": "VERIFIED",
+      "status": "PARTIAL",
       "runtime": ["frontier_v5/runtime/fullstack.py::ArtifactWorkbench"],
       "evidence": [
         "real DOCX, XLSX, PPTX, PDF and HTML application creation and round-trip validation in CI",
         "generated application exercised through a real browser adapter"
       ],
-      "continuing_hardening": ["richer formatting and collaborative edit round-trips", "additional artifact formats"]
+      "remaining": ["richer formatting and collaborative edit round-trips", "additional artifact formats"]
     },
     {
       "id": "browser-computer-use",
       "required": true,
-      "status": "VERIFIED",
+      "status": "PARTIAL",
       "runtime": [
         "frontier_v5/runtime/fullstack.py::PlaywrightBrowserAdapter",
         "frontier_v5/runtime/fullstack.py::SandboxedComputerAdapter",
@@ -103,23 +104,23 @@
         "executable allowlist rejects unapproved shell execution",
         "retrieved content cannot grant consequential action authority"
       ],
-      "continuing_hardening": ["stronger OS/container isolation for higher-risk actions", "larger destructive-action approval/red-team suite"]
+      "remaining": ["stronger OS/container isolation for higher-risk actions", "larger destructive-action approval/red-team suite"]
     },
     {
       "id": "multimodality",
       "required": true,
-      "status": "VERIFIED",
+      "status": "PARTIAL",
       "runtime": ["frontier_v5/runtime/fullstack.py::MultimodalWorkbench"],
       "evidence": [
         "six verified paths: image, audio, speech transcription, video, camera-stream frames and screen capture",
         "payload/frame/screen hashes recorded in sealed multimodal evidence"
       ],
-      "continuing_hardening": ["semantic vision/video benchmark expansion", "more languages, codecs and real-device capture paths"]
+      "remaining": ["semantic vision/video benchmark expansion", "more languages, codecs and real-device capture paths"]
     },
     {
       "id": "external-comparative-unseen-evaluation",
       "required": true,
-      "status": "VERIFIED",
+      "status": "PARTIAL",
       "runtime": [
         "frontier_v5/runtime/advanced.py::BenchmarkHarness",
         "frontier_v5/runtime/advanced.py::UncertaintyCalibrator",
@@ -132,10 +133,11 @@
         "20-case adversarial retrieved-content suite at 100% pass rate",
         "longitudinal no-regression gate at the recorded minimums"
       ],
-      "continuing_hardening": ["independent third-party evaluators", "larger cross-provider and cross-domain sealed suites", "continuous longitudinal evaluation"]
+      "remaining": ["independent third-party evaluators", "larger cross-provider and cross-domain sealed suites", "continuous longitudinal evaluation"]
     }
   ],
-  "current_gate": "PASS",
-  "gate_marker": "MUSITU_AXIOM_FIVE_YEAR_FRONTIER_OBJECTIVE_PASS",
-  "claim_boundary": "PASS certifies the repository-defined five-year frontier engineering objective at the cited head and evidence set. It does not prove global world-best status, generic superiority over every competitor, or guarantee future five-year market leadership; those require continuing comparative and longitudinal evidence."
+  "current_gate": "FAIL",
+  "gate_marker": "MUSITU_AXIOM_FIVE_YEAR_FRONTIER_OBJECTIVE_NOT_MET",
+  "gate_reason": "All required workstreams must be VERIFIED with no open items and existing runtime/test anchors (objective_gate.py --require-met). Every workstream still lists remaining work, so each is PARTIAL.",
+  "claim_boundary": "The five-year frontier engineering objective is NOT met. The runtime anchors and evidence notes describe implemented, partially verified work; they do not certify the objective. No world-best, superiority, parity, five-year leadership, full frontier completion or production-readiness claim is permitted until objective_gate.py --require-met passes on a reviewed ledger, and even then only for the repository-defined engineering objective."
 }

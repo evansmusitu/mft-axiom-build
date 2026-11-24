@@ -29,6 +29,11 @@ from .fabric import (
     InstructionEnvelope,
     InstructionProvenanceFirewall,
     PolicyContext,
+    _coerce_hmac_key,
+    _digest_eq,
+    _hmac_sha256,
+    is_side_effecting_action,
+    normalize_capability_name,
 )
 
 
@@ -407,7 +412,22 @@ class ContradictionResolver:
 
 
 class AuditReplayLedger:
-    def __init__(self) -> None:
+    """Append-only, SHA-256 hash-chained audit ledger with optional HMAC.
+
+    Without a key the chain only detects accidental corruption: anyone who can
+    edit the stored events can also recompute every hash, and dropping events
+    from the tail leaves a shorter chain that still verifies. With ``key`` (at
+    least 16 bytes) every event also carries ``event_hmac_sha256`` over its
+    chained body, so edited, re-hashed or forged events fail ``verify`` unless
+    the forger holds the key. Truncation is detected only against an anchor
+    kept outside the ledger: record ``anchor()`` and pass it back as
+    ``verify(expected_head=..., expected_length=...)``.
+    """
+
+    _HMAC_DOMAIN = "musitu-axiom-audit-event-v1"
+
+    def __init__(self, key: bytes | str | None = None) -> None:
+        self._key = _coerce_hmac_key(key)
         self._events: list[dict[str, Any]] = []
 
     def append(self, event_type: str, payload: Mapping[str, Any], actor: str) -> str:
@@ -423,23 +443,51 @@ class AuditReplayLedger:
         }
         event_sha = _sha(body)
         body["event_sha256"] = event_sha
+        if self._key is not None:
+            body["event_hmac_sha256"] = _hmac_sha256(self._key, self._HMAC_DOMAIN, body)
         self._events.append(body)
         return event_sha
 
-    def verify(self) -> bool:
+    @property
+    def head_sha256(self) -> str | None:
+        return self._events[-1]["event_sha256"] if self._events else None
+
+    @property
+    def length(self) -> int:
+        return len(self._events)
+
+    def anchor(self) -> dict[str, Any]:
+        """Head/length anchor to store out-of-band for truncation detection."""
+        return {"length": self.length, "head_sha256": self.head_sha256}
+
+    def verify(self, key: bytes | str | None = None, *, expected_head: str | None = None,
+               expected_length: int | None = None) -> bool:
+        hmac_key = _coerce_hmac_key(key) if key is not None else self._key
         prev = None
         for i, event in enumerate(self._events):
+            if not isinstance(event, dict):
+                return False
             body = dict(event)
             actual = body.pop("event_sha256", None)
+            mac = body.pop("event_hmac_sha256", None)
             if body.get("sequence") != i or body.get("previous_sha256") != prev:
                 return False
-            if _sha(body) != actual:
+            if not isinstance(actual, str) or not _digest_eq(_sha(body), actual):
                 return False
+            if hmac_key is not None:
+                body["event_sha256"] = actual
+                if not isinstance(mac, str) or not _digest_eq(_hmac_sha256(hmac_key, self._HMAC_DOMAIN, body), mac):
+                    return False
             prev = actual
+        if expected_length is not None and len(self._events) != expected_length:
+            return False
+        if expected_head is not None and (prev is None or not _digest_eq(str(expected_head), prev)):
+            return False
         return True
 
-    def replay(self, reducer: Callable[[Any, Mapping[str, Any]], Any], initial: Any) -> Any:
-        if not self.verify():
+    def replay(self, reducer: Callable[[Any, Mapping[str, Any]], Any], initial: Any, *,
+               expected_head: str | None = None, expected_length: int | None = None) -> Any:
+        if not self.verify(expected_head=expected_head, expected_length=expected_length):
             raise FrontierError("audit ledger integrity failure")
         state = initial
         for event in self._events:
@@ -459,7 +507,18 @@ class ExternalCapability:
 
 
 class GovernedCapabilityBroker:
-    """Executes only explicitly registered, verified external adapters."""
+    """Executes only explicitly registered, verified external adapters.
+
+    A capability is side-effecting when it is registered ``consequential=True``
+    or its action/name falls in a side-effecting namespace (payments/transfers,
+    trading, deploy, secrets/credentials, delete/destroy, external sends; see
+    ``fabric.is_side_effecting_action``). Side-effecting capabilities execute
+    only for a user-originated instruction (``Authority.USER``) that explicitly
+    requests the capability's action and whose policy context carries the
+    request-bound confirmation approval ``confirmation_token(name, request)``.
+    Scopes alone never authorize them; retrieved, model-output, tool, developer
+    and system instructions cannot execute them.
+    """
 
     def __init__(self) -> None:
         self._caps: dict[str, tuple[ExternalCapability, Callable[[Mapping[str, Any]], Any]]] = {}
@@ -468,6 +527,15 @@ class GovernedCapabilityBroker:
         if cap.name in self._caps:
             raise ValueError("duplicate external capability")
         self._caps[cap.name] = (cap, adapter)
+
+    @staticmethod
+    def is_side_effecting(cap: ExternalCapability) -> bool:
+        return bool(cap.consequential) or is_side_effecting_action(cap.action) or is_side_effecting_action(cap.name)
+
+    @staticmethod
+    def confirmation_token(name: str, request: Mapping[str, Any]) -> str:
+        """Approval a user must explicitly grant for this exact capability and request."""
+        return f"user-confirmed:{name}:{_sha(request)}"
 
     def execute(self, name: str, request: Mapping[str, Any], ctx: PolicyContext,
                 instruction: InstructionEnvelope) -> dict[str, Any]:
@@ -479,7 +547,16 @@ class GovernedCapabilityBroker:
         firewall = InstructionProvenanceFirewall.assess(instruction)
         if not firewall["allowed"]:
             raise AuthorizationError(firewall["reason"])
-        policy = ActionPolicy(cap.action, cap.required_scopes)
+        required_approvals: frozenset[str] = frozenset()
+        if self.is_side_effecting(cap):
+            if instruction.authority != Authority.USER:
+                raise AuthorizationError("side-effecting capability requires a user-originated instruction")
+            if not instruction.requested_action or (
+                normalize_capability_name(instruction.requested_action) != normalize_capability_name(cap.action)
+            ):
+                raise AuthorizationError("instruction does not explicitly request this side-effecting action")
+            required_approvals = frozenset({self.confirmation_token(name, request)})
+        policy = ActionPolicy(cap.action, cap.required_scopes, required_approvals=required_approvals)
         GovernanceEngine.authorize(ctx, policy)
         result = adapter(request)
         return {

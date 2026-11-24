@@ -1,13 +1,21 @@
 {
   "promotion_gate": "MUSITU_AXIOM_FRONTIER_PROMOTION",
   "required": {
-    "functional": "PASS",
-    "security": "PASS",
-    "policy": "PASS",
-    "regression": "PASS",
-    "unseen_eval": "PASS",
-    "provenance": "PASS"
+    "functional": {"status": "PASS", "artifact": "<path relative to --evidence-root>", "sha256": "<64-hex SHA-256 of the artifact bytes>"},
+    "security": {"status": "PASS", "artifact": "<path relative to --evidence-root>", "sha256": "<64-hex SHA-256 of the artifact bytes>"},
+    "policy": {"status": "PASS", "artifact": "<path relative to --evidence-root>", "sha256": "<64-hex SHA-256 of the artifact bytes>"},
+    "regression": {"status": "PASS", "artifact": "<path relative to --evidence-root>", "sha256": "<64-hex SHA-256 of the artifact bytes>"},
+    "unseen_eval": {"status": "PASS", "artifact": "<path relative to --evidence-root>", "sha256": "<64-hex SHA-256 of the artifact bytes>"},
+    "provenance": {"status": "PASS", "artifact": "<path relative to --evidence-root>", "sha256": "<64-hex SHA-256 of the artifact bytes>"}
   },
+  "evidence_format": {
+    "checker": "frontier_v5/scripts/promotion_gate.py --evidence <file> [--evidence-root <dir>]",
+    "evidence_root_default": "directory containing the evidence file",
+    "artifact_path_rule": "relative path inside the evidence root; absolute paths, '..' and symlink escapes fail",
+    "artifact_content": {"suite": "<the suite name>", "status": "PASS"},
+    "plain_status_strings_accepted": false
+  },
+  "claim_scope": "Repository-local integrity check of self-reported suite artifacts. A promotion PASS is not an external comparison, independent validation, or parity/superiority evidence.",
   "comparative_claim_promotion": {
     "structural_comparison_is_not_level_5": true,
     "level_5_external_comparative": "VERIFIED_REQUIRED_FOR_EXTERNAL_PARITY_OR_SUPERIORITY_COMPARISON",
