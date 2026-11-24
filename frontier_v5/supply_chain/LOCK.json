@@ -1,0 +1,48 @@
+{
+  "schema": "musitu.axiom.frontier.supply-chain-lock.v1",
+  "source_evidence": {
+    "full_stack_run": 34061726464,
+    "head_sha": "0ad205cf288f000e052b52b3ae16cdc39e310e38"
+  },
+  "runner": {
+    "label": "ubuntu-24.04",
+    "python": "3.12.14",
+    "pip": "26.2.1"
+  },
+  "github_actions": {
+    "actions/checkout": "3d3c42e5aac5ba805825da76410c181273ba90b1",
+    "actions/setup-python": "6d4fd22b20465ccc0f7354476588e8df7c9ca0e0"
+  },
+  "python_lock": "frontier_v5/requirements/fullstack.lock.txt",
+  "playwright": {
+    "python_package_version": "1.62.0",
+    "chromium_build": "1234",
+    "chrome_for_testing_version": "151.0.7922.34",
+    "playwright_ffmpeg_build": "1011"
+  },
+  "external_assets": [
+    {
+      "id": "vosk-model-small-en-us-0.15",
+      "url": "https://alphacephei.com/vosk/models/vosk-model-small-en-us-0.15.zip",
+      "sha256": "30f26242c4eb449f948e42cb302dd7a686cb29a3423a8367f99ff41780942498",
+      "license": "Apache-2.0",
+      "required": false,
+      "used_by": "frontier_v5.runtime.fullstack_base.MultimodalWorkbench.transcribe_vosk",
+      "ci_verified": false,
+      "note": "Not downloaded by CI because no CI test exercises speech transcription; verify with verify_supply_chain.py --asset before use."
+    }
+  ],
+  "status": {
+    "versions_pinned": true,
+    "github_actions_commit_pinned": true,
+    "external_asset_digest_pinned": true,
+    "python_distribution_hashes_complete": false,
+    "os_package_snapshot_pinned": false,
+    "supply_chain_level": "PARTIAL"
+  },
+  "claim_boundary": "This lock improves reproducibility but is not a complete supply-chain attestation until Python distribution hashes and OS package snapshot integrity are pinned and verified.",
+  "github_actions_versions": {
+    "actions/checkout": "v7.0.1",
+    "actions/setup-python": "v7.1.0"
+  }
+}

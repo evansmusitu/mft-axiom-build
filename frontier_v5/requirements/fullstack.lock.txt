@@ -1,0 +1,40 @@
+# MUSITU Axiom Frontier v5 full-stack Python dependency lock.
+# Frozen from successful Full-Stack run 34061726464 on CPython 3.12.14.
+# Every direct and transitive package observed in that clean runner is pinned.
+# Integrity hashes are tracked separately and are still required before this
+# lock can be treated as a complete supply-chain attestation.
+
+certifi==2026.7.22
+cffi==2.1.1
+charset-normalizer==3.5.1
+cloudpickle==3.1.2
+et-xmlfile==2.0.0
+greenlet==3.5.5
+idna==3.19
+joblib==1.6.0
+lxml==6.1.3
+mpmath==1.3.0
+narwhals==2.25.0
+numpy==2.5.3
+opencv-python-headless==5.0.0.93
+openpyxl==3.1.5
+pillow==12.3.0
+playwright==1.62.0
+pycparser==3.0
+pyee==13.0.1
+pypdf==6.17.0
+python-docx==1.2.0
+python-pptx==1.0.2
+reportlab==5.0.1
+requests==2.34.2
+scikit-learn==1.9.0
+scipy==1.18.1
+srt==3.5.3
+sympy==1.14.0
+threadpoolctl==3.6.0
+tqdm==4.70.0
+typing-extensions==4.16.0
+urllib3==2.7.0
+vosk==0.3.45
+websockets==17.1
+XlsxWriter==3.2.9

@@ -1,0 +1,1 @@
+Axiom v5 frontier package, isolated from production. Changes must pass .github/workflows/axiom-frontier-v5-ci.yml and must not touch auth/, mcp/, ops/, submission/ or other workflows.

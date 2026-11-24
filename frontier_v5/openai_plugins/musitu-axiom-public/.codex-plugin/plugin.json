@@ -1,0 +1,24 @@
+{
+  "name": "musitu-axiom",
+  "version": "1.0.0",
+  "description": "Quantitative finance, research, modeling, verification, and analytical workflows from MUSITU Axiom.",
+  "author": {
+    "name": "MUSITU"
+  },
+  "skills": "./skills/",
+  "interface": {
+    "displayName": "MUSITU Axiom",
+    "shortDescription": "Quantitative analysis workflows",
+    "longDescription": "Reusable MUSITU Axiom workflows for quantitative finance, research, modeling, risk, forecasting, verification, and analytical reporting.",
+    "developerName": "MUSITU",
+    "category": "Finance",
+    "capabilities": [
+      "Read"
+    ],
+    "defaultPrompt": [
+      "Use MUSITU Axiom to build and verify a financial model.",
+      "Use MUSITU Axiom to analyze a company with cited evidence.",
+      "Use MUSITU Axiom to stress-test a financial scenario without executing transactions."
+    ]
+  }
+}

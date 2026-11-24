@@ -1,0 +1,204 @@
+name: MUSITU Axiom Frontier v5 CI
+
+# Repository-local checks for the isolated frontier_v5 package.
+# This workflow uses no secrets, never contacts production systems, and has
+# read-only repository access. Its results are repository-local evidence only;
+# they do not support any external comparison or superiority claim.
+
+on:
+  pull_request:
+    paths:
+      - 'frontier_v5/**'
+      - '.agents/plugins/marketplace.json'
+      - '.github/workflows/axiom-frontier-v5-ci.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'frontier_v5/**'
+      - '.agents/plugins/marketplace.json'
+      - '.github/workflows/axiom-frontier-v5-ci.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: axiom-frontier-v5-ci-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  PYTHONDONTWRITEBYTECODE: '1'
+  PYTHONUNBUFFERED: '1'
+
+jobs:
+  isolation:
+    name: Isolation boundary
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 2
+          persist-credentials: false
+      - name: Frontier pull requests must not change production surfaces
+        shell: bash
+        run: |
+          set -euo pipefail
+          # The pull_request checkout is the PR merge commit; its first parent is the base branch head.
+          mapfile -t changed < <(git diff --name-only HEAD^1 HEAD)
+          blocked=()
+          for path in "${changed[@]}"; do
+            case "$path" in
+              .github/workflows/axiom-frontier-v5-ci.yml) ;;
+              auth/*|mcp/*|ops/*|scripts/*|tools/*|submission/*|deploy_payload/*|chatgpt-app-submission.json|.github/*)
+                blocked+=("$path") ;;
+            esac
+          done
+          if [ "${#blocked[@]}" -gt 0 ]; then
+            printf 'Production surface changed in a frontier pull request: %s\n' "${blocked[@]}" >&2
+            exit 1
+          fi
+          echo "Checked ${#changed[@]} changed files; none touch production surfaces."
+
+  contracts:
+    name: Contract tests
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          python-version: '3.12.14'
+      - name: Run every contract test script
+        shell: bash
+        run: |
+          set -euo pipefail
+          python frontier_v5/scripts/run_contract_tests.py --exclude test_fullstack_local.py
+      - name: Score the adversarial retrieval corpus through the research adapter
+        shell: bash
+        run: |
+          set -euo pipefail
+          out="$RUNNER_TEMP/adversarial.json"
+          MUSITU_ADVERSARIAL_EVAL_OUTPUT="$out" PYTHONPATH=. python frontier_v5/scripts/run_adversarial_eval.py
+          python - "$out" >> "$GITHUB_STEP_SUMMARY" <<'PY'
+          import json, sys
+          r = json.load(open(sys.argv[1], encoding="utf-8"))
+          print("### Adversarial retrieval corpus (repository-authored cases)")
+          print(f"- implementation: `{r['implementation']}`")
+          print(f"- passed {r['passed']}/{r['count']} ({r['attack_count']} attacks, {r['benign_count']} benign)")
+          print(f"- false positives: {r['false_positives'] or 'none'}; false negatives: {r['false_negatives'] or 'none'}")
+          PY
+
+  skills:
+    name: Skill lint, deterministic packaging, objective ledger
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          python-version: '3.12.14'
+      - name: Lint all 30 skills
+        shell: bash
+        run: |
+          set -euo pipefail
+          mapfile -t dirs < <(find frontier_v5/skills -mindepth 1 -maxdepth 1 -type d | sort)
+          test "${#dirs[@]}" -eq 30
+          python frontier_v5/scripts/skill_lint.py "${dirs[@]}"
+      - name: Package every profile twice and require identical bytes
+        shell: bash
+        run: |
+          set -euo pipefail
+          for round in a b; do
+            for profile in all submission frontier; do
+              python frontier_v5/scripts/package_skills.py --profile "$profile" --bundle \
+                --out "$RUNNER_TEMP/dist-$round/$profile" > "$RUNNER_TEMP/package-$round-$profile.json"
+            done
+            (cd "$RUNNER_TEMP/dist-$round" && find . -name '*.zip' -print0 | sort -z | xargs -0 sha256sum) \
+              > "$RUNNER_TEMP/packages-$round.sha256"
+          done
+          cmp "$RUNNER_TEMP/packages-a.sha256" "$RUNNER_TEMP/packages-b.sha256"
+          d="$RUNNER_TEMP/dist-a"
+          test "$(find "$d/all" -maxdepth 1 -name 'musitu-*.zip' | wc -l)" -eq 30
+          test "$(find "$d/submission" -maxdepth 1 -name 'musitu-*.zip' | wc -l)" -eq 18
+          test "$(find "$d/frontier" -maxdepth 1 -name 'musitu-*.zip' | wc -l)" -eq 12
+          test -f "$d/submission/MUSITU_AXIOM_V5_SUBMISSION_SKILL_ZIPS.zip"
+          test -f "$d/frontier/MUSITU_AXIOM_V5_FRONTIER_SKILL_ZIPS.zip"
+          unzip -l "$d/submission/musitu-command-center.zip" | grep -q 'agents/openai.yaml'
+          {
+            echo '### Skill package SHA-256 (identical across two builds)'
+            echo '```'
+            cat "$RUNNER_TEMP/packages-a.sha256"
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+      - name: Objective ledger is consistent and does not overstate status
+        shell: bash
+        run: |
+          set -euo pipefail
+          python frontier_v5/scripts/objective_gate.py --check-consistency
+
+  fullstack-local:
+    name: Full-stack local adapters
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          python-version: '3.12.14'
+      - name: Install pinned dependencies
+        shell: bash
+        run: |
+          set -euo pipefail
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends ffmpeg espeak-ng
+          python -m pip install 'pip==26.2.1'
+          python -m pip install -r frontier_v5/requirements/fullstack.lock.txt
+          python -m playwright install --with-deps chromium
+      - name: Verify the pinned toolchain
+        shell: bash
+        run: |
+          set -euo pipefail
+          python frontier_v5/scripts/verify_supply_chain.py --output "$RUNNER_TEMP/supply-chain.json"
+      - name: Run the full-stack local adapter test
+        shell: bash
+        run: |
+          set -euo pipefail
+          python frontier_v5/scripts/run_contract_tests.py --only test_fullstack_local.py
+
+  python-hash-capture:
+    name: Capture Python distribution hashes (manual)
+    if: github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          python-version: '3.12.14'
+      - name: Download locked distributions and record their hashes without installing them
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m pip install 'pip==26.2.1'
+          python frontier_v5/scripts/capture_distribution_hashes.py \
+            --requirements frontier_v5/requirements/fullstack.lock.txt \
+            --workdir "$RUNNER_TEMP/python-distributions" \
+            --manifest "$RUNNER_TEMP/python-distribution-hashes.json" \
+            --hashed-requirements "$RUNNER_TEMP/fullstack.hashed.lock.txt" | tee "$RUNNER_TEMP/capture.log"
+          grep -q 'MUSITU_AXIOM_FRONTIER_PYTHON_DISTRIBUTION_HASH_CAPTURE_PASS' "$RUNNER_TEMP/capture.log"
+          {
+            echo '### Hashed requirements for review (not an attestation)'
+            echo '```'
+            cat "$RUNNER_TEMP/fullstack.hashed.lock.txt"
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
