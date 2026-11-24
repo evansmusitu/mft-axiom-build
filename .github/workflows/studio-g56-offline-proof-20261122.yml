@@ -33,6 +33,14 @@ jobs:
             musitu_studio.gates56.test_blender_bridge \
             musitu_studio.gates56.test_modal_budget_observer \
             musitu_studio.gates56.test_durable_queue_schema
+      - name: Pinned Node 24 with built-in SQLite, no packages or credentials
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: '24'
+      - name: Verify real SQLite Durable Object controller contract offline
+        run: |
+          node --check musitu_studio/gates56/durable_queue_controller.mjs
+          node --test musitu_studio/gates56/test_durable_queue_controller.mjs
       - name: Record non-provider result boundary
         run: |
           echo 'STUDIO_G56_SOURCE_ONLY_OFFLINE_TESTS=PASS'
