@@ -189,3 +189,24 @@ test('large provider permission groups remain bounded and project fixed capabili
  const p=r.credentials.find(c=>c.reference==='CLOUDFLARE_API_TOKEN').verification.policy_metadata;assert.equal(p.policy_metadata_observed,true);assert.equal(p.policies[0].permission_group_count,201);
  assert.deepEqual(p.policies[0].write_capability_codes,['OTHER_WRITE_NAMED']);assert(!JSON.stringify(r).includes('UNRECOGNIZED_PROVIDER_CONTENT'));holds(r);
 });
+test('documented read/report labels preserve original unclassified counters without becoming custody proof',async()=>{
+ const names=['Account Security Center Insights','Magic Firewall Packet Captures - Read PCAPs API','Zero Trust Report'],f=fake();
+ const r=await probeBuildCredentials({env:tokenEnv,fetchImpl:async req=>/\/tokens\/[a-f0-9]{32}$/.test(new URL(req.url).pathname)?policyResponse({extra:{policies:[{effect:'allow',resources:{'com.cloudflare.api.account.*':'*'},permission_groups:names.map(name=>({id:'d'.repeat(32),name}))}]}}):f.fetchImpl(req)});
+ const p=r.credentials.find(c=>c.reference==='CLOUDFLARE_API_TOKEN').verification.policy_metadata,row=p.policies[0];
+ assert.equal(row.unclassified_groups,3);assert.equal(row.documented_nonstandard_read_groups,2);assert.equal(row.documented_reporting_groups,1);assert.equal(row.unmapped_nonstandard_groups,0);
+ assert.deepEqual(row.nonstandard_capability_codes,['ACCOUNT_SECURITY_INSIGHTS_READ','PCAP_READ','ZERO_TRUST_REPORT']);assert.equal(p.effective_policy_resolution_verified,false);holds(r);
+});
+test('non-Read suffixes which revoke, purge, execute or write cannot be relabeled as read-only',async()=>{
+ for(const name of ['Access: Apps Revoke','Cache Purge','AI Gateway Run','Magic Firewall Packet Captures - Write PCAPs API']){
+  const f=fake(),r=await probeBuildCredentials({env:tokenEnv,fetchImpl:async req=>/\/tokens\/[a-f0-9]{32}$/.test(new URL(req.url).pathname)?policyResponse({name}):f.fetchImpl(req)});
+  const p=r.credentials.find(c=>c.reference==='CLOUDFLARE_API_TOKEN').verification.policy_metadata;
+  assert.equal(p.policies[0].documented_non_read_groups,1);assert.equal(p.potential_a2_documented_non_read_allow_policy_observed,true);holds(r);
+ }
+});
+test('unknown names and omitted names remain unmapped without reflected content in the public result',async()=>{
+ for(const name of ['PRIVATE_UNRECOGNIZED_PERMISSION',undefined]){
+  const f=fake(),r=await probeBuildCredentials({env:tokenEnv,fetchImpl:async req=>/\/tokens\/[a-f0-9]{32}$/.test(new URL(req.url).pathname)?policyResponse({extra:{policies:[{effect:'allow',resources:{'com.cloudflare.api.account.*':'*'},permission_groups:[{id:'d'.repeat(32),...(name?{name}:{})}]}]}}):f.fetchImpl(req)});
+  const row=r.credentials.find(c=>c.reference==='CLOUDFLARE_API_TOKEN').verification.policy_metadata.policies[0];
+  assert.equal(row.unmapped_nonstandard_groups,1);assert.equal(row.documented_nonstandard_read_groups,0);assert(!JSON.stringify(r).includes('PRIVATE_UNRECOGNIZED_PERMISSION'));holds(r);
+ }
+});

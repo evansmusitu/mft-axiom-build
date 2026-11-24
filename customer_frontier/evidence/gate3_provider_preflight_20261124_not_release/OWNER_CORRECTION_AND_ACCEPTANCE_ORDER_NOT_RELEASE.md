@@ -1,5 +1,7 @@
 # Owner correction required before private genesis — NOT_RELEASE
 
+**Current update14:03Z:** the owner's reported edits are visible in actual Cloudflare metadata for the same provider identifiers. Recovery now11 read-named/zero write-named groups; shared admin190 read-named/zero write-named/three unclassified groups. The known write-named grants described below are removed. Do not repeat those edits. Classify the three remaining groups, then qualify independent provider custody, alternate/global-key inventory and effective denial. Earlier findings and correction instructions remain historical at their original scope. Owner-edit receipt: OWNER_EDIT_PROVIDER_RECEIPT_140342Z.json; report: ACTUAL_OWNER_EDIT_READBACK_140342Z.json.
+
 At 2026-11-24 13:16:02 UTC (15:16:02 Harare), actual Cloudflare GETs returned policy counterexamples to the earlier owner reports of restricted build access. Retain the earlier reports at their original scope. Current provider metadata controls this dependency; do not repeat the signer proof or unchanged approved source/config review.
 
 Exact source: `95ff37dcc696ece685801274718d5a2162c2243c`, tree `9036c76e43d12a8bc2165d9fe5c9f67a200b20c6`. Provider observation run45401611848/job138471362266: **19 GETs, zero writes**. The observation ran with existing build-held credentials, not an independent operator credential. It can establish these observed allow-policy counterexamples; it cannot qualify independent custody or a complete effective permission decision.

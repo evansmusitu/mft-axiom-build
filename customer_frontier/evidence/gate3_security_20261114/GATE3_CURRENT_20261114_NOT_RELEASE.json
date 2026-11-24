@@ -1,7 +1,7 @@
 {
   "schema": "musitu.axiom.gate3-security-current.v1",
-  "observed_at_utc": "2026-11-24T13:16:02.141Z",
-  "status": "HOLD_BUILD_HELD_ADMIN_ALL_ACCOUNT_WRITE_POLICY_OBSERVED",
+  "observed_at_utc": "2026-11-24T14:03:42.369Z",
+  "status": "HOLD_KNOWN_WRITE_GRANTS_REMOVED_REMAINING_CAPABILITY_CUSTODY_AND_DENIAL_PENDING",
   "gate3_closed": false,
   "release_status": "NOT_RELEASE",
   "gate2_closed": true,
@@ -11,7 +11,7 @@
     "conclusion": "success"
   },
   "product_source_modified": true,
-  "provider_operations": 89,
+  "provider_operations": 108,
   "credentials_or_private_keys_obtained": false,
   "reviewed_heads": {
     "pr192": "14b5c520bd7cd53ccd4978f575dfcbe9b250ed0c",
@@ -59,7 +59,7 @@
       "browser": "success"
     }
   },
-  "next_required_input": "Owner-controlled correction of observed token policies with consumer/recovery preservation, followed by independent provider readback and bounded effective-denial acceptance. Private genesis/retirement and hosted destructive recovery remain blocked. Do not repeat accepted key possession or unchanged source/config approval.",
+  "next_required_input": "Do not repeat the verified known-write permission edits. Identify three remaining nonstandard admin permission groups, qualify alternate/global-key custody and operator-controlled provider evidence, then complete bounded effective-denial acceptance before private authority operations.",
   "next_gate_blocked": "GATE4_REAL_CUSTOMER_IDENTITY",
   "source_manifest_sha256": "0e9b2de4e9f3b5982246ed443251563f6489092bd339007538bc01df7552cad5",
   "local_regression_results_sha256": "bd28f12146727875ac707dd705d0f24f6e1c07ba22b684bc2fb65f0edabd22b9",
@@ -78,7 +78,7 @@
     "declaration_sha256": "39cd12389215354d0173214a438cadf834424746498af97162c5e1c0e5243360",
     "provider_qualification_separate": true
   },
-  "next_engineering_step": "Review and correct the shared admin token all-account write and token/membership administration policies, remove recovery-token Account Settings Write on Authority2 after consumer review, qualify alternate credentials/global-key custody, then verify current restrictions and effective denial outside builder control before private authority operations.",
+  "next_engineering_step": "Carry confirmed recovery/admin write-named grant removal forward. Classify remaining nonstandard groups using fixed public capability labels; qualify global-key/alternative credential separation and independent current provider readback/effective denial before approved private genesis/retirement and hosted recovery.",
   "known_builder_authority_write_observation": {
     "evidence_run_id": 43630591859,
     "scope": "Recovery account 67469478aa9349fa0a57fe3a72da200a, also the pinned Authority 2 account",
@@ -96,7 +96,7 @@
     "evidence_sha256": "b0713cbfc086e81bd0da9bd38f49232ba95968a5034b25cc1d0a6410e3e70474",
     "provider_or_custody_independent_qualification_earned": false
   },
-  "current_operational_block": "BUILD_HELD_ADMIN_ALL_ACCOUNT_WRITE_AND_RECOVERY_ACCOUNT_SETTINGS_WRITE_POLICIES",
+  "current_operational_block": "NONSTANDARD_ADMIN_GROUPS_GLOBAL_KEY_ALTERNATE_INVENTORY_INDEPENDENT_POLICY_AND_EFFECTIVE_DENIAL_PENDING",
   "credential_restrictions_prepared_path": "AUTHORITY2_BUILD_CREDENTIAL_RESTRICTIONS_20261114_NOT_RELEASE.md",
   "credential_restrictions_applied": false,
   "owner_confirmation_updated_at_utc": "2026-11-14T21:33:40.634Z",
@@ -109,7 +109,7 @@
     "independent_provider_policy_verification": false,
     "other_builder_tokens_still_require_review": true
   },
-  "credential_restriction_progress": "KNOWN_CREDENTIALS_OWNER_READBACK_RECORDED_INDEPENDENT_POLICY_AND_EFFECTIVE_DENIAL_NOT_QUALIFIED",
+  "credential_restriction_progress": "KNOWN_RECOVERY_AND_ADMIN_WRITE_NAMED_GRANTS_REMOVED_PROVIDER_READBACK_CONFIRMED_REMAINING_CUSTODY_AND_DENIAL_NOT_QUALIFIED",
   "credential_restrictions_owner_reported_partially_applied": true,
   "interaction_mode": "ASSISTANT_ENVIRONMENT_CODE_AND_CI_OWNER_OWN_BROWSER_FOR_PRIVATE_ACCOUNT_OPERATIONS_NO_AGENT_BROWSER_RETRY",
   "next_credential_source_evidence": {
@@ -349,7 +349,7 @@
   "B27": "FAILED_IN_SYNTHETIC_ATTACK",
   "parity_superiority": "NOT_CERTIFIED",
   "unavailable_final_usage": "UNKNOWN",
-  "this_checkpoint_scope": "ACTUAL_BUILDER_GET_PROVIDER_POLICY_COUNTEREXAMPLES_NO_PROVIDER_MUTATION_OR_CUSTODY_QUALIFICATION",
+  "this_checkpoint_scope": "POST_OWNER_EDIT_GET_READBACK_KNOWN_WRITE_GRANTS_REMOVED_NOT_CUSTODY_ACCEPTANCE",
   "historical_checkpoint_scope_before_provider_preflight_20261124": {
     "observed_at_utc": "2026-11-24T07:37:52.057Z",
     "status": "HOLD_PROVIDER_CREDENTIAL_SEPARATION_AND_HOSTED_AUTHORITY_ACCEPTANCE_REQUIRED",
@@ -359,27 +359,57 @@
     "this_checkpoint_scope": "PUBLIC_POSSESSION_EVIDENCE_ONLY_NO_RUNTIME_OR_PROVIDER_CHANGE",
     "operator_next_step_path": "authority2_owner_possession_20261124/NEXT_PROVIDER_CUSTODY_STEP_NOT_RELEASE.md"
   },
-  "provider_operation_scope": "Five bounded GET-only observation runs; 89 GET requests, zero provider writes; no credential values or private keys exported.",
+  "provider_operation_scope": "Six bounded GET-only observation attempts; 108 GET requests and zero provider writes by assistant workflows. Owner reports provider edits; actual readback confirms known write-named grants removed.",
   "actual_provider_credential_observation_20261124": {
     "source_commit": "95ff37dcc696ece685801274718d5a2162c2243c",
     "source_tree": "9036c76e43d12a8bc2165d9fe5c9f67a200b20c6",
     "run_id": 45401611848,
-    "job_id": 138471362266,
-    "observed_at_utc": "2026-11-24T13:16:02.141Z",
-    "public_report_path": "../gate3_provider_preflight_20261124_not_release/ACTUAL_BUILD_CAPABILITY_OBSERVATION_131602Z.json",
-    "public_report_sha256": "22a33fc3d08b6543bf860c9eed31eaf5cd556256d2f450a4e2aef6c607d0cde8",
+    "run_attempt": 2,
+    "job_id": 138500463840,
+    "verified_at_utc": "2026-11-24T14:03:42.369Z",
+    "same_provider_identifier_digests": true,
+    "recovery_a2_write_named_groups_after": 0,
+    "admin_write_named_groups_after": 0,
+    "admin_unclassified_groups_after": 3,
+    "admin_all_account_read_scope_still_present": true,
+    "observed_known_write_policy_counterexamples_resolved": true,
+    "full_effective_policy_resolution_verified": false,
+    "independent_operator_policy_qualification_earned": false,
+    "effective_write_denial_verified": false,
     "provider_get_requests": 19,
     "provider_write_requests": 0,
-    "credential_values_exported": false,
-    "recovery_token_a2_account_settings_write_allow_observed": true,
-    "admin_token_all_accounts_worker_r2_write_allow_observed": true,
-    "admin_token_user_token_and_membership_write_allow_observed": true,
-    "source_token_a2_metadata_gets_denied": true,
+    "receipt_path": "../gate3_provider_preflight_20261124_not_release/OWNER_EDIT_PROVIDER_RECEIPT_140342Z.json",
     "global_key_restrictions_unknown": true,
-    "alternate_credentials_exhaustively_qualified": false,
-    "full_effective_policy_resolution_verified": false,
-    "actual_effective_write_denial_verified": false,
-    "supersedes_prior_owner_no_write_reports_at_observed_policy_scope": true,
-    "independent_provider_custody_qualified": false
+    "alternate_credentials_exhaustively_qualified": false
+  },
+  "historical_provider_counterexample_checkpoint_131602Z": {
+    "observed_at_utc": "2026-11-24T13:16:02.141Z",
+    "status": "HOLD_BUILD_HELD_ADMIN_ALL_ACCOUNT_WRITE_POLICY_OBSERVED",
+    "provider_operations": 89,
+    "current_operational_block": "BUILD_HELD_ADMIN_ALL_ACCOUNT_WRITE_AND_RECOVERY_ACCOUNT_SETTINGS_WRITE_POLICIES",
+    "next_required_input": "Owner-controlled correction of observed token policies with consumer/recovery preservation, followed by independent provider readback and bounded effective-denial acceptance. Private genesis/retirement and hosted destructive recovery remain blocked. Do not repeat accepted key possession or unchanged source/config approval.",
+    "next_engineering_step": "Review and correct the shared admin token all-account write and token/membership administration policies, remove recovery-token Account Settings Write on Authority2 after consumer review, qualify alternate credentials/global-key custody, then verify current restrictions and effective denial outside builder control before private authority operations.",
+    "actual_provider_credential_observation_20261124": {
+      "source_commit": "95ff37dcc696ece685801274718d5a2162c2243c",
+      "source_tree": "9036c76e43d12a8bc2165d9fe5c9f67a200b20c6",
+      "run_id": 45401611848,
+      "job_id": 138471362266,
+      "observed_at_utc": "2026-11-24T13:16:02.141Z",
+      "public_report_path": "../gate3_provider_preflight_20261124_not_release/ACTUAL_BUILD_CAPABILITY_OBSERVATION_131602Z.json",
+      "public_report_sha256": "22a33fc3d08b6543bf860c9eed31eaf5cd556256d2f450a4e2aef6c607d0cde8",
+      "provider_get_requests": 19,
+      "provider_write_requests": 0,
+      "credential_values_exported": false,
+      "recovery_token_a2_account_settings_write_allow_observed": true,
+      "admin_token_all_accounts_worker_r2_write_allow_observed": true,
+      "admin_token_user_token_and_membership_write_allow_observed": true,
+      "source_token_a2_metadata_gets_denied": true,
+      "global_key_restrictions_unknown": true,
+      "alternate_credentials_exhaustively_qualified": false,
+      "full_effective_policy_resolution_verified": false,
+      "actual_effective_write_denial_verified": false,
+      "supersedes_prior_owner_no_write_reports_at_observed_policy_scope": true,
+      "independent_provider_custody_qualified": false
+    }
   }
 }

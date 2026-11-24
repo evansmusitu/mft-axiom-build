@@ -1,5 +1,7 @@
 # Gate3 provider preflight — read-only observations, NOT_RELEASE
 
+**Current post-edit state:** run45401611848/attempt2/job138500463840 at14:03:42.369Z confirmed removal of known recovery/admin write-named grants for the same provider IDs. Recovery11 read-named groups; admin190 read-named and three nonstandard groups. GET-only metadata is not independent custody or effective denial. A follow-up projects fixed public capability labels for exact documented nonstandard names without changing original suffix-based counts or any false qualification flag; unknown names remain unmapped. Fixed labels derive from Cloudflare's permission reference, including read access, reporting and non-Read-suffixed mutating/executing/revocation grants. This is classification, not privilege waiver. Current exact receipt under gate3_provider_preflight_20261124_not_release/OWNER_EDIT_PROVIDER_RECEIPT_140342Z.json.
+
 The actual Authority2 signer proof is accepted at PR249. Do not repeat it. Approved authority source/config and serving/initializer/retirement bundles remain unchanged.
 
 Current main and Gate3 workflow source references both scoped Cloudflare API tokens and Global API Key credentials. These are references, not proof of current secret availability or privileges. The Global API Key is also a legacy protected-source decryption input: blind rotation/deletion could break unrelated source-account operations. No credential may be revoked, replaced, broadened or copied to a new location before actual policy/consumer/recovery review.

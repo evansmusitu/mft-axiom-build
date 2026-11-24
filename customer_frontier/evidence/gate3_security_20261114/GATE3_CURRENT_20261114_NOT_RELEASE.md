@@ -1,5 +1,11 @@
 # MUSITU AXIOM Gate 3 — security, custody and anti-rollback
 
+## 24 November14:03Z owner-edit readback — current dependency
+
+After the owner reported “Done,” unchanged reviewed GET-only source95ff37d was rerun at run45401611848/attempt2/job138500463840. Actual Cloudflare metadata at14:03:42.369Z confirms the SAME provider identifiers: recovery11 read-named groups/zero write-named groups; admin190 read-named groups/zero write-named groups/three unclassified groups. The previously observed known write-policy counterexamples are resolved at this metadata scope. Do not repeat those edits or accepted signer/source approval.
+
+The admin all-account read scope remains present. Three nonstandard group names still require classification; global-key/alternate credential inventory, independently controlled provider readback and effective write-denial acceptance remain unqualified. This was19 GETs/zero writes; six observation attempts total108 GETs. All custody/genesis/retirement/destructive/release holds remain. Exact scoped evidence: [owner-edit provider receipt](../gate3_provider_preflight_20261124_not_release/OWNER_EDIT_PROVIDER_RECEIPT_140342Z.json). Earlier write-policy findings below remain historical evidence, not the current known-write state.
+
 ## 24 November actual provider policy counterexamples — current dependency
 
 At13:16:02.141Z (15:16 Harare), run45401611848/job138471362266 made19 bounded Cloudflare GETs and zero writes from source95ff37dcc696ece685801274718d5a2162c2243c. The recovery token still has an explicit Authority2 Account Settings Write allow group. The build-held admin token still has all-account Worker/R2 write allow policies plus user-token/membership administration. Current provider policy evidence supersedes earlier owner no-write statements at this observed policy scope; retain the earlier statements as historical reports. Exact resource GET403/404, source CI and metadata read success do not supply complete effective-policy evaluation or write-denial acceptance.

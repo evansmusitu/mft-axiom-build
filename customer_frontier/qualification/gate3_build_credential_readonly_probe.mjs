@@ -17,6 +17,20 @@ const WRITE_CAPABILITIES=new Map([
  ['Account Settings','ACCOUNT_SETTINGS_WRITE'],['API Tokens','USER_TOKEN_ADMIN_WRITE'],['Account API Tokens','ACCOUNT_TOKEN_ADMIN_WRITE'],
  ['Memberships','MEMBERSHIP_ADMIN_WRITE'],['Workers Routes','WORKER_ROUTES_WRITE'],['Workers Durable Objects','DURABLE_OBJECT_WRITE']
 ].flatMap(([name,code])=>[[' Write',' Edit'].map(suffix=>[name+suffix,code])]).flat());
+// Exact public names from Cloudflare's permission reference, not suffix guesses.
+// Keep original named counters; these labels never qualify effective permissions.
+const NONSTANDARD_CAPABILITIES=new Map([
+ ['Account Security Center Insights',['ACCOUNT_SECURITY_INSIGHTS_READ','DOC_READ']],
+ ['Zone Security Center Insights',['ZONE_SECURITY_INSIGHTS_READ','DOC_READ']],
+ ['Magic Firewall Packet Captures - Read PCAPs API',['PCAP_READ','DOC_READ']],
+ ['Zero Trust Report',['ZERO_TRUST_REPORT','DOC_REPORT']],
+ ['Magic Firewall Packet Captures - Write PCAPs API',['PCAP_WRITE','DOC_NON_READ']],
+ ['AI Gateway Run',['AI_GATEWAY_RUN','DOC_NON_READ']],['Cache Purge',['CACHE_PURGE','DOC_NON_READ']],
+ ['Access: Apps and Policies Revoke',['ACCESS_APP_POLICY_REVOKE','DOC_NON_READ']],
+ ['Access: Apps Revoke',['ACCESS_APP_REVOKE','DOC_NON_READ']],
+ ['Access: Organizations Revoke',['ACCESS_ORG_REVOKE','DOC_NON_READ']],
+ ['Access: Organizations, Identity Providers, and Groups Revoke',['ACCESS_ORG_IDP_GROUP_REVOKE','DOC_NON_READ']]
+]);
 const hex32=x=>typeof x==='string'&&/^[a-f0-9]{32}$/.test(x);
 const sha=x=>createHash('sha256').update(x).digest('hex');
 const tokenDetailsPath=path=>/^\/user\/tokens\/[a-f0-9]{32}$/.test(path)||new RegExp('^/accounts/('+A2+'|'+SOURCE_ACCOUNT+')/tokens/[a-f0-9]{32}$').test(path);
@@ -94,19 +108,25 @@ async function tokenPolicy(api,headers,scope,id){
    else if(!/^com\.cloudflare\.api\.account\.[a-f0-9]{32}$/.test(resource))unknown=true;
    if(policy.resources[resource]!=='*')unknown=true;
   }
-  let read=0,write=0,unclassified=0;const capabilities=new Set();
+  let read=0,write=0,unclassified=0,docRead=0,docReport=0,docNonRead=0,unmapped=0;const capabilities=new Set(),nonstandard=new Set();
   for(const group of policy.permission_groups){
    if(!hex32(group?.id))return hold('PERMISSION_GROUP_IDENTIFIER_UNSUPPORTED');
    if(group.name!==undefined&&(typeof group.name!=='string'||group.name.length>200))return hold('PERMISSION_GROUP_NAME_UNSUPPORTED');
-   if(group.name===undefined)unclassified++;
+   if(group.name===undefined){unclassified++;unmapped++;}
    else if(/ Read$/.test(group.name))read++;
    else if(/ (Write|Edit)$/.test(group.name)){write++;capabilities.add(WRITE_CAPABILITIES.get(group.name)||'OTHER_WRITE_NAMED');}
-   else unclassified++;
+   else{
+    unclassified++;const known=NONSTANDARD_CAPABILITIES.get(group.name);
+    if(!known)unmapped++;
+    else{nonstandard.add(known[0]);if(known[1]==='DOC_READ')docRead++;else if(known[1]==='DOC_REPORT')docReport++;else docNonRead++;}
+   }
   }
-  rows.push({effect:policy.effect,explicit_a2_resource:explicit,all_account_resource:all,unclassified_resource_scope:unknown,empty_permission_groups:policy.permission_groups.length===0,permission_group_count:policy.permission_groups.length,read_named_groups:read,write_named_groups:write,unclassified_groups:unclassified,write_capability_codes:[...capabilities].sort()});
+  rows.push({effect:policy.effect,explicit_a2_resource:explicit,all_account_resource:all,unclassified_resource_scope:unknown,empty_permission_groups:policy.permission_groups.length===0,permission_group_count:policy.permission_groups.length,read_named_groups:read,write_named_groups:write,unclassified_groups:unclassified,write_capability_codes:[...capabilities].sort(),
+   nonstandard_capability_codes:[...nonstandard].sort(),documented_nonstandard_read_groups:docRead,documented_reporting_groups:docReport,documented_non_read_groups:docNonRead,unmapped_nonstandard_groups:unmapped});
  }
  return {...out,policy_metadata_observed:true,policies:rows,
   potential_a2_write_allow_policy_observed:rows.some(p=>p.effect==='allow'&&(p.explicit_a2_resource||p.all_account_resource||p.unclassified_resource_scope)&&p.write_named_groups>0),
+  potential_a2_documented_non_read_allow_policy_observed:rows.some(p=>p.effect==='allow'&&(p.explicit_a2_resource||p.all_account_resource||p.unclassified_resource_scope)&&p.documented_non_read_groups>0),
   limit:'Names/resources are observations, not a complete policy evaluator or custody/denial proof'};
 }
 async function memberships(api,headers){
