@@ -66,11 +66,18 @@ async function tokenPolicy(api,headers,scope,id){
  const prefix=scope==='user'?'/user':scope==='account_a2'?'/accounts/'+A2:'/accounts/'+SOURCE_ACCOUNT;
  const r=await api.get(prefix+'/tokens/'+id,headers),p=r.data?.result;
  const out={...publicRead(r),policy_metadata_observed:false,effective_write_denial_verified:false,effective_policy_resolution_verified:false};
- if(!p||p.id!==id||Object.hasOwn(p,'value')||!Array.isArray(p.policies)||p.policies.length<1||p.policies.length>100)return out;
+ const hold=reason=>({...out,projection_hold_reason:reason});
+ if(!p)return hold('NO_VALID_RESULT');
+ if(p.id!==id)return hold('TOKEN_IDENTIFIER_MISMATCH');
+ if(Object.hasOwn(p,'value'))return hold('UNEXPECTED_VALUE_FIELD');
+ if(!Array.isArray(p.policies))return hold('POLICY_ARRAY_UNAVAILABLE');
+ if(p.policies.length<1||p.policies.length>100)return hold('POLICY_COUNT_UNSUPPORTED');
  const rows=[];
  for(const policy of p.policies){
-  if(!['allow','deny'].includes(policy?.effect)||!policy.resources||Array.isArray(policy.resources)||typeof policy.resources!=='object'||!Array.isArray(policy.permission_groups)||policy.permission_groups.length<1||policy.permission_groups.length>100)return out;
-  const resources=Object.keys(policy.resources);if(resources.length<1||resources.length>100)return out;
+  if(!['allow','deny'].includes(policy?.effect))return hold('POLICY_EFFECT_UNSUPPORTED');
+  if(!policy.resources||Array.isArray(policy.resources)||typeof policy.resources!=='object')return hold('RESOURCE_MAP_UNSUPPORTED');
+  if(!Array.isArray(policy.permission_groups)||policy.permission_groups.length<1||policy.permission_groups.length>100)return hold('PERMISSION_GROUP_ARRAY_UNSUPPORTED');
+  const resources=Object.keys(policy.resources);if(resources.length<1||resources.length>100)return hold('RESOURCE_COUNT_UNSUPPORTED');
   let explicit=false,all=false,unknown=false;
   for(const resource of resources){
    if(resource==='com.cloudflare.api.account.'+A2)explicit=true;
@@ -80,8 +87,10 @@ async function tokenPolicy(api,headers,scope,id){
   }
   let read=0,write=0,unclassified=0;
   for(const group of policy.permission_groups){
-   if(!hex32(group?.id)||typeof group.name!=='string'||group.name.length>200)return out;
-   if(/ Read$/.test(group.name))read++;
+   if(!hex32(group?.id))return hold('PERMISSION_GROUP_IDENTIFIER_UNSUPPORTED');
+   if(group.name!==undefined&&(typeof group.name!=='string'||group.name.length>200))return hold('PERMISSION_GROUP_NAME_UNSUPPORTED');
+   if(group.name===undefined)unclassified++;
+   else if(/ Read$/.test(group.name))read++;
    else if(/ (Write|Edit)$/.test(group.name))write++;
    else unclassified++;
   }

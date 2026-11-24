@@ -148,3 +148,15 @@ test('account-source token details use the source account endpoint rather than a
  assert(urls.includes('/client/v4/accounts/93f395f5121954671f92fffa453d6b61/tokens/'+id));
  assert.equal(r.credentials.find(c=>c.reference==='CLOUDFLARE_API_TOKEN').verification.policy_metadata.policies[0].explicit_a2_resource,false);holds(r);
 });
+test('optional missing permission-group names are unclassified, never inferred to be read-only',async()=>{
+ const f=fake(),r=await probeBuildCredentials({env:tokenEnv,fetchImpl:async req=>/\/tokens\/[a-f0-9]{32}$/.test(new URL(req.url).pathname)?policyResponse({extra:{policies:[{effect:'allow',resources:{['com.cloudflare.api.account.'+A2]:'*'},permission_groups:[{id:'d'.repeat(32)}]}]}}):f.fetchImpl(req)});
+ const p=r.credentials.find(c=>c.reference==='CLOUDFLARE_API_TOKEN').verification.policy_metadata;
+ assert.equal(p.policy_metadata_observed,true);assert.equal(p.policies[0].unclassified_groups,1);assert.equal(p.policies[0].read_named_groups,0);holds(r);
+});
+test('policy projection failures export only fixed reason enums and no response field content',async()=>{
+ for(const [extra,reason] of [[{value:token},'UNEXPECTED_VALUE_FIELD'],[{policies:undefined},'POLICY_ARRAY_UNAVAILABLE'],[{policies:[]},'POLICY_COUNT_UNSUPPORTED']]){
+  const f=fake(),r=await probeBuildCredentials({env:tokenEnv,fetchImpl:async req=>/\/tokens\/[a-f0-9]{32}$/.test(new URL(req.url).pathname)?policyResponse({extra}):f.fetchImpl(req)});
+  const p=r.credentials.find(c=>c.reference==='CLOUDFLARE_API_TOKEN').verification.policy_metadata;
+  assert.equal(p.projection_hold_reason,reason);assert(!JSON.stringify(r).includes(token));holds(r);
+ }
+});
