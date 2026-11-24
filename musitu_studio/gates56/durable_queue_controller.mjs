@@ -140,6 +140,9 @@ export class G56DurableQueueController {
       throw new QueueGateClosed('INVALID_OBSERVED_PROGRESS');
     const at = this._time();
     return this.storage.transactionSync(() => {
+      const control = this._row('SELECT killed FROM g56_do_control WHERE id=1');
+      if (!control || control.killed !== 0)
+        throw new QueueGateClosed('STUDIO_COMPUTE_KILL_SWITCH_ON');
       const row = this._job(tenant, jid);
       if (row.state !== 'RUNNING' || row.current_fence !== fence)
         throw new QueueConflict('STALE_FENCE');
@@ -155,7 +158,27 @@ export class G56DurableQueueController {
     });
   }
 
-  emergencyStop() { throw new QueueGateClosed('NOT_IMPLEMENTED'); }
+  emergencyStop({ proof } = {}) {
+    this._maintenance(proof);
+    const at = this._time();
+    return this.storage.transactionSync(() => {
+      // A stop can always be asserted. There is deliberately no arming method
+      // here: G5 provider hard-cap evidence and explicit owner ceremony
+      // would be needed to create one.
+      this._run('UPDATE g56_do_control SET killed=1,updated_at=? WHERE id=1',at);
+      const active = Array.from(this.storage.sql.exec(
+        "SELECT id FROM g56_do_jobs WHERE state='RUNNING' ORDER BY id"
+      ));
+      for (const row of active) {
+        // Request termination; never infer the external call was stopped and
+        // NEVER release reserved credits or write a zero provider cost.
+        this._run(`UPDATE g56_do_jobs SET state='CANCEL_REQUESTED',updated=?
+          WHERE id=? AND state='RUNNING'`,at,row.id);
+        this._event(row.id,'EMERGENCY_PROVIDER_CANCEL_REQUIRED',at);
+      }
+      return { killed:true, cancel_requested:active.length };
+    });
+  }
 
   quarantineStale({ proof } = {}) {
     this._maintenance(proof);
