@@ -58,16 +58,15 @@ jobs:
               import modal
               stage='WORKSPACE_CONTEXT'
               workspace=modal.Workspace.from_context()
+              stage='WORKSPACE_HYDRATE'
+              workspace.hydrate()
               stage='WORKSPACE_NAME_READ'
               attr=workspace.name
               actual=attr() if callable(attr) else attr
               if not isinstance(actual,str) or not actual:
                   raise ValueError('WORKSPACE_NOT_VERIFIABLE')
               outcome['workspace_authenticated']=True
-              stage='WORKSPACE_TARGET_BINDING'
-              if not expected or expected!=actual:
-                  raise ValueError('EXPECTED_WORKSPACE_NOT_BOUND')
-              outcome['expected_workspace_bound']=True
+              outcome['expected_workspace_bound']=bool(expected and expected==actual)
               stage='BILLING_USAGE_READ'
               summary=workspace.billing.summary(cycle='this month')
               for item in ('metered_cost','billed_cost'):
@@ -75,12 +74,17 @@ jobs:
                   if type(value) is not Decimal or not value.is_finite() or value<0:
                       raise ValueError('BILLING_USAGE_NOT_VERIFIABLE')
               outcome['billing_usage_readable']=True
-              outcome['failure_stage']='NONE'
+              if outcome['expected_workspace_bound']:
+                  outcome['failure_stage']='NONE'
+              else:
+                  outcome['failure_stage']='WORKSPACE_TARGET_BINDING'
+                  outcome['error_class']='MISSING_OR_MISMATCH'
           except Exception as exc:
               # Only a fixed stage and exception class; never print provider text.
               outcome['failure_stage']=stage
               outcome['error_class']=type(exc).__name__[:64]
           print('MUSITU_STUDIO_MODAL_PROVIDER_READBACK='+json.dumps(outcome,sort_keys=True))
           # An authenticated usage response is still NOT hard-cap attestation.
-          sys.exit(0 if outcome['billing_usage_readable'] else 1)
+          sys.exit(0 if (outcome['billing_usage_readable'] and
+                         outcome['expected_workspace_bound']) else 1)
           PY
