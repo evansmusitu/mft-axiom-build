@@ -11,7 +11,7 @@ import { G56DurableQueueController, QueueGateClosed, QueueConflict } from './dur
 
 const schema = readFileSync(new URL('./durable_queue_schema.sql', import.meta.url), 'utf8');
 
-function fixture() {
+function fixture({ budget = false, quote = false, binding = false } = {}) {
   const db = new DatabaseSync(':memory:');
   db.exec('PRAGMA foreign_keys=ON');
   db.exec(schema);
@@ -41,6 +41,16 @@ function fixture() {
     },
   };
   let now = 1000;
+  let remainingCents = 1000;
+  const readProviderCap = budget ? () => ({
+    provider:'MODAL', workspace:'offline-fixture-workspace',
+    controlId:'offline-fake-hard-cap-NOT-AUTHORITATIVE',
+    hardEnforced:true, remainingCents, monthlyCapCents:1000,
+    checkedUnix:now
+  }) : undefined;
+  const verifyWorstCaseQuote = quote ? () => true : undefined;
+  const authorizeClaim = (proof, workerId) =>
+    proof === 'local-private-worker' && workerId === 'workerCPU';
   const authorizeUser = (principal, tenant) =>
     principal?.signed === true && principal.tenant === tenant;
   const authorizeProject = (principal, tenant, project) =>
@@ -51,6 +61,8 @@ function fixture() {
   const authorizeMaintenance = (proof) => proof === 'approved-private-maintainer';
   const controller = new G56DurableQueueController(storage, {
     authorizeUser, authorizeProject, authorizeWorker, authorizeMaintenance,
+    authorizeClaim, readProviderCap, verifyWorstCaseQuote,
+    expectedWorkspace:binding ? 'offline-fixture-workspace' : null,
     now: () => now,
   });
   function seed({ jid = 'G56_A', tenant = 'tenantA', key = 'submissionA',
@@ -67,6 +79,7 @@ function fixture() {
   const worker = (job = 'G56_A') => ({ job, signed: true });
   return {
     db, controller, seed, user, worker, setNow: value => { now = value; },
+    setProviderRemaining: value => { remainingCents = value; },
     row: (jid='G56_A') => db.prepare('SELECT * FROM g56_do_jobs WHERE id=?').get(jid),
     events: (jid='G56_A') => db.prepare('SELECT event FROM g56_do_events WHERE job_id=? ORDER BY seq').all(jid),
   };
@@ -218,6 +231,111 @@ test('quarantine stale attempts without retry or refunds and is idempotent', () 
   assert.equal(f.row().credit_charge,null);
   assert.equal(f.controller.quarantineStale({proof:'approved-private-maintainer'}),0);
   assert.equal(f.events().length,1);
+});
+
+function approveAdmission(db) {
+  // Simulates a separate owner ceremony ONLY in disposable SQLite.
+  db.exec('UPDATE g56_do_control SET killed=0 WHERE id=1');
+}
+function submitArgs({ principal = {tenant:'tenantA',project:'projectA',signed:true},
+                      tenant='tenantA', key='key1', cost=60, credits=3,
+                      hash='a'.repeat(64), attempts=2 } = {}) {
+  return {principal,tenant,project:'projectA',submissionKey:key,
+          payloadSha256:hash,maxCostCents:cost,creditUnits:credits,maxAttempts:attempts};
+}
+
+test('admission fails closed without budget, workspace binding or quote proof', () => {
+  const missing=fixture();
+  approveAdmission(missing.db);
+  assert.throws(() => missing.controller.submit(submitArgs()),
+                /PROVIDER_HARD_BUDGET_NOT_VERIFIED/);
+  assert.equal(missing.db.prepare('SELECT count(*) n FROM g56_do_jobs').get().n,0);
+  const unbound=fixture({budget:true,quote:true});
+  approveAdmission(unbound.db);
+  assert.throws(() => unbound.controller.submit(submitArgs()),
+                /MODAL_WORKSPACE_NOT_BOUND/);
+  const noQuote=fixture({budget:true,binding:true});
+  approveAdmission(noQuote.db);
+  assert.throws(() => noQuote.controller.submit(submitArgs()),
+                /WORST_CASE_QUOTE_NOT_VERIFIED/);
+  const killed=fixture({budget:true,binding:true,quote:true});
+  assert.throws(() => killed.controller.submit(submitArgs()),
+                /STUDIO_COMPUTE_KILL_SWITCH_ON/);
+});
+
+test('atomically submit once: duplicate request cannot mint reservation or change payload', () => {
+  const f=fixture({budget:true,binding:true,quote:true});
+  approveAdmission(f.db);
+  const a=f.controller.submit(submitArgs());
+  const b=f.controller.submit(submitArgs());
+  assert.equal(a.job_id,b.job_id);
+  assert.equal(a.state,'QUEUED');
+  assert.equal(f.db.prepare('SELECT count(*) n FROM g56_do_jobs').get().n,1);
+  assert.equal(f.row(a.job_id).reserved_cents,60);
+  assert.equal(f.row(a.job_id).credit_hold,3);
+  assert.throws(() => f.controller.submit(submitArgs({hash:'b'.repeat(64)})),
+                /IDEMPOTENCY_KEY_PAYLOAD_CONFLICT/);
+  assert.equal(f.db.prepare('SELECT count(*) n FROM g56_do_jobs').get().n,1);
+});
+
+test('global provider remaining headroom cannot be allocated twice across tenants', () => {
+  const f=fixture({budget:true,binding:true,quote:true});
+  approveAdmission(f.db);
+  f.setProviderRemaining(100);
+  f.controller.submit(submitArgs({cost:60,key:'one'}));
+  assert.throws(() => f.controller.submit(submitArgs({
+    tenant:'tenantB',principal:f.user('tenantB'),cost:50,key:'two'
+  })), /PROVIDER_GLOBAL_UNSETTLED_CAP/);
+  assert.equal(f.db.prepare('SELECT count(*) n FROM g56_do_jobs').get().n,1);
+  const second=f.controller.submit(submitArgs({
+    tenant:'tenantB',principal:f.user('tenantB'),cost:40,key:'two'
+  }));
+  assert.equal(second.state,'QUEUED');
+  assert.equal(f.db.prepare('SELECT sum(reserved_cents) n FROM g56_do_jobs').get().n,100);
+});
+
+test('tenant daily cost, credit units and concurrency all cap reservation', () => {
+  const f=fixture({budget:true,binding:true,quote:true});
+  approveAdmission(f.db);
+  f.controller.submit(submitArgs({key:'first',cost:100,credits:9}));
+  assert.throws(() => f.controller.submit(submitArgs({key:'too-much-cost',cost:60,credits:0})),
+                /TENANT_COST_CAP/);
+  assert.throws(() => f.controller.submit(submitArgs({key:'too-many-credits',cost:10,credits:2})),
+                /INSUFFICIENT_VERIFIED_CREDITS/);
+  f.controller.submit(submitArgs({key:'second',cost:10,credits:1}));
+  assert.throws(() => f.controller.submit(submitArgs({key:'third',cost:10,credits:0})),
+                /TENANT_CONCURRENCY_CAP/);
+  assert.equal(f.db.prepare('SELECT count(*) n FROM g56_do_jobs').get().n,2);
+});
+
+test('fenced claim requires authenticated worker, budget, and denies repeat claim', () => {
+  const f=fixture({budget:true,binding:true,quote:true});
+  approveAdmission(f.db);
+  const job=f.controller.submit(submitArgs());
+  assert.throws(() => f.controller.claim({proof:null,workerId:'workerCPU'}),
+                /WORKER_CLAIM_NOT_VERIFIED/);
+  const first=f.controller.claim({proof:'local-private-worker',workerId:'workerCPU',leaseSeconds:30});
+  assert.equal(first.job_id,job.job_id);
+  assert.match(first.fence,/^[A-Fa-f0-9-]{30,}$/);
+  assert.equal(f.row(job.job_id).state,'RUNNING');
+  assert.equal(f.row(job.job_id).attempts,1);
+  assert.equal(f.controller.claim({proof:'local-private-worker',workerId:'workerCPU'}),null);
+  f.controller.emergencyStop({proof:'approved-private-maintainer'});
+  assert.throws(() => f.controller.claim({proof:'local-private-worker',workerId:'workerCPU'}),
+                /STUDIO_COMPUTE_KILL_SWITCH_ON/);
+  assert.equal(f.row(job.job_id).credit_charge,null);
+});
+
+test('potential prior attempt is quarantined; never silently autoreties', () => {
+  const f=fixture({budget:true,binding:true,quote:true});
+  approveAdmission(f.db);
+  f.seed({attempts:1, key:'retry-uncertain'});
+  assert.equal(f.controller.claim({proof:'local-private-worker',workerId:'workerCPU'}),null);
+  assert.equal(f.row().state,'NEEDS_REVIEW');
+  assert.equal(f.row().reserved_cents,60);
+  assert.equal(f.row().charged_cents,null);
+  assert.equal(f.row().credit_charge,null);
+  assert.equal(f.events().filter(x=>x.event==='AUTO_RETRY_QUARANTINED').length,1);
 });
 
 test('fail closed without independent identity, worker and maintenance adapters', () => {
