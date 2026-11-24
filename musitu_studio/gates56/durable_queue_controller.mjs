@@ -190,12 +190,14 @@ export class G56DurableQueueController {
         return this._safe(old);
       }
       this._open();
+      // Budget authority is a prerequisite even to evaluate an admissible
+      // quote; absent authority takes precedence over simulated quote checks.
+      const cap=this._providerBudget(at);
       if (typeof this.verifyWorstCaseQuote !== 'function' ||
           this.verifyWorstCaseQuote({
             tenant,project,payloadSha256,maxCostCents,maxAttempts
           }) !== true)
         throw new QueueGateClosed('WORST_CASE_QUOTE_NOT_VERIFIED');
-      const cap=this._providerBudget(at);
       this._checkHeadroom(cap,maxCostCents);
       const settings=this._row(
         'SELECT * FROM g56_do_tenants WHERE tenant=?',tenant);
