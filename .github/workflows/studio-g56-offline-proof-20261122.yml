@@ -30,7 +30,8 @@ jobs:
         run: |
           python -m unittest -v \
             musitu_studio.gates56.test_ledger \
-            musitu_studio.gates56.test_blender_bridge
+            musitu_studio.gates56.test_blender_bridge \
+            musitu_studio.gates56.test_modal_budget_observer
       - name: Record non-provider result boundary
         run: |
           echo 'STUDIO_G56_SOURCE_ONLY_OFFLINE_TESTS=PASS'
