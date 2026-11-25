@@ -1,5 +1,11 @@
 # MUSITU AXIOM Gate 3 — security, custody and anti-rollback
 
+## 26 November — updated owner attempt stopped at the profile read
+
+The1,082-byte follow-up receipt (SHA256 f08a76f987c808eaa5a4d5ffabf9d9748631e26df2e456d8d7d1960f7dd48412) reports25 November23:18:35.070Z and matches source2bc70a7/the issued challenge while fresh. Its profile outcome is unknown with null HTTP status; no principal, MFA, user-token inventory or GitHub inventory qualified. The old reader hid transport/body/JSON/envelope distinctions. This receipt does not establish invalid credentials, changed permissions or revocation. Preserve the earlier successful19:36:49Z owner metadata and six scoped build-write denials at their original scopes. Exact original and triage are in ../gate3_owner_provider_readback_20261124/OWNER_CUSTODY_PROVIDER_READBACK_20261125_231835Z_PROFILE_UNKNOWN.json and PROFILE_UNKNOWN_REVIEW_20261126_NOT_RELEASE.json.
+
+The updated same single-file follow-up retains safe phases/HTTP status/fixed error codes and each bounded profile attempt, uses10-second GET deadlines and one transient profile retry, keeps TLS/authorization/envelope failures unqualified, and starts the GitHub metadata budget on its first GitHub call. All requests remain fixed-host GETs. No credential, permission, signer or backup change is requested. Its full contract is in ../../qualification/GATE3_OWNER_CUSTODY_FOLLOWUP_20261126_NOT_RELEASE.md. Actual recovery still needs a new owner receipt. Gate3 OPEN/HOLD; private ceremonies, B27 and release holds remain unchanged.
+
 ## 26 November — owner provider receipt received; two inventories incomplete
 
 The owner returned OWNER_CUSTODY_PROVIDER_READBACK.json (14,519 bytes,SHA256 af89c9703cf8f8d5a8b8b1a8036698a9d5ca2351976f55cfefd1360df12b06fa), reporting execution24 November19:36:49.432Z. Strict Node and independent Python checks match the original source/challenge/repository/account and freshness at execution. Accept its reported profile200/MFA, accepted A2 admin membership, complete one-member account list, complete empty account-owned-token list, indefinite b27 retention, and known recovery token11 read-named/zero write-named groups. This is owner-supplied source output, not provider-signed/OS attestation or exclusive-custody proof. Exact original and review receipt are in ../gate3_owner_provider_readback_20261124/.

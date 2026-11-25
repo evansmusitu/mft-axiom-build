@@ -105,3 +105,53 @@ test('changing totals, oversized inventories and missing pagination stay explici
   assert.equal(report.user_tokens.completeness_reason,variant==='changed_total'?'PAGINATION_CHANGED':variant==='oversized'?'PAGINATION_INVALID_OR_OVER_BUDGET':'PAGINATION_INVALID_OR_OVER_BUDGET');
  }
 });
+test('a transient profile connection reset is retried once with both safe outcomes retained',async()=>{
+ const f=fake();let calls=0;
+ const {report}=await collect(f,{fetchImpl:async req=>{
+  if(new URL(req.url).pathname==='/client/v4/user'&&++calls===1)throw Object.assign(Error(secret),{cause:{code:'ECONNRESET',private_host:secret}});
+  return f.fetchImpl(req);
+ }});
+ assert.equal(calls,2);assert.equal(report.collection_complete,true);assert.equal(report.profile_read.attempts.length,2);
+ assert.deepEqual(report.profile_read.attempts[0].diagnostic.network_error_codes,['ECONNRESET']);assert.equal(report.profile_read.attempts[1].http_status,200);assert(!JSON.stringify(report).includes(secret));
+});
+test('profile401 and403 refusals are not retried and retain counts and unattempted GitHub state',async()=>{
+ for(const status of [401,403]){const f=fake();let calls=0;
+  const {report}=await collect(f,{fetchImpl:async()=>{calls++;return new Response(null,{status});}});
+  assert.equal(calls,1);assert.equal(report.profile_read.http_status,status);assert.equal(report.provider_get_requests,1);assert.equal(report.provider_write_requests,0);
+  assert.equal(report.github.state,'NOT_ATTEMPTED_OWNER_PRINCIPAL_REQUIRED');assert.equal(report.collection_complete,false);assert.equal(f.ghPaths.length,0);
+ }
+});
+test('invalid JSON after HTTP200 retains the observed status and no private body',async()=>{
+ const f=fake(),{report}=await collect(f,{fetchImpl:async()=>new Response('{'+secret,{headers:{'content-type':'application/json'}})});
+ assert.equal(report.profile_read.http_status,200);assert.equal(report.profile_read.diagnostic.phase,'JSON_PARSE');
+ assert(report.profile_read.diagnostic.body_bytes_received>0);
+ assert.equal(report.profile_read.state,'PROVIDER_JSON_INVALID_UNKNOWN');assert.equal(report.profile_read.attempts.length,1);assert.equal(report.collection_complete,false);assert(!JSON.stringify(report).includes(secret));
+});
+test('an invalid profile envelope reports only type diagnostics and never relaxes acceptance',async()=>{
+ const f=fake(),{report}=await collect(f,{fetchImpl:async()=>Response.json({success:true,errors:null,result:{id:userId,email,private_echo:secret}})});
+ assert.equal(report.profile_read.http_status,200);assert.equal(report.profile_read.diagnostic.phase,'ENVELOPE_CHECK');assert.equal(report.profile_read.diagnostic.envelope_shape.errors_kind,'NULL');
+ assert.equal(report.provider_principal_identifier_sha256,null);assert.equal(report.collection_complete,false);assert(!JSON.stringify(report).includes(secret));
+});
+test('TLS errors expose only fixed error codes and never trigger insecure fallback or retries',async()=>{
+ const f=fake();let calls=0;
+ const {report}=await collect(f,{fetchImpl:async()=>{calls++;throw Object.assign(Error(secret),{cause:{code:'CERT_HAS_EXPIRED',hostname:secret}});}});
+ assert.equal(calls,1);assert.deepEqual(report.profile_read.diagnostic.network_error_codes,['CERT_HAS_EXPIRED']);assert.equal(report.profile_read.http_status,null);
+ assert.equal(report.collection_complete,false);assert(!JSON.stringify(report).includes(secret));
+});
+test('a header timeout has two bounded profile attempts and never starts inventory reads',async()=>{
+ const f=fake();let calls=0;const start=Date.now();
+ const {report}=await collect(f,{providerReadTimeoutMs:20,fetchImpl:()=>{calls++;return new Promise(()=>{});}});
+ assert.equal(calls,2);assert(Date.now()-start<1500);assert.equal(report.profile_read.state,'PROVIDER_READ_DEADLINE_UNKNOWN');assert.equal(report.profile_read.diagnostic.phase,'FETCH_HEADERS');
+ assert.equal(report.provider_get_requests,2);assert.equal(report.profile_read.attempts.length,2);assert.equal(report.collection_complete,false);assert.equal(f.ghPaths.length,0);
+});
+test('a body timeout retains HTTP200 and stays unqualified after the bounded retry',async()=>{
+ const f=fake(),{report}=await collect(f,{providerReadTimeoutMs:20,fetchImpl:async()=>new Response(new ReadableStream({start(){}}),{status:200,headers:{'content-type':'application/json'}})});
+ assert.equal(report.profile_read.http_status,200);assert.equal(report.profile_read.state,'PROVIDER_READ_DEADLINE_UNKNOWN');assert.equal(report.profile_read.diagnostic.phase,'BODY_READ');
+ assert.equal(report.profile_read.attempts.length,2);assert.equal(report.collection_complete,false);
+});
+test('a transient HTTP503 profile response can recover without hiding its first outcome',async()=>{
+ const f=fake();let calls=0;
+ const {report}=await collect(f,{fetchImpl:async req=>new URL(req.url).pathname==='/client/v4/user'&&++calls===1?new Response(null,{status:503}):f.fetchImpl(req)});
+ assert.equal(calls,2);assert.equal(report.profile_read.attempts[0].http_status,503);assert.equal(report.profile_read.attempts[1].http_status,200);assert.equal(report.collection_complete,true);
+ assert.equal(report.independent_custody_automatically_qualified,false);assert.equal(report.gate3_closed,false);
+});

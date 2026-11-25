@@ -1,0 +1,28 @@
+✔ owner-local provider and GitHub metadata collection remains GET-only and is not automatic custody acceptance (16.568962ms)
+✔ missing GitHub metadata authorization stays incomplete rather than proving no alternatives exist (4.400017ms)
+✔ repository identity drift stops private GitHub inventory reads (3.569007ms)
+✔ missing CF pagination metadata cannot certify an empty member inventory (3.974912ms)
+✔ expired owner inventory challenge is refused before provider access without repeating signer proof (0.362389ms)
+✔ an API token whose verification is unavailable cannot be called an independent owner credential (0.880094ms)
+✔ a valid owner API-token identifier uses a typed digest and never exports the identifier (2.209447ms)
+✔ credential-reflecting provider identifiers do not become credential hashes (0.399005ms)
+✔ CLI inspection requires no credentials and actual collection refuses outside owner Windows context (182.353026ms)
+✔ a bounded50-row token request collects12 tokens without an unnecessary second page (2.296709ms)
+✔ pagination failure diagnostics distinguish duplicate identifiers and never certify a partial list (1.541205ms)
+✔ changing totals, oversized inventories and missing pagination stay explicitly unqualified (5.444869ms)
+✔ a transient profile connection reset is retried once with both safe outcomes retained (205.694749ms)
+✔ profile401 and403 refusals are not retried and retain counts and unattempted GitHub state (0.552907ms)
+✔ invalid JSON after HTTP200 retains the observed status and no private body (0.561871ms)
+✔ an invalid profile envelope reports only type diagnostics and never relaxes acceptance (0.454459ms)
+✔ TLS errors expose only fixed error codes and never trigger insecure fallback or retries (0.259343ms)
+✔ a header timeout has two bounded profile attempts and never starts inventory reads (241.8673ms)
+✔ a body timeout retains HTTP200 and stays unqualified after the bounded retry (241.315924ms)
+✔ a transient HTTP503 profile response can recover without hiding its first outcome (203.505873ms)
+ℹ tests 20
+ℹ suites 0
+ℹ pass 20
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 1267.426767

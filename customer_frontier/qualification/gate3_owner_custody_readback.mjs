@@ -20,24 +20,46 @@ const cfPath=p=>['/user','/user/tokens/verify',`/accounts/${A2}/tokens/verify`,`
  new RegExp('^(/memberships|/accounts/'+A2+'/members)\\?page=[1-5]&per_page=50'+ '(?:&status=accepted)?$').test(p);
 const ghPath=p=>p==='/repos/'+REPO||new RegExp('^/repos/'+REPO+'/(actions/(secrets|variables)|environments)\\?per_page=100&page=[1-5]$').test(p)||
  new RegExp('^/repos/'+REPO+'/environments/[^/?#]+/(secrets|variables)\\?per_page=100&page=[1-5]$').test(p);
-function providerClient(credential,fetchImpl){
+function providerClient(credential,fetchImpl,timeoutMs){
+ if(!Number.isInteger(timeoutMs)||timeoutMs<20||timeoutMs>10000)fail();
  const headers=credential.kind==='global_key'?{'x-auth-key':credential.secret,'x-auth-email':credential.email}:{authorization:'Bearer '+credential.secret};let count=0;
- return {get count(){return count;},async get(path){
-  if(!cfPath(path))fail();count++;const abort=new AbortController();let timer,reader;
-  const deadline=new Promise((_,reject)=>{timer=setTimeout(()=>{abort.abort();reject(Error('TIMEOUT'));},5000);});
+ const knownCodes=new Set(['ECONNRESET','ECONNREFUSED','ENOTFOUND','EAI_AGAIN','ETIMEDOUT','ENETUNREACH','EHOSTUNREACH','UND_ERR_CONNECT_TIMEOUT','UND_ERR_HEADERS_TIMEOUT','UND_ERR_BODY_TIMEOUT','CERT_HAS_EXPIRED','DEPTH_ZERO_SELF_SIGNED_CERT','UNABLE_TO_VERIFY_LEAF_SIGNATURE','ERR_TLS_CERT_ALTNAME_INVALID']);
+ const transientCodes=new Set(['ECONNRESET','EAI_AGAIN','ETIMEDOUT','ENETUNREACH','EHOSTUNREACH','UND_ERR_CONNECT_TIMEOUT','UND_ERR_HEADERS_TIMEOUT','UND_ERR_BODY_TIMEOUT']);
+ async function read(path){
+  if(!cfPath(path)||++count>32)fail();const abort=new AbortController();let timer,reader,timedOut=false,httpStatus=null,size=0,phase='REQUEST_BUILD',media='NONE',shape,exceptionKind='NONE';
+  const diagnostic=(codes=[])=>({phase,exception_kind:exceptionKind,timeout_ms:timeoutMs,body_bytes_received:Math.min(size,1048577),response_media_type:media,network_error_codes:codes,...(shape?{envelope_shape:shape}:{})});
+  const deadline=new Promise((_,reject)=>{timer=setTimeout(()=>{timedOut=true;abort.abort();reject(Error('OWNER_READ_DEADLINE'));},timeoutMs);});
   try{
-   const r=await Promise.race([fetchImpl(new Request('https://api.cloudflare.com/client/v4'+path,{method:'GET',headers:{accept:'application/json',...headers},redirect:'manual',credentials:'omit',cache:'no-store',signal:abort.signal})),deadline]);
-   if(r.status!==200){try{void r.body?.cancel().catch(()=>{});}catch{}return {http_status:r.status,state:'PROVIDER_READ_UNAVAILABLE_NOT_ABSENCE'};}
-   reader=r.body?.getReader();if(!reader)fail();const parts=[];let size=0;
+   const req=new Request('https://api.cloudflare.com/client/v4'+path,{method:'GET',headers:{accept:'application/json',...headers},redirect:'manual',credentials:'omit',cache:'no-store',signal:abort.signal});phase='FETCH_HEADERS';
+   const r=await Promise.race([fetchImpl(req),deadline]);
+   if(!Number.isInteger(r?.status)||r.status<100||r.status>599)fail();httpStatus=r.status;
+   const type=r.headers?.get?.('content-type')||'';media=/^application\/json(?:\s*;|$)/i.test(type)?'JSON':/^text\/html(?:\s*;|$)/i.test(type)?'HTML':type?'OTHER':'NONE';
+   if(r.status!==200){phase='HTTP_STATUS';try{void r.body?.cancel().catch(()=>{});}catch{}return {http_status:r.status,state:'PROVIDER_READ_UNAVAILABLE_NOT_ABSENCE',diagnostic:diagnostic(),retryable:[502,503,504].includes(r.status)};}
+   phase='BODY_READ';
+   reader=r.body?.getReader();if(!reader)fail();const parts=[];
    for(;;){const p=await Promise.race([reader.read(),deadline]);if(p.done)break;if(!(p.value instanceof Uint8Array)||(size+=p.value.length)>1048576)fail();parts.push(p.value);}
    const raw=new Uint8Array(size);let at=0;for(const p of parts){raw.set(p,at);at+=p.length;}
-   const d=parseIdentityJson(new TextDecoder('utf-8',{fatal:true}).decode(raw));
-   if(d?.success!==true||!Array.isArray(d.errors)||d.errors.length)fail();return {http_status:200,state:'PROVIDER_READ_OBSERVED',data:d};
-  }catch{return {http_status:null,state:'PROVIDER_READ_INVALID_OR_UNAVAILABLE_UNKNOWN'};}
+   phase='JSON_PARSE';const d=parseIdentityJson(new TextDecoder('utf-8',{fatal:true}).decode(raw));
+   phase='ENVELOPE_CHECK';shape={success_type:typeof d?.success,success_is_true:d?.success===true,errors_kind:d?.errors===null?'NULL':Array.isArray(d?.errors)?'ARRAY':d?.errors===undefined?'ABSENT':typeof d.errors,errors_count:Array.isArray(d?.errors)?d.errors.length:null};
+   if(d?.success!==true||!Array.isArray(d.errors)||d.errors.length)fail();phase='COMPLETE';return {http_status:200,state:'PROVIDER_READ_OBSERVED',data:d,diagnostic:diagnostic()};
+  }catch(error){
+   exceptionKind=['Error','TypeError','RangeError','AbortError','SyntaxError'].includes(error?.name)?error.name:'OTHER';
+   const codes=[...new Set([error?.code,error?.cause?.code,...(Array.isArray(error?.cause?.errors)?error.cause.errors.slice(0,6).map(e=>e?.code):[])].filter(c=>knownCodes.has(c)))];
+   const state=timedOut?'PROVIDER_READ_DEADLINE_UNKNOWN':phase==='JSON_PARSE'?'PROVIDER_JSON_INVALID_UNKNOWN':phase==='ENVELOPE_CHECK'?'PROVIDER_ENVELOPE_INVALID_UNKNOWN':phase==='BODY_READ'?'PROVIDER_BODY_READ_UNKNOWN':'PROVIDER_TRANSPORT_UNKNOWN';
+   const tlsFailure=codes.some(c=>['CERT_HAS_EXPIRED','DEPTH_ZERO_SELF_SIGNED_CERT','UNABLE_TO_VERIFY_LEAF_SIGNATURE','ERR_TLS_CERT_ALTNAME_INVALID'].includes(c));
+   return {http_status:httpStatus,state,diagnostic:diagnostic(codes),retryable:!tlsFailure&&(timedOut||codes.some(c=>transientCodes.has(c)))};
+  }
   finally{clearTimeout(timer);if(reader){try{void reader.cancel().catch(()=>{});}catch{}try{reader.releaseLock();}catch{}}}
+ }
+ return {get count(){return count;},async get(path){
+  const first=await read(path);
+  // Only the fixed owner-profile GET can retry, once. Refusals, malformed
+  // JSON/envelopes and TLS failures do not justify changing auth or security.
+  if(path==='/user'&&first.retryable){await new Promise(resolve=>setTimeout(resolve,200));const second=await read(path);return {...second,attempts:[pub(first),pub(second)]};}
+  return {...first,attempts:[pub(first)]};
  }};
 }
-const pub=r=>({state:r.state,http_status:r.http_status});
+const pub=r=>({state:r.state,http_status:r.http_status,...(r.diagnostic?{diagnostic:r.diagnostic}:{}),...(r.attempts?{attempts:r.attempts}:{})});
 async function cfPages(api,base,perPage,project){
  const rows=[],ids=new Set(),maxRows=base.endsWith('/tokens')?50:250;
  const out={complete:false,pages:0,rows,completeness_reason:'PAGE_BUDGET_EXHAUSTED',pagination_observations:[]};
@@ -85,10 +107,10 @@ async function ghPages(ghGet,base,key){
  return out;
 }
 function githubClient(executable){
- const started=Date.now();let calls=0;
+ let started=null,calls=0;
  return async path=>{
   if(!ghPath(path))fail();if(!safeString(executable,1024))return {state:'GITHUB_CLI_NOT_AVAILABLE'};
-  if(++calls>80||Date.now()-started>=120000)return {state:'GITHUB_METADATA_BUDGET_EXHAUSTED_NOT_COMPLETE'};
+  started??=Date.now();if(++calls>80||Date.now()-started>=120000)return {state:'GITHUB_METADATA_BUDGET_EXHAUSTED_NOT_COMPLETE'};
   try{
    const childEnv=Object.fromEntries(Object.entries(process.env).filter(([key])=>!(/CLOUDFLARE|AXIOM_D1_RECOVERY|OWNER_CREDENTIAL/.test(key))));
    const r=spawnSync(executable,['api','--hostname','github.com','--method','GET',path],{encoding:'utf8',timeout:Math.max(1,Math.min(15000,120000-(Date.now()-started))),maxBuffer:1048576,windowsHide:true,env:{...childEnv,GH_PROMPT_DISABLED:'1',GH_DEBUG:''}});
@@ -97,25 +119,31 @@ function githubClient(executable){
   }catch{return {state:'GITHUB_METADATA_INVALID_OR_UNAVAILABLE'};}
  };
 }
-export async function collectOwnerCustodyReadback({credential,fetchImpl=globalThis.fetch,ghGet=githubClient(null),now=Date.now(),challenge}={}){
+export async function collectOwnerCustodyReadback({credential,fetchImpl=globalThis.fetch,ghGet=githubClient(null),now=Date.now(),challenge,providerReadTimeoutMs=10000}={}){
  if(!credential||!['global_key','api_token'].includes(credential.kind)||typeof credential.secret!=='string'||!/^[A-Za-z0-9._~-]{16,200}$/.test(credential.secret)||
   (credential.kind==='global_key'&&(!safeString(credential.email,254)||!/^\S+@\S+\.\S+$/.test(credential.email)))||
   !challenge||challenge.schema!=='musitu.axiom.gate3.owner-custody-challenge.v1'||!hex32(challenge.nonce)||!(/^[a-f0-9]{40}$/.test(challenge.source_commit||''))||challenge.repository!==REPO||challenge.account_id!==A2||
   !Number.isFinite(Date.parse(challenge.issued_at_utc))||!Number.isFinite(Date.parse(challenge.expires_at_utc))||now<Date.parse(challenge.issued_at_utc)-60000||now>=Date.parse(challenge.expires_at_utc)||Date.parse(challenge.expires_at_utc)-Date.parse(challenge.issued_at_utc)!==172800000)fail();
  const protectedValues=new Set([credential.secret,...(credential.email?[credential.email]:[])]),privateMetadata={github_metadata_names:[],cloudflare_token_names:[]};
  const typed=(domain,value)=>hex32(value)&&![...protectedValues].some(s=>value.includes(s))?hash(domain+'\n'+value):null;
- const api=providerClient(credential,fetchImpl),profile=await api.get('/user'),user=profile.data?.result;
+ const api=providerClient(credential,fetchImpl,providerReadTimeoutMs),profile=await api.get('/user'),user=profile.data?.result;
  const userId=typed('cloudflare-user-id',user?.id),report={schema:'musitu.axiom.gate3.owner-custody-provider-readback.v1',observed_at_utc:new Date(now).toISOString(),challenge_nonce:challenge.nonce,source_commit:challenge.source_commit,public_challenge_sha256:hash(JSON.stringify(challenge)),
   repository:REPO,account_id:A2,execution_origin:'OWNER_LOCAL_SOURCE_PATH_NOT_OS_ATTESTATION',private_credential_written_or_exported:false,
   profile_read:pub(profile),provider_principal_identifier_sha256:userId,provider_mfa_enabled:typeof user?.two_factor_authentication_enabled==='boolean'?user.two_factor_authentication_enabled:null,
   authentication_kind:credential.kind,collection_complete:false,independent_custody_automatically_qualified:false,credential_content_inventory_exhaustive:false,
+  provider_get_requests:api.count,provider_write_requests:0,github_secret_values_requested:false,github_variable_values_exported:false,
+  github:{repository_identity_verified:false,metadata_complete:false,scopes:[],state:'NOT_ATTEMPTED_OWNER_PRINCIPAL_REQUIRED'},
   gate3_closed:false,B27:'FAILED_IN_SYNTHETIC_ATTACK',release_status:'NOT_RELEASE'};
+ const finish=(privatePart={})=>{report.provider_get_requests=api.count;
+  const serialized=JSON.stringify({report,privateMetadata:privatePart});if([...protectedValues].some(s=>serialized.includes(s)))fail();
+  return {report,privateMetadata:privatePart};};
  if(credential.kind==='api_token'){
   let verification=await api.get('/user/tokens/verify');if(!verification.data)verification=await api.get(`/accounts/${A2}/tokens/verify`);
   const id=typed('cloudflare-token-id',verification.data?.result?.id);report.owner_token_verification=pub(verification);report.owner_token_identifier_sha256=id;
-  if(!id||verification.data?.result?.status!=='active'||KNOWN.has(id)){report.status=KNOWN.has(id)?'KNOWN_BUILD_CREDENTIAL_REJECTED_OWNER_ONLY_INPUT_REQUIRED':'OWNER_TOKEN_IDENTITY_UNQUALIFIED';return {report,privateMetadata:{}};}
+  report.provider_get_requests=api.count;
+  if(!id||verification.data?.result?.status!=='active'||KNOWN.has(id)){report.status=KNOWN.has(id)?'KNOWN_BUILD_CREDENTIAL_REJECTED_OWNER_ONLY_INPUT_REQUIRED':'OWNER_TOKEN_IDENTITY_UNQUALIFIED';return finish();}
  }
- if(!userId){report.status='OWNER_PRINCIPAL_PROVIDER_READBACK_REQUIRED';return {report,privateMetadata:{}};}
+ if(!userId){report.status='OWNER_PRINCIPAL_PROVIDER_READBACK_REQUIRED';return finish();}
  const memberships=await cfPages(api,'/memberships',50,m=>({account_is_a2:m.account?.id===A2,status:m.status,administrator_role_observed:Array.isArray(m.roles)&&m.roles.some(x=>typeof x==='string'&&/^(account administrator|administrator|super administrator(?: - all privileges)?|owner)$/i.test(x))}));
  report.memberships=memberships;report.operator_a2_accepted_administrator_observed=memberships.rows.some(m=>m.account_is_a2&&m.status==='accepted'&&m.administrator_role_observed);
  report.account_members=await cfPages(api,`/accounts/${A2}/members`,50,m=>({member_identifier_sha256:typed('cloudflare-membership-id',m.id),status:['accepted','pending','rejected'].includes(m.status)?m.status:'UNKNOWN',
@@ -151,8 +179,7 @@ export async function collectOwnerCustodyReadback({credential,fetchImpl=globalTh
  report.provider_get_requests=api.count;report.provider_write_requests=0;report.github_secret_values_requested=false;report.github_variable_values_exported=false;
  report.collection_complete=report.operator_a2_accepted_administrator_observed&&memberships.complete&&report.account_members.complete&&report.user_tokens.complete&&report.account_owned_tokens.complete&&report.github.metadata_complete;
  report.status=report.collection_complete?'OWNER_PROVIDER_METADATA_COLLECTED_REVIEW_REQUIRED_NOT_RELEASE':'OWNER_PROVIDER_METADATA_PARTIAL_REVIEW_REQUIRED_NOT_RELEASE';
- const serialized=JSON.stringify({report,privateMetadata});if([...protectedValues].some(s=>serialized.includes(s)))fail();
- return {report,privateMetadata};
+ return finish(privateMetadata);
 }
 async function main(){
  if(process.argv[2]==='--inspect'&&process.argv.length===3){process.stdout.write(JSON.stringify({status:'OWNER_CUSTODY_PUBLIC_SOURCE_INSPECTION_NOT_OWNER_EXECUTION',provider_requests:0,gate3_closed:false,release_status:'NOT_RELEASE'})+'\n');return;}
