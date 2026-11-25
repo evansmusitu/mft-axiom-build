@@ -1,7 +1,7 @@
 {
   "schema": "musitu.axiom.gate3-security-current.v1",
-  "observed_at_utc": "2026-11-24T18:28:12.881Z",
-  "status": "HOLD_BOUNDED_WORKER_ASSETS_R2_DENIAL_PASSED_INDEPENDENT_CUSTODY_PENDING",
+  "observed_at_utc": "2026-11-24T19:36:49.432Z",
+  "status": "HOLD_OWNER_PROVIDER_ADMIN_MFA_AND_RETENTION_READBACK_RECEIVED_TOKEN_AND_GITHUB_INVENTORY_INCOMPLETE",
   "gate3_closed": false,
   "release_status": "NOT_RELEASE",
   "gate2_closed": true,
@@ -11,7 +11,7 @@
     "conclusion": "success"
   },
   "product_source_modified": true,
-  "provider_operations": 433,
+  "provider_operations": 441,
   "credentials_or_private_keys_obtained": false,
   "reviewed_heads": {
     "pr192": "14b5c520bd7cd53ccd4978f575dfcbe9b250ed0c",
@@ -59,7 +59,7 @@
       "browser": "success"
     }
   },
-  "next_required_input": "Run the pinned owner-only GET readback packet on the owner Windows PC with existing owner credentials and existing GitHub CLI authorization; return only sanitized OWNER_CUSTODY_PROVIDER_READBACK.json. Review provider principal/MFA, token/member metadata, alternative inventory/provenance and independence; do not repeat accepted signer/source approval or completed permission edits. Six scoped live write denials now passed. Private genesis/retirement and hosted destructive recovery follow only after applicable independent gates.",
+  "next_required_input": "Run the updated single owner-local Windows follow-up file. It handles missing GitHub CLI setup/browser sign-in before Cloudflare input and requests bounded50-row token pages with precise pagination holds. Return only OWNER_CUSTODY_PROVIDER_READBACK.json; keep private token-name/GitHub-name inventory locally for provenance review. No signer proof, permission edit or backup redo is requested. Independent custody, alternative credential reconciliation and approved private hosted ceremonies remain unqualified.",
   "next_gate_blocked": "GATE4_REAL_CUSTOMER_IDENTITY",
   "source_manifest_sha256": "0e9b2de4e9f3b5982246ed443251563f6489092bd339007538bc01df7552cad5",
   "local_regression_results_sha256": "bd28f12146727875ac707dd705d0f24f6e1c07ba22b684bc2fb65f0edabd22b9",
@@ -78,7 +78,7 @@
     "declaration_sha256": "39cd12389215354d0173214a438cadf834424746498af97162c5e1c0e5243360",
     "provider_qualification_separate": true
   },
-  "next_engineering_step": "Run the pinned owner-only GET readback packet on the owner Windows PC with existing owner credentials and existing GitHub CLI authorization; return only sanitized OWNER_CUSTODY_PROVIDER_READBACK.json. Review provider principal/MFA, token/member metadata, alternative inventory/provenance and independence; do not repeat accepted signer/source approval or completed permission edits. Six scoped live write denials now passed. Private genesis/retirement and hosted destructive recovery follow only after applicable independent gates.",
+  "next_engineering_step": "Run the updated single owner-local Windows follow-up file. It handles missing GitHub CLI setup/browser sign-in before Cloudflare input and requests bounded50-row token pages with precise pagination holds. Return only OWNER_CUSTODY_PROVIDER_READBACK.json; keep private token-name/GitHub-name inventory locally for provenance review. No signer proof, permission edit or backup redo is requested. Independent custody, alternative credential reconciliation and approved private hosted ceremonies remain unqualified.",
   "known_builder_authority_write_observation": {
     "evidence_run_id": 43630591859,
     "scope": "Recovery account 67469478aa9349fa0a57fe3a72da200a, also the pinned Authority 2 account",
@@ -96,7 +96,7 @@
     "evidence_sha256": "b0713cbfc086e81bd0da9bd38f49232ba95968a5034b25cc1d0a6410e3e70474",
     "provider_or_custody_independent_qualification_earned": false
   },
-  "current_operational_block": "GLOBAL_KEY_ALTERNATIVE_CREDENTIAL_INVENTORY_AND_INDEPENDENT_PROVIDER_CUSTODY_PENDING",
+  "current_operational_block": "INCOMPLETE_USER_TOKEN_PAGINATION_GITHUB_METADATA_AND_GLOBAL_KEY_ALTERNATIVE_CUSTODY_REVIEW",
   "credential_restrictions_prepared_path": "AUTHORITY2_BUILD_CREDENTIAL_RESTRICTIONS_20261114_NOT_RELEASE.md",
   "credential_restrictions_applied": false,
   "owner_confirmation_updated_at_utc": "2026-11-14T21:33:40.634Z",
@@ -155,7 +155,7 @@
     "genesis_initialized": false,
     "independent_security_approval_earned": false
   },
-  "current_review_update_utc": "2026-11-24T18:31:13.924776Z",
+  "current_review_update_utc": "2026-11-25T22:34:12.840242Z",
   "serving_worker_r2_module_or_wrangler_config_modified": false,
   "source_change_is_review_only_genesis_candidate": true,
   "current_review_heads": {
@@ -349,7 +349,7 @@
   "B27": "FAILED_IN_SYNTHETIC_ATTACK",
   "parity_superiority": "NOT_CERTIFIED",
   "unavailable_final_usage": "UNKNOWN",
-  "this_checkpoint_scope": "BUILD_ORIGIN_SIX_BOUNDED_WORKER_ASSETS_R2_DENIALS_PASSED_OWNER_CUSTODY_PACKET_ISSUED_NOT_INDEPENDENT_ACCEPTANCE",
+  "this_checkpoint_scope": "OWNER_SUPPLIED_PARTIAL_PROVIDER_READBACK_ACCEPTED_AT_METADATA_SCOPE_NO_CUSTODY_OR_RELEASE_CERTIFICATION",
   "historical_checkpoint_scope_before_provider_preflight_20261124": {
     "observed_at_utc": "2026-11-24T07:37:52.057Z",
     "status": "HOLD_PROVIDER_CREDENTIAL_SEPARATION_AND_HOSTED_AUTHORITY_ACCEPTANCE_REQUIRED",
@@ -359,7 +359,7 @@
     "this_checkpoint_scope": "PUBLIC_POSSESSION_EVIDENCE_ONLY_NO_RUNTIME_OR_PROVIDER_CHANGE",
     "operator_next_step_path": "authority2_owner_possession_20261124/NEXT_PROVIDER_CUSTODY_STEP_NOT_RELEASE.md"
   },
-  "provider_operation_scope": "Thirteen retained observations: prior eight GET-only attempts plus five disposable-canary runs; 397 GETs and 36 bounded write attempts (433 total). Fresh private empty control buckets cleaned; no retained/authority/customer state targeted. This is builder-origin evidence, not independent custody.",
+  "provider_operation_scope": "Retained build observations397 GETs plus36 bounded write attempts; owner-supplied readback reports8 additional GETs/zero writes (recorded total441). Owner output is source/challenge-matched, not server/OS attestation.",
   "actual_provider_credential_observation_20261124": {
     "source_commit": "d22bc554014676e9514500f44c75012f5ba37d86",
     "source_tree": "a3079a769238bb4de25774bbd1ce92e3e2b2f601",
@@ -502,7 +502,8 @@
       "owner_execution": false
     },
     "actual_owner_execution": false,
-    "receipt_returned": false
+    "receipt_returned": true,
+    "actual_owner_execution_report_received": true
   },
   "hosted_environment_custody_attempt_20261124": {
     "source_commit": "119d9d2863c9bae6c836cfd45116241406119ead",
@@ -567,5 +568,54 @@
     "gate3_closed": false,
     "report_path": "../gate3_custody_denial_20261124_not_release/HOSTED_WINDOWS_FULL_MODE_ATTEMPT_20261124_NOT_OWNER_PROOF.json",
     "report_sha256": "097516158b84f74b9c5c3d8900a539d9f4f462318d2d477d7a8df2afe01ec7aa"
+  },
+  "historical_checkpoint_before_owner_provider_receipt_20261126": {
+    "observed_at_utc": "2026-11-24T18:28:12.881Z",
+    "status": "HOLD_BOUNDED_WORKER_ASSETS_R2_DENIAL_PASSED_INDEPENDENT_CUSTODY_PENDING",
+    "provider_operations": 433,
+    "provider_operation_scope": "Thirteen retained observations: prior eight GET-only attempts plus five disposable-canary runs; 397 GETs and 36 bounded write attempts (433 total). Fresh private empty control buckets cleaned; no retained/authority/customer state targeted. This is builder-origin evidence, not independent custody.",
+    "next_required_input": "Run the pinned owner-only GET readback packet on the owner Windows PC with existing owner credentials and existing GitHub CLI authorization; return only sanitized OWNER_CUSTODY_PROVIDER_READBACK.json. Review provider principal/MFA, token/member metadata, alternative inventory/provenance and independence; do not repeat accepted signer/source approval or completed permission edits. Six scoped live write denials now passed. Private genesis/retirement and hosted destructive recovery follow only after applicable independent gates.",
+    "current_operational_block": "GLOBAL_KEY_ALTERNATIVE_CREDENTIAL_INVENTORY_AND_INDEPENDENT_PROVIDER_CUSTODY_PENDING",
+    "this_checkpoint_scope": "BUILD_ORIGIN_SIX_BOUNDED_WORKER_ASSETS_R2_DENIALS_PASSED_OWNER_CUSTODY_PACKET_ISSUED_NOT_INDEPENDENT_ACCEPTANCE"
+  },
+  "owner_provider_administration_readback_received": true,
+  "owner_provider_readback_20261124": {
+    "receipt_path": "../gate3_owner_provider_readback_20261124/OWNER_CUSTODY_PROVIDER_READBACK_193649Z.json",
+    "sha256": "af89c9703cf8f8d5a8b8b1a8036698a9d5ca2351976f55cfefd1360df12b06fa",
+    "reported_execution_at_utc": "2026-11-24T19:36:49.432Z",
+    "review_receipt_path": "../gate3_owner_provider_readback_20261124/VERIFICATION_RECEIPT_20261126_NOT_RELEASE.json",
+    "accepted_at_reported_scope": {
+      "profile_GET_200": true,
+      "principal_matches_prior_build_metadata_principal": true,
+      "provider_mfa_enabled": true,
+      "a2_accepted_administrator_membership_observed": true,
+      "account_member_inventory_complete": true,
+      "account_members_observed": 1,
+      "account_owned_token_inventory_complete": true,
+      "account_owned_tokens_observed": 0,
+      "indefinite_b27_retention_rule_observed": true,
+      "known_recovery_active_read_named_groups": 11,
+      "known_recovery_write_named_groups": 0,
+      "credential_values_in_receipt": false,
+      "reported_provider_GET_requests": 8,
+      "reported_provider_write_requests": 0
+    },
+    "unresolved": {
+      "user_token_inventory_complete": false,
+      "user_tokens_observed": 12,
+      "user_token_pages_observed": 2,
+      "pagination_failure_reason_available_in_original": false,
+      "known_build_references_observed": [
+        "AXIOM_D1_RECOVERY_CF_API_TOKEN"
+      ],
+      "additional_active_tokens_with_write_named_groups": 10,
+      "those_additional_tokens_a2_write_capability_proven": false,
+      "github_repository_identity_or_inventory_qualified": false,
+      "global_key_revocation_or_exclusive_custody_proven": false,
+      "credential_content_inventory_exhaustive": false
+    },
+    "source_challenge_validated": true,
+    "server_or_OS_attestation": false,
+    "independent_custody_qualified": false
   }
 }

@@ -26,7 +26,7 @@ jobs:
           if($LASTEXITCODE -ne 0){throw 'Synthetic readback tests failed'}
           python -m unittest discover -s customer_frontier/tests -p test_gate3_owner_custody_packet.py -v
           if($LASTEXITCODE -ne 0){throw 'Public package checks failed'}
-      - name: Build exact public source and inspect on native PowerShell 5.1 and 7
+      - name: Inspect source, CLI discovery and hosted owner-context refusal on PowerShell 5.1 and 7
         shell: pwsh
         run: |
           python scripts/build_gate3_owner_custody_readback.py --out "$env:RUNNER_TEMP/OWNER_CUSTODY_READBACK.ps1" --source-commit $env:GITHUB_SHA

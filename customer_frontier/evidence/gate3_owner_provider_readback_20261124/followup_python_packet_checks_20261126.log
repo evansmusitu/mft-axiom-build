@@ -1,0 +1,11 @@
+test_authentication_choice_does_not_echo_a_mistakenly_pasted_credential (test_gate3_owner_custody_packet.OwnerCustodyPacketTests.test_authentication_choice_does_not_echo_a_mistakenly_pasted_credential) ... ok
+test_challenge_is_fresh_bounded_and_no_gate_approval (test_gate3_owner_custody_packet.OwnerCustodyPacketTests.test_challenge_is_fresh_bounded_and_no_gate_approval) ... ok
+test_embedded_source_hashes_and_parser_only_dependency (test_gate3_owner_custody_packet.OwnerCustodyPacketTests.test_embedded_source_hashes_and_parser_only_dependency) ... ok
+test_github_setup_stays_after_owner_guard_and_before_cloudflare_input (test_gate3_owner_custody_packet.OwnerCustodyPacketTests.test_github_setup_stays_after_owner_guard_and_before_cloudflare_input) ... ok
+test_missing_or_malformed_source_commit_is_rejected (test_gate3_owner_custody_packet.OwnerCustodyPacketTests.test_missing_or_malformed_source_commit_is_rejected) ... ok
+test_owner_credential_uses_hidden_prompt_and_stdin_not_arguments_or_environment (test_gate3_owner_custody_packet.OwnerCustodyPacketTests.test_owner_credential_uses_hidden_prompt_and_stdin_not_arguments_or_environment) ... ok
+
+----------------------------------------------------------------------
+Ran 6 tests in 0.004s
+
+OK

@@ -16,7 +16,7 @@ const hash=x=>createHash('sha256').update(x).digest('hex');
 const fail=()=>{throw Error('OWNER_READBACK_INPUT_OR_SCOPE_INVALID');};
 const safeString=(x,max=200)=>typeof x==='string'&&x.length>0&&x.length<=max&&!/[\x00-\x1f\x7f]/.test(x);
 const cfPath=p=>['/user','/user/tokens/verify',`/accounts/${A2}/tokens/verify`,`/accounts/${A2}/r2/buckets/musitu-axiom-b27-highwater-a2/lock`,`/accounts/${A2}/workers/scripts/axiom-security-authority2-highwater/settings`].includes(p)||
- new RegExp('^(/user/tokens|/accounts/'+A2+'/tokens)\\?page=[1-5]&per_page=10&include_expired=true$').test(p)||
+ new RegExp('^(/user/tokens|/accounts/'+A2+'/tokens)\\?page=[1-5]&per_page=(10|50)&include_expired=true$').test(p)||
  new RegExp('^(/memberships|/accounts/'+A2+'/members)\\?page=[1-5]&per_page=50'+ '(?:&status=accepted)?$').test(p);
 const ghPath=p=>p==='/repos/'+REPO||new RegExp('^/repos/'+REPO+'/(actions/(secrets|variables)|environments)\\?per_page=100&page=[1-5]$').test(p)||
  new RegExp('^/repos/'+REPO+'/environments/[^/?#]+/(secrets|variables)\\?per_page=100&page=[1-5]$').test(p);
@@ -39,14 +39,22 @@ function providerClient(credential,fetchImpl){
 }
 const pub=r=>({state:r.state,http_status:r.http_status});
 async function cfPages(api,base,perPage,project){
- const rows=[],ids=new Set(),out={complete:false,pages:0,rows};
+ const rows=[],ids=new Set(),maxRows=base.endsWith('/tokens')?50:250;
+ const out={complete:false,pages:0,rows,completeness_reason:'PAGE_BUDGET_EXHAUSTED',pagination_observations:[]};
+ const number=n=>Number.isInteger(n)&&n>=0&&n<=1000000000?n:null;let priorTotal,priorSize;
  for(let page=1;page<=5;page++){
   const path=base+`?page=${page}&per_page=${perPage}`+(base.endsWith('/tokens')?'&include_expired=true':base==='/memberships'?'&status=accepted':'');
   const r=await api.get(path);out.last_read=pub(r);out.pages=page;const data=r.data,items=data?.result,info=data?.result_info;
-  if(!Array.isArray(items)||items.length>perPage)return out;
-  for(const item of items){if(!hex32(item?.id)||ids.has(item.id))return out;ids.add(item.id);rows.push(project(item));}
-  if(!info||info.page!==page||info.count!==items.length||!Number.isInteger(info.per_page)||info.per_page<1||info.per_page>perPage||items.length>info.per_page||!Number.isInteger(info.total_count)||info.total_count<rows.length||info.total_count>perPage*5)return out;
-  if(rows.length===info.total_count){out.complete=true;return out;}if(items.length===0)return out;
+  out.pagination_observations.push({requested_page:page,requested_per_page:perPage,returned_rows:Array.isArray(items)?items.length:null,reported_page:number(info?.page),reported_per_page:number(info?.per_page),reported_count:number(info?.count),reported_total_count:number(info?.total_count)});
+  if(!Array.isArray(items)||items.length>perPage){out.completeness_reason='RESULT_SHAPE_OR_PAGE_SIZE_INVALID';return out;}
+  if(!info||info.page!==page||info.count!==items.length||!Number.isInteger(info.per_page)||info.per_page<1||info.per_page>perPage||items.length>info.per_page||!Number.isInteger(info.total_count)||info.total_count<rows.length+items.length||info.total_count>maxRows){out.completeness_reason='PAGINATION_INVALID_OR_OVER_BUDGET';return out;}
+  if(priorTotal!==undefined&&(priorTotal!==info.total_count||priorSize!==info.per_page)){out.completeness_reason='PAGINATION_CHANGED';return out;}
+  priorTotal=info.total_count;priorSize=info.per_page;
+  const pageIds=new Set();
+  for(const item of items){if(!hex32(item?.id)||ids.has(item.id)||pageIds.has(item.id)){out.completeness_reason='DUPLICATE_OR_INVALID_IDENTIFIER';return out;}pageIds.add(item.id);}
+  for(const item of items){ids.add(item.id);rows.push(project(item));}
+  if(rows.length===info.total_count){out.complete=true;out.completeness_reason='COMPLETE_VALIDATED_PAGINATION';return out;}
+  if(items.length===0){out.completeness_reason='EMPTY_PAGE_BEFORE_REPORTED_TOTAL';return out;}
  }
  return out;
 }
@@ -94,7 +102,7 @@ export async function collectOwnerCustodyReadback({credential,fetchImpl=globalTh
   (credential.kind==='global_key'&&(!safeString(credential.email,254)||!/^\S+@\S+\.\S+$/.test(credential.email)))||
   !challenge||challenge.schema!=='musitu.axiom.gate3.owner-custody-challenge.v1'||!hex32(challenge.nonce)||!(/^[a-f0-9]{40}$/.test(challenge.source_commit||''))||challenge.repository!==REPO||challenge.account_id!==A2||
   !Number.isFinite(Date.parse(challenge.issued_at_utc))||!Number.isFinite(Date.parse(challenge.expires_at_utc))||now<Date.parse(challenge.issued_at_utc)-60000||now>=Date.parse(challenge.expires_at_utc)||Date.parse(challenge.expires_at_utc)-Date.parse(challenge.issued_at_utc)!==172800000)fail();
- const protectedValues=new Set([credential.secret,...(credential.email?[credential.email]:[])]);
+ const protectedValues=new Set([credential.secret,...(credential.email?[credential.email]:[])]),privateMetadata={github_metadata_names:[],cloudflare_token_names:[]};
  const typed=(domain,value)=>hex32(value)&&![...protectedValues].some(s=>value.includes(s))?hash(domain+'\n'+value):null;
  const api=providerClient(credential,fetchImpl),profile=await api.get('/user'),user=profile.data?.result;
  const userId=typed('cloudflare-user-id',user?.id),report={schema:'musitu.axiom.gate3.owner-custody-provider-readback.v1',observed_at_utc:new Date(now).toISOString(),challenge_nonce:challenge.nonce,source_commit:challenge.source_commit,public_challenge_sha256:hash(JSON.stringify(challenge)),
@@ -114,11 +122,13 @@ export async function collectOwnerCustodyReadback({credential,fetchImpl=globalTh
   is_authenticated_operator:m.user?.id===user.id||(typeof user.email==='string'&&[m.email,m.user?.email].some(e=>typeof e==='string'&&e.toLowerCase()===user.email.toLowerCase())),
   administrator_role_observed:Array.isArray(m.roles)&&m.roles.some(role=>/^(account administrator|administrator|super administrator(?: - all privileges)?|owner)$/i.test(role?.name||'')),
   any_role_write_permission_observed:Array.isArray(m.roles)&&m.roles.some(role=>role?.permissions&&Object.values(role.permissions).some(p=>p?.write===true)),modern_policies_present:Array.isArray(m.policies)}));
- const tokens=m=>{const id=typed('cloudflare-token-id',m.id);return {token_identifier_sha256:id,known_build_reference:KNOWN.get(id)||null,status:['active','disabled','expired'].includes(m.status)?m.status:'UNKNOWN',...policySummary(m.policies)};};
- report.user_tokens=await cfPages(api,'/user/tokens',10,tokens);report.account_owned_tokens=await cfPages(api,`/accounts/${A2}/tokens`,10,tokens);
+ const tokens=m=>{const id=typed('cloudflare-token-id',m.id);
+  if(id&&safeString(m.name)&&![...protectedValues].some(s=>m.name.includes(s)))privateMetadata.cloudflare_token_names.push({token_identifier_sha256:id,name:m.name});
+  return {token_identifier_sha256:id,known_build_reference:KNOWN.get(id)||null,status:['active','disabled','expired'].includes(m.status)?m.status:'UNKNOWN',...policySummary(m.policies)};};
+ report.user_tokens=await cfPages(api,'/user/tokens',50,tokens);report.account_owned_tokens=await cfPages(api,`/accounts/${A2}/tokens`,50,tokens);
  const lock=await api.get(`/accounts/${A2}/r2/buckets/musitu-axiom-b27-highwater-a2/lock`),worker=await api.get(`/accounts/${A2}/workers/scripts/axiom-security-authority2-highwater/settings`);
  report.retention_read={...pub(lock),indefinite_b27_rule_observed:Array.isArray(lock.data?.result?.rules)&&lock.data.result.rules.some(r=>r?.enabled===true&&r.condition?.type==='Indefinite'&&[undefined,'','b27/'].includes(r.prefix))};report.authority_worker_read=pub(worker);
- const repo=await ghGet('/repos/'+REPO),privateMetadata={github_metadata_names:[]};
+ const repo=await ghGet('/repos/'+REPO);
  report.github={repository_identity_verified:repo?.data?.id===REPO_ID&&repo.data.full_name===REPO,metadata_complete:false,scopes:[]};
  if(report.github.repository_identity_verified&&repo.data.owner?.type==='User'){
   const scopes=[['repository','/repos/'+REPO+'/actions']];

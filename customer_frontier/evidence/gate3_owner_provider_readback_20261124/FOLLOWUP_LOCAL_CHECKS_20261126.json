@@ -1,0 +1,26 @@
+{
+  "schema": "musitu.axiom.gate3.owner-followup-source-checks.v1",
+  "root_cause_checks_before_fix": {
+    "new_regressions": 3,
+    "failed_for_expected_behavior_gaps": 3,
+    "gaps": [
+      "50-row token request unavailable",
+      "no pagination failure diagnostics",
+      "changing pagination totals could become complete"
+    ]
+  },
+  "focused_Node_tests": 12,
+  "focused_Node_pass": 12,
+  "Python_packet_checks": 6,
+  "Python_packet_pass": 6,
+  "logs": {
+    "followup_node_regressions_20261126.log": "86f070607aae50101c1c42b97a2b7c4a9f455cb9c932e34dbdff8d0a601694c4",
+    "followup_python_packet_checks_20261126.log": "b9c435c42ab71f12228b712965f62ce4b3421904b6d5c9e9fd755882de063911"
+  },
+  "actual_owner_followup_execution": false,
+  "GitHub_installation_or_browser_login_tested_on_owner_PC": false,
+  "actual_new_provider_token_inventory_completion": false,
+  "native_Windows_CI": "PENDING",
+  "gate3_closed": false,
+  "release_status": "NOT_RELEASE"
+}

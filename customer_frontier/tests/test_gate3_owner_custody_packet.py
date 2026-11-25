@@ -42,5 +42,17 @@ class OwnerCustodyPacketTests(unittest.TestCase):
     def test_missing_or_malformed_source_commit_is_rejected(self):
         for sha in ('main','../escape','a'*39,'g'*40):
             with self.assertRaises(ValueError):builder.build('/tmp/should-not-write.ps1',sha)
+    def test_github_setup_stays_after_owner_guard_and_before_cloudflare_input(self):
+        _,text,_=self.packet()
+        self.assertLess(text.index("StopReadback 'OWNER_INTERACTIVE_PC_REQUIRED'"),text.index('$ghPath=EnsureGithubCli'))
+        self.assertLess(text.index('$ghPath=EnsureGithubCli'),text.index("$secure=Read-Host"))
+        self.assertIn('install --id GitHub.cli --exact --source winget',text)
+        self.assertIn('auth login --hostname github.com --git-protocol https --web --skip-ssh-key',text)
+        self.assertNotIn('--with-token',text);self.assertNotIn('--insecure-storage',text);self.assertNotIn('auth refresh',text)
+    def test_authentication_choice_does_not_echo_a_mistakenly_pasted_credential(self):
+        _,text,_=self.packet()
+        choice=next(l for l in text.splitlines() if '$selection=Read-Host' in l)
+        self.assertIn('-AsSecureString',choice)
+        self.assertIn('$mode=ReadAuthenticationMode',text)
 
 if __name__=='__main__':unittest.main()

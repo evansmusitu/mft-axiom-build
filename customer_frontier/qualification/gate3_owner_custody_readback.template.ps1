@@ -33,6 +33,73 @@ function WriteNew([string]$path,[byte[]]$bytes){
  $s=[IO.File]::Open($path,[IO.FileMode]::CreateNew,[IO.FileAccess]::Write,[IO.FileShare]::None)
  try{$s.Write($bytes,0,$bytes.Length)}finally{$s.Dispose()}
 }
+function FindGithubCli {
+ $found=@(Get-Command gh -CommandType Application -ErrorAction SilentlyContinue)
+ foreach($entry in $found){if([IO.Path]::GetExtension($entry.Source) -ieq '.exe'){return $entry.Source}}
+ $candidates=@()
+ foreach($base in @([Environment]::GetFolderPath([Environment+SpecialFolder]::ProgramFiles),[Environment]::GetFolderPath([Environment+SpecialFolder]::ProgramFilesX86))){
+  if($base){$candidates+=Join-Path $base 'GitHub CLI\gh.exe'}
+ }
+ $userBase=[Environment]::GetFolderPath([Environment+SpecialFolder]::LocalApplicationData)
+ if($userBase){$candidates+=Join-Path $userBase 'Programs\GitHub CLI\gh.exe'}
+ foreach($candidate in $candidates){if(Test-Path -LiteralPath $candidate -PathType Leaf){return $candidate}}
+ return $null
+}
+function GithubSignedIn([string]$path){
+ $info=[Diagnostics.ProcessStartInfo]::new();$info.FileName=$path;$info.Arguments='auth status --hostname github.com'
+ $info.UseShellExecute=$false;$info.RedirectStandardOutput=$true;$info.RedirectStandardError=$true;$info.CreateNoWindow=$true
+ $check=[Diagnostics.Process]::new();$check.StartInfo=$info
+ try{
+  if(-not $check.Start()){return $false}
+  $outTask=$check.StandardOutput.ReadToEndAsync();$errTask=$check.StandardError.ReadToEndAsync()
+  if(-not $check.WaitForExit(30000)){$check.Kill();return $false}
+  [void]$outTask.GetAwaiter().GetResult();[void]$errTask.GetAwaiter().GetResult()
+  return ($check.ExitCode -eq 0)
+ }catch{return $false}finally{$check.Dispose()}
+}
+function EnsureGithubCli {
+ $path=FindGithubCli
+ if(-not $path){
+  Write-Host 'GitHub CLI is missing. This file can install the official free GitHub CLI using Windows Package Manager.'
+  $choice=Read-Host 'Press Enter to install GitHub CLI, or type X to stop'
+  if($choice){StopReadback 'GITHUB_CLI_SETUP_CANCELLED'}
+  $winget=@(Get-Command winget -CommandType Application -ErrorAction SilentlyContinue)
+  if($winget.Count -gt 0){
+   & $winget[0].Source install --id GitHub.cli --exact --source winget --accept-package-agreements --accept-source-agreements --disable-interactivity | Out-Host
+   $path=FindGithubCli
+  }
+  if(-not $path){
+   Write-Host 'Opening the official GitHub CLI download page. Complete its Windows installer, then return here.'
+   Start-Process 'https://cli.github.com/'
+   [void](Read-Host 'Press Enter after the official Windows installer finishes')
+   $path=FindGithubCli
+  }
+  if(-not $path){StopReadback 'GITHUB_CLI_INSTALLATION_REQUIRED'}
+ }
+ # This happens before the Cloudflare credential prompt. The two credentials
+ # are never combined in a process argument, environment value or uploaded file.
+ if(-not (GithubSignedIn $path)){
+  Write-Host 'Sign in through GitHub CLI using your own browser. Review GitHub authorization there; no Cloudflare key is needed.'
+  $savedPreference=$ErrorActionPreference
+  try{$ErrorActionPreference='Continue';& $path auth login --hostname github.com --git-protocol https --web --skip-ssh-key 2>&1 | Out-Host;$loginExit=$LASTEXITCODE}
+  finally{$ErrorActionPreference=$savedPreference}
+  if($loginExit -ne 0){StopReadback 'GITHUB_OWNER_SIGN_IN_REQUIRED'}
+  if(-not (GithubSignedIn $path)){StopReadback 'GITHUB_OWNER_SIGN_IN_UNAVAILABLE'}
+ }
+ return $path
+}
+function ReadAuthenticationMode {
+ for($attempt=0;$attempt -lt 3;$attempt++){
+  Write-Host 'Choose 1 for your current owner Global API Key, or 2 for an existing owner-only API token. Enter one digit only; typing is hidden.'
+  $selection=Read-Host 'Authentication choice (1 or 2; do not paste a key here)' -AsSecureString
+  $selectionPointer=[IntPtr]::Zero;$choice=$null
+  try{$selectionPointer=[Runtime.InteropServices.Marshal]::SecureStringToBSTR($selection);$choice=[Runtime.InteropServices.Marshal]::PtrToStringBSTR($selectionPointer)}
+  finally{if($selectionPointer -ne [IntPtr]::Zero){[Runtime.InteropServices.Marshal]::ZeroFreeBSTR($selectionPointer)};$selection.Dispose()}
+  if($choice -ceq '1' -or $choice -ceq '2'){return $choice}
+  $choice=$null;Write-Host 'Choose only 1 or 2. The credential is entered later in its own hidden prompt.'
+ }
+ StopReadback 'AUTHENTICATION_MODE_REQUIRED'
+}
 try{
  if([Environment]::OSVersion.Platform -ne [PlatformID]::Win32NT){StopReadback 'WINDOWS_REQUIRED'}
  $module=[Convert]::FromBase64String($ModuleBase64);$parser=[Convert]::FromBase64String($ParserBase64);$challenge=[Convert]::FromBase64String($ChallengeBase64)
@@ -60,13 +127,11 @@ try{
  $utc=[DateTimeOffset]::UtcNow
  if($utc -ge [DateTimeOffset]::Parse($fresh.expires_at_utc) -or $utc -lt ([DateTimeOffset]::Parse($fresh.issued_at_utc)).AddSeconds(-60)){StopReadback 'PUBLIC_METADATA_PACKET_EXPIRED_OR_CLOCK_INVALID'}
  $version=& $node.Source '--version';if($LASTEXITCODE -ne 0 -or $version -notmatch '^v(\d+)\.' -or [int]$Matches[1] -lt 22){StopReadback 'NODE22_OR_NEWER_REQUIRED'}
- $gh=@(Get-Command gh -CommandType Application -ErrorAction SilentlyContinue);$ghPath='NONE';if($gh.Count -gt 0){$ghPath=$gh[0].Source}
- Write-Host 'This collects Cloudflare and GitHub metadata. It creates no credential, changes no permission and performs no provider write.'
+ $ghPath=EnsureGithubCli
+ Write-Host 'This collects Cloudflare and GitHub metadata. It creates no Cloudflare credential, changes no Cloudflare permission and performs no provider write.'
  Write-Host 'Use your existing OWNER-ONLY Cloudflare credential here. Keep it outside GitHub Actions and this chat.'
  Write-Host 'Your accepted Authority2 signer key/passphrase is not needed.'
- if($ghPath -ceq 'NONE'){Write-Host 'GitHub CLI was not found. Cloudflare metadata can be returned, but the GitHub inventory will remain incomplete.'}
- $mode=Read-Host 'Enter 1 for your current owner Global API Key, or 2 for an existing owner-only API token'
- if($mode -cne '1' -and $mode -cne '2'){StopReadback 'AUTHENTICATION_MODE_REQUIRED'}
+ $mode=ReadAuthenticationMode
  $email=$null;if($mode -ceq '1'){$email=Read-Host 'Cloudflare owner account email'}
  $secure=Read-Host 'Enter the owner credential in this hidden LOCAL prompt' -AsSecureString
  $bstr=[IntPtr]::Zero;$plain=$null;$payload=$null

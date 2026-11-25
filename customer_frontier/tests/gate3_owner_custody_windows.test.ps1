@@ -15,6 +15,28 @@ foreach($shell in @('powershell.exe','pwsh')){
   if($rule.AccessControlType -eq 'Allow' -and $id -notin @($sid,'S-1-5-18')){throw 'UNEXPECTED_DIRECTORY_PRINCIPAL'}
  }
  if(Test-Path -LiteralPath (Join-Path $work 'RETURN_ONLY/OWNER_CUSTODY_PROVIDER_READBACK.json')){throw 'INSPECTION_CANNOT_CREATE_OWNER_PROVIDER_EVIDENCE'}
+ # Exercise real Windows CLI discovery/status capture without setup or login.
+ $cliCheck=Join-Path $work 'public_cli_discovery_check.ps1'
+ @'
+param([string]$Packet)
+$ErrorActionPreference='Stop';Set-StrictMode -Version Latest
+$tokens=$null;$parseErrors=$null
+$ast=[Management.Automation.Language.Parser]::ParseFile($Packet,[ref]$tokens,[ref]$parseErrors)
+if($parseErrors.Count){throw 'PACKET_POWERSHELL_SYNTAX_INVALID'}
+foreach($name in @('FindGithubCli','GithubSignedIn')){
+ $definition=@($ast.FindAll({param($node) $node -is [Management.Automation.Language.FunctionDefinitionAst] -and $node.Name -ceq $name},$true))
+ if($definition.Count -ne 1){throw 'CLI_HELPER_SOURCE_MISSING'}
+ . ([ScriptBlock]::Create($definition[0].Extent.Text))
+}
+$cli=FindGithubCli
+if($cli -isnot [string] -or -not (Test-Path -LiteralPath $cli -PathType Leaf) -or [IO.Path]::GetExtension($cli) -ine '.exe'){throw 'NATIVE_CLI_DISCOVERY_FAILED'}
+$signedIn=GithubSignedIn $cli
+if($signedIn -isnot [bool]){throw 'CLI_STATUS_CAPTURE_MUST_NOT_RETURN_PRIVATE_OUTPUT'}
+Write-Output 'NATIVE_CLI_DISCOVERY_STATUS_CAPTURE_PASS_NO_LOGIN_OR_INSTALL'
+'@ | Set-Content -LiteralPath $cliCheck -Encoding UTF8
+ $cliOutput=& $shell -NoProfile -NonInteractive -ExecutionPolicy Bypass -File $cliCheck -Packet $Packet
+ if($LASTEXITCODE -ne 0 -or $cliOutput -cne 'NATIVE_CLI_DISCOVERY_STATUS_CAPTURE_PASS_NO_LOGIN_OR_INSTALL'){throw 'NATIVE_CLI_HELPER_CHECK_FAILED'}
+ Write-Output $cliOutput
  # Invoke full mode in the actual hosted Windows context, with no credential.
  # The owner-only boundary must stop before any prompt or provider collection.
  # This records the actual attempt; it never simulates an owner or removes CI.

@@ -36,7 +36,8 @@ const collect=(f,extra={})=>collectOwnerCustodyReadback({credential,fetchImpl:f.
 test('owner-local provider and GitHub metadata collection remains GET-only and is not automatic custody acceptance',async()=>{
  const f=fake(),{report,privateMetadata}=await collect(f);assert.equal(report.collection_complete,true);assert.equal(report.provider_mfa_enabled,true);assert.equal(report.operator_a2_accepted_administrator_observed,true);
  assert.equal(report.independent_custody_automatically_qualified,false);assert.equal(report.credential_content_inventory_exhaustive,false);assert.equal(report.gate3_closed,false);
- const output=JSON.stringify({report,privateMetadata});for(const v of [secret,email,'PRIVATE_ACCOUNT','PRIVATE_TOKEN_NAME','MUST_NOT_COPY'])assert(!output.includes(v));
+ const output=JSON.stringify({report,privateMetadata});for(const v of [secret,email,'PRIVATE_ACCOUNT','MUST_NOT_COPY'])assert(!output.includes(v));
+ assert(!JSON.stringify(report).includes('PRIVATE_TOKEN_NAME'));assert(privateMetadata.cloudflare_token_names.some(r=>r.name==='PRIVATE_TOKEN_NAME'));
  assert(!JSON.stringify(report).includes('OWNER_PRIVATE_ENV'));assert(!JSON.stringify(report).includes('PRIVATE_METADATA_NAME'));assert(JSON.stringify(privateMetadata).includes('PRIVATE_METADATA_NAME'));
 });
 test('missing GitHub metadata authorization stays incomplete rather than proving no alternatives exist',async()=>{
@@ -67,4 +68,40 @@ test('CLI inspection requires no credentials and actual collection refuses outsi
  const path=fileURLToPath(new URL('../qualification/gate3_owner_custody_readback.mjs',import.meta.url));
  const good=spawnSync(process.execPath,[path,'--inspect'],{encoding:'utf8'});assert.equal(good.status,0);assert.equal(JSON.parse(good.stdout).provider_requests,0);
  const bad=spawnSync(process.execPath,[path,'ROOT','NONE','owner-local-v1'],{encoding:'utf8',env:{...process.env,GITHUB_ACTIONS:'true'}});assert.equal(bad.status,2);assert.match(bad.stderr,/OWNER_WINDOWS_LOCAL_CONTEXT_REQUIRED_HOLD/);
+});
+test('a bounded50-row token request collects12 tokens without an unnecessary second page',async()=>{
+ const f=fake(),seen=[];
+ const {report}=await collect(f,{fetchImpl:async req=>{
+  const u=new URL(req.url);if(u.pathname==='/client/v4/user/tokens'){
+   seen.push(u);assert.equal(u.searchParams.get('per_page'),'50');
+   return page(Array.from({length:12},(_,i)=>({id:(i+1).toString(16).padStart(32,'0'),status:'active',policies:[]})),50);
+  }return f.fetchImpl(req);
+ }});
+ assert.equal(seen.length,1);assert.equal(report.user_tokens.rows.length,12);assert.equal(report.user_tokens.complete,true);assert.equal(report.collection_complete,true);
+ assert.equal(report.independent_custody_automatically_qualified,false);
+});
+test('pagination failure diagnostics distinguish duplicate identifiers and never certify a partial list',async()=>{
+ const f=fake();let pages=0;
+ const {report}=await collect(f,{fetchImpl:async req=>{
+  if(new URL(req.url).pathname==='/client/v4/user/tokens'){
+   pages++;const ids=pages===1?['1','2']:['3','2'];
+   return cf(ids.map(i=>({id:i.padStart(32,'0'),status:'active',policies:[]})),{page:pages,count:2,per_page:2,total_count:4});
+  }return f.fetchImpl(req);
+ }});
+ assert.equal(report.user_tokens.complete,false);assert.equal(report.user_tokens.completeness_reason,'DUPLICATE_OR_INVALID_IDENTIFIER');
+ assert.equal(report.user_tokens.pages,2);assert.equal(report.collection_complete,false);assert.equal(report.credential_content_inventory_exhaustive,false);
+ assert.equal(report.user_tokens.pagination_observations.length,2);
+});
+test('changing totals, oversized inventories and missing pagination stay explicitly unqualified',async()=>{
+ for(const variant of ['changed_total','oversized','missing']){
+  const f=fake();let pages=0;
+  const {report}=await collect(f,{fetchImpl:async req=>{
+   if(new URL(req.url).pathname==='/client/v4/user/tokens'){
+    pages++;const rows=[{id:pages.toString(16).padStart(32,'0'),status:'active',policies:[]}];
+    return variant==='missing'?cf(rows):cf(rows,{page:pages,count:1,per_page:1,total_count:variant==='oversized'?51:pages===1?2:3});
+   }return f.fetchImpl(req);
+  }});
+  assert.equal(report.user_tokens.complete,false);assert.equal(report.collection_complete,false);
+  assert.equal(report.user_tokens.completeness_reason,variant==='changed_total'?'PAGINATION_CHANGED':variant==='oversized'?'PAGINATION_INVALID_OR_OVER_BUDGET':'PAGINATION_INVALID_OR_OVER_BUDGET');
+ }
 });
