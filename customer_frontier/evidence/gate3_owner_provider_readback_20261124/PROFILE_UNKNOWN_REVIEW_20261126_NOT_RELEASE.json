@@ -21,7 +21,6 @@
   "token_inventory_attempted": false,
   "GitHub_inventory_attempted": false,
   "reported_provider_GET_count": null,
-  "pinned_source_profile_fetch_invocations_inferred": 1,
   "network_HTTP_delivery_proven": false,
   "root_cause": "UNKNOWN_TRANSPORT_BODY_OR_ENVELOPE",
   "permission_or_key_change_justified_by_this_receipt": false,
@@ -33,5 +32,7 @@
   "B27": "FAILED_IN_SYNTHETIC_ATTACK",
   "parity_superiority": "NOT_CERTIFIED",
   "unavailable_final_usage": "UNKNOWN",
-  "release_status": "NOT_RELEASE"
+  "release_status": "NOT_RELEASE",
+  "pinned_source_profile_read_calls_inferred": 1,
+  "fetch_dispatch_proven": false
 }

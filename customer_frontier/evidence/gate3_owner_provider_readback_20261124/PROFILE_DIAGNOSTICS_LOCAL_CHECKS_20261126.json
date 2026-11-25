@@ -8,7 +8,34 @@
   "Python_pass": 6,
   "actual_owner_connection_recovered": false,
   "root_cause_of_uploaded_attempt_still_unknown": true,
-  "native_Windows_and_source_CI": "PENDING",
+  "native_Windows_and_source_CI": {
+    "source": {
+      "run_id": 45722138508,
+      "run_attempt": 1,
+      "job_id": 139582815062,
+      "conclusion": "success",
+      "Node_checks": 591,
+      "Python_checks": 358,
+      "real_local_workerd_checks": 16,
+      "total_checks": 965
+    },
+    "native": {
+      "run_id": 45722138482,
+      "run_attempt": 1,
+      "job_id": 139582814963,
+      "conclusion": "success",
+      "Node_checks": 20,
+      "Python_checks": 6,
+      "PowerShell_versions": [
+        "5.1",
+        "7"
+      ],
+      "public_inspection_passed": true,
+      "CLI_discovery_status_containment_passed": true,
+      "hosted_full_mode_refused_before_owner_input": true,
+      "actual_owner_provider_collection": false
+    }
+  },
   "gate3_closed": false,
   "release_status": "NOT_RELEASE",
   "log_sha256": {
