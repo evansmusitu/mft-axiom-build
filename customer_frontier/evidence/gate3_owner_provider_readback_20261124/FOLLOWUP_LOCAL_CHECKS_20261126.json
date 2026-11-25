@@ -20,7 +20,32 @@
   "actual_owner_followup_execution": false,
   "GitHub_installation_or_browser_login_tested_on_owner_PC": false,
   "actual_new_provider_token_inventory_completion": false,
-  "native_Windows_CI": "PENDING",
+  "native_Windows_CI": {
+    "run_id": 45714706284,
+    "run_attempt": 1,
+    "job_id": 139557670469,
+    "conclusion": "success",
+    "Node_checks": 12,
+    "Python_checks": 6,
+    "PowerShell_versions": [
+      "5.1",
+      "7"
+    ],
+    "source_ACL_inspection_passed": true,
+    "real_CLI_discovery_and_status_output_containment_passed": true,
+    "hosted_full_mode_refused_before_owner_input": true,
+    "owner_PC_installation_or_login_executed": false
+  },
   "gate3_closed": false,
-  "release_status": "NOT_RELEASE"
+  "release_status": "NOT_RELEASE",
+  "source_CI": {
+    "run_id": 45714706141,
+    "run_attempt": 1,
+    "job_id": 139557671116,
+    "conclusion": "success",
+    "Node_checks": 583,
+    "Python_checks": 358,
+    "real_local_workerd_checks": 16,
+    "total_checks": 957
+  }
 }
