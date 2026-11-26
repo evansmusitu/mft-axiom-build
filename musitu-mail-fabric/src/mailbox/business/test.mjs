@@ -1,0 +1,14 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import {configuration,authorizeClaims,validRecipient,validateDraft,canReceive,canMutate,canSend} from './core.mjs';
+const env={"MMF_MAILBOX_ADDRESS":"mail-pilot@mftintelligence.com","MMF_DB":{},"MMF_RAW":{},"MMF_OWNER_EMAIL":"owner@example.invalid","MMF_ACCESS_ISSUER":"https://team.cloudflareaccess.com","MMF_ACCESS_AUD":"test","MMF_ORIGIN":"https://mail-pilot.mftintelligence.com","MMF_RECEIVE_ENABLED":"true"};
+const c=configuration(env);
+test("send defaults off",()=>assert.ok((()=>!c.send)()));
+test("canary exact recipient",()=>assert.ok((()=>canReceive(c,c.address)&&!canReceive(c,"support@mftintelligence.com"))()));
+test("production route requires forwarding",()=>assert.ok((()=>!canReceive({...c,address:"support@mftintelligence.com"},"support@mftintelligence.com"))()));
+test("existing route preserves separate destination",()=>assert.ok((()=>canReceive({...c,address:"support@mftintelligence.com",productionRoute:true,forward:"owner@example.invalid"},"support@mftintelligence.com"))()));
+test("signed-claim owner boundary",()=>assert.ok((()=>authorizeClaims({iss:c.issuer,aud:c.aud,email:c.owner,iat:99,exp:120},c,100)&&!authorizeClaims({iss:c.issuer,aud:c.aud,email:"other@example.invalid",iat:99,exp:120},c,100))()));
+test("expired claims",()=>assert.ok((()=>!authorizeClaims({iss:c.issuer,aud:c.aud,email:c.owner,iat:99,exp:100},c,100))()));
+test("valid send requires flag and recipient",()=>assert.ok((()=>!canSend(c,{to:"a@example.invalid",subject:"Hi",body:"Hi"})&&canSend({...c,send:true},{to:"a@example.invalid",subject:"Hi",body:"Hi"})&&!canSend({...c,send:true},{to:"a@example.invalid,b@example.invalid",subject:"Hi",body:"Hi"}))()));
+test("header injection rejected",()=>assert.ok((()=>{try{validateDraft({to:"",subject:"a\nBcc: x",body:""});return false}catch{return true}})()));
+test("CSRF denied without same origin",()=>assert.ok((()=>!canMutate({headers:{get:k=>({"origin":"https://wrong.invalid","x-mmf-action":"1","content-type":"application/json"})[k]}},c))()));
