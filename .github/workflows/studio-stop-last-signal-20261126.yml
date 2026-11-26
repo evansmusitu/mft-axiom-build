@@ -1,0 +1,69 @@
+name: MUSITU Studio — stop superseded Last Signal only
+on:
+  push:
+    branches: [experiments/studio-apollo13-20261126]
+    paths: ['.github/workflows/studio-stop-last-signal-20261126.yml']
+permissions:
+  contents: read
+  actions: write
+concurrency:
+  group: studio-stop-last-signal-20261126
+  cancel-in-progress: false
+jobs:
+  stop:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - name: Cancel only superseded workflow and verify terminal state
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          repo=evansmusitu/mft-axiom-build
+          run=45763486407
+          state=$(gh api repos/$repo/actions/runs/$run --jq .status)
+          if [ "$state" != completed ]; then
+            gh api -X POST repos/$repo/actions/runs/$run/cancel || true
+          fi
+          for i in $(seq 1 30); do
+            state=$(gh api repos/$repo/actions/runs/$run --jq .status)
+            [ "$state" = completed ] && break
+            sleep 5
+          done
+          [ "$state" = completed ] || { echo 'OLD_WORKFLOW_NOT_TERMINAL'; exit 1; }
+          gh api repos/$repo/actions/runs/$run --jq '{id,status,conclusion}'
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065
+        with:
+          python-version: '3.13'
+      - run: python -m pip install --disable-pip-version-check -q 'modal==1.6.4'
+      - name: Stop only dedicated superseded Modal film app, preserve volume
+        env:
+          MODAL_TOKEN_ID: ${{ secrets.MODAL_TOKEN_ID }}
+          MODAL_TOKEN_SECRET: ${{ secrets.MODAL_TOKEN_SECRET }}
+        run: |
+          set -euo pipefail
+          modal app list --json > "$RUNNER_TEMP/before.json"
+          python - <<'PY'
+          import json,os,subprocess
+          from pathlib import Path
+          rows=json.loads((Path(os.environ['RUNNER_TEMP'])/'before.json').read_text())
+          target='musitu-studio-last-signal-20261126'
+          matches=[r for r in rows if any(v==target for v in r.values())]
+          print('SUPERSEDED_APP_MATCHES',json.dumps(matches))
+          for row in matches:
+              state=next((str(v).lower() for k,v in row.items() if k.lower()=='state'),'')
+              if state=='stopped':continue
+              app_id=next((v for v in row.values() if isinstance(v,str) and v.startswith('ap-')),None)
+              if not app_id:raise SystemExit('UNRECOGNIZED_APP_ID')
+              subprocess.run(['modal','app','stop',app_id],check=True)
+          PY
+          modal app list --json > "$RUNNER_TEMP/after.json"
+          python - <<'PY'
+          import json,os
+          from pathlib import Path
+          rows=json.loads((Path(os.environ['RUNNER_TEMP'])/'after.json').read_text())
+          target='musitu-studio-last-signal-20261126'
+          matches=[r for r in rows if any(v==target for v in r.values())]
+          if any(next((str(v).lower() for k,v in r.items() if k.lower()=='state'),'')!='stopped' for r in matches):raise SystemExit('SUPERSEDED_APP_STILL_ACTIVE')
+          print('SUPERSEDED_APP_STOPPED_OR_ABSENT',json.dumps(matches))
+          PY
