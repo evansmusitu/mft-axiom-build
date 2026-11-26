@@ -17,6 +17,11 @@ jobs:
         with:
           python-version: '3.13'
       - run: python -m pip install --disable-pip-version-check -q 'modal==1.6.4'
+      - name: Install independent media verification tools
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq ffmpeg
+          ffprobe -version | head -1
       - name: Await existing controller only; never launch new render
         env:
           MODAL_TOKEN_ID: ${{ secrets.MODAL_TOKEN_ID }}
