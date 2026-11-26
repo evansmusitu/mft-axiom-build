@@ -1,0 +1,21 @@
+{
+  "schema": "musitu.axiom.gate3.build-readonly-run-binding.v1",
+  "run_id": 45411478388,
+  "run_attempt": 2,
+  "job_id": 139695295086,
+  "job_conclusion": "success",
+  "source_commit": "d22bc554014676e9514500f44c75012f5ba37d86",
+  "source_tree": "a3079a769238bb4de25774bbd1ce92e3e2b2f601",
+  "workflow": ".github/workflows/axiom-gate3-build-credential-get-observation-20261124.yml",
+  "report_file": "BUILD_READONLY_OBSERVATION_20261126_043557Z.json",
+  "report_serialization": "Parsed JSON emitted in the named job log; pretty-printed for review.",
+  "observed_at_utc": "2026-11-26T04:35:57.413Z",
+  "decoded_job_log_without_BOM_sha256": "688638b492854f8a7d98321cc8c54a579797fd18c3d35a1fcd89c6e796d521a6",
+  "log_representation": "UTF-8 decoded job log with initial BOM removed and final newline normalized by patch transport.",
+  "provider_get_requests": 20,
+  "provider_write_requests": 0,
+  "independent_custody_qualified": false,
+  "all_provider_write_denial_verified": false,
+  "gate3_closed": false,
+  "release_status": "NOT_RELEASE"
+}

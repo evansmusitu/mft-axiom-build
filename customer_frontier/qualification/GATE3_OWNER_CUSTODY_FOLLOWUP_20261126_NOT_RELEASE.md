@@ -1,6 +1,10 @@
 # Owner custody follow-up —26 November2026, NOT_RELEASE
 
-## Current revision — diagnose the unknown profile outcome
+## Current result — metadata collection completed
+
+The26 November04:23:47.830Z owner receipt completes provider and GitHub metadata collection. Do not rerun this collector for the earlier collection gaps. See [the current complete-metadata review](GATE3_OWNER_CUSTODY_COMPLETE_METADATA_20261126_NOT_RELEASE.md) for the exact receipt, accepted scope and remaining credential-custody qualification. The sections below preserve earlier issuance and failure history, not the current collection verdict.
+
+## Historical revision — diagnose the unknown profile outcome
 
 The second owner receipt is1,082 bytes,SHA256 f08a76f987c808eaa5a4d5ffabf9d9748631e26df2e456d8d7d1960f7dd48412,reported25 November23:18:35.070Z. Strict Node/independent Python checks match the original follow-up source2bc70a7341e9de5f650c3d4dccc2d1ef279f259d and challenge9fb3a288055ef779519004ef33876196 while fresh. Its first profile read returned PROVIDER_READ_INVALID_OR_UNAVAILABLE_UNKNOWN/http_statusnull, with no principal/MFA or inventory. The older client combined transport, body, JSON and envelope errors into this one result and discarded an HTTP status if a later parse failed. Its exact cause cannot be recovered from this receipt. No key or permission change is justified by the result. Both original owner receipts remain unmodified; earlier successful metadata remains accepted at its reported scope. See PROFILE_UNKNOWN_REVIEW_20261126_NOT_RELEASE.json under the evidence folder.
 

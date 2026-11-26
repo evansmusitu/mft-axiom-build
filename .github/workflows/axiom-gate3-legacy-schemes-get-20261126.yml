@@ -1,0 +1,28 @@
+name: AXIOM Gate3 existing legacy credential schemes GET-only (NOT CUSTODY)
+on:
+  push:
+    branches: ['build/axiom-gate3-custody-denial-20261124']
+    paths:
+      - '.github/workflows/axiom-gate3-legacy-schemes-get-20261126.yml'
+      - 'customer_frontier/qualification/gate3_legacy_credential_scheme_probe.mjs'
+permissions: {contents: read}
+jobs:
+  readonly-schemes:
+    if: github.repository == 'evansmusitu/mft-axiom-build' && github.event_name == 'push' && github.ref == 'refs/heads/build/axiom-gate3-custody-denial-20261124'
+    runs-on: ubuntu-latest
+    timeout-minutes: 6
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with: {persist-credentials: false}
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with: {node-version: '22'}
+      - name: Verify fixed GET routes, identity binding and redaction first
+        run: node --test customer_frontier/tests/gate3_legacy_credential_scheme_probe.test.mjs
+      - name: Observe only existing build-held legacy references
+        env:
+          AXIOM_G3_LEGACY_SCHEMES_GET_ONLY: existing_legacy_schemes_get_only
+          CLOUDFLARE_GLOBAL_API_KEY: ${{ secrets.CLOUDFLARE_GLOBAL_API_KEY }}
+          CLOUDFLARE_API_KEY: ${{ secrets.CLOUDFLARE_API_KEY }}
+          CLOUDFLARE_EMAIL: ${{ secrets.CLOUDFLARE_EMAIL }}
+          MUSITU_CLOUDFLARE_ADMIN_TOKEN: ${{ secrets.MUSITU_CLOUDFLARE_ADMIN_TOKEN }}
+        run: node customer_frontier/qualification/gate3_legacy_credential_scheme_probe.mjs

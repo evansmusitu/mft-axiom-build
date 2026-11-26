@@ -1,0 +1,86 @@
+{
+  "schema": "musitu.axiom.gate3.complete-owner-metadata-review.v1",
+  "reviewed_at_utc": "2026-11-26T09:46:55.158562+00:00",
+  "receipt_file": "OWNER_CUSTODY_PROVIDER_READBACK_20261126_042347Z_COMPLETE_METADATA.json",
+  "receipt_library_file_id": "libfile_7ec61353ddd88191990692c0e01310cc",
+  "receipt_bytes": 36515,
+  "receipt_sha256": "fad4a419c0c8c9b47d3b132f00ad1b9a3c573ea8fd0c85913f74d58c19989365",
+  "reported_execution_at_utc": "2026-11-26T04:23:47.830Z",
+  "issued_source_commit": "3479823153a0175005220e095d2484c8c0559420",
+  "challenge_nonce": "ca0d61653da9c5deda8fad1c4bcc184d",
+  "public_challenge_sha256": "ab78c635ca31a4a57ef732e63729a9ad193d54aef0b7e7390bc0e0dede33ee2a",
+  "duplicate_key_rejecting_Node_verifier_passed": true,
+  "independent_Python_verifier_passed": true,
+  "fresh_at_reported_execution": true,
+  "matches_issued_repository_account_source_and_challenge": true,
+  "verdict": "ACCEPT_COMPLETE_OWNER_SUPPLIED_PROVIDER_AND_GITHUB_METADATA_NOT_CUSTODY_CERTIFICATE",
+  "origin": "OWNER_LOCAL_SOURCE_PATH_NOT_OS_ATTESTATION",
+  "provider_signed_or_OS_attestation": false,
+  "collection_subgate_complete": true,
+  "supersedes_current_collection_hold_only": [
+    "VERIFICATION_RECEIPT_20261126_NOT_RELEASE.json",
+    "PROFILE_UNKNOWN_REVIEW_20261126_NOT_RELEASE.json"
+  ],
+  "earlier_receipts_preserved_unmodified": true,
+  "accepted_metadata": {
+    "profile_GET_200_on_first_attempt": true,
+    "principal_matches_prior_build_reader": true,
+    "MFA_enabled": true,
+    "A2_accepted_administrator_observed": true,
+    "A2_members_complete_count": 1,
+    "A2_account_owned_tokens_complete_count": 0,
+    "user_token_inventory_complete_count": 25,
+    "user_token_pages": 1,
+    "indefinite_b27_retention_rule_observed": true,
+    "GitHub_repository_identity_verified": true,
+    "GitHub_metadata_complete": true,
+    "GitHub_repository_secret_names_count": 30,
+    "GitHub_repository_variable_names_count": 0,
+    "GitHub_environments_count": 1,
+    "GitHub_environment_secret_and_variable_names_count": 0,
+    "provider_GET_requests": 7,
+    "provider_write_requests": 0,
+    "GitHub_secret_values_requested": false
+  },
+  "unresolved": {
+    "unknown_user_token_identifiers": 23,
+    "unknown_active_tokens_with_write_named_groups_somewhere": 21,
+    "active_unknown_tokens_with_all_account_or_explicit_A2_write_named_allow": [
+      "f0885fe1d8c056f3972b4e24ebec8c249300fb7d572bcbfa28a9f219996304fe",
+      "3faa5c18db7e0fabffe1a3721d889e1e1f115aef77043ccda82d5ed3fed7277a"
+    ],
+    "those_tokens_build_availability_or_exclusive_owner_custody_proven": false,
+    "GitHub_unclassified_repository_secret_names_count": 25,
+    "arbitrary_secret_contents_or_external_runner_credential_inventory_exhaustive": false,
+    "global_key_revocation_or_exclusive_custody_proven": false,
+    "authority_worker_settings_404_proves_absence": false
+  },
+  "known_build_token_policy_observations": {
+    "AXIOM_D1_RECOVERY_CF_API_TOKEN": {
+      "identifier_sha256": "83eda64c33252d73b0ae28ebcb902d35d5aa081a7b43f77728924820021860f5",
+      "active": true,
+      "read_named_groups": 11,
+      "write_named_groups": 0
+    },
+    "MUSITU_CLOUDFLARE_ADMIN_TOKEN": {
+      "identifier_sha256": "e2ca57fa6d971286e02a8f02050c53991ab79e3ccc8c958d46dbeaf8ed34f1a2",
+      "active": true,
+      "read_classified_groups": 193,
+      "write_named_groups": 0
+    },
+    "CLOUDFLARE_API_TOKEN": "Account-owned source-account identity is separately observed in fresh build GET run45411478388 attempt2; not part of this A2 user-token inventory."
+  },
+  "next_probe": "Fixed-host GET-only identification of existing build-held legacy references as X-Auth-Key and Bearer; never export credentials or change policies. The source audit found an existing bearer consumer of the legacy Global API Key secret. A failed X-Auth-Key read cannot establish that its value is not an active bearer token.",
+  "original_six_scoped_provider_denials_preserved": true,
+  "original_preview_denial_qualified": false,
+  "all_provider_write_denial_verified": false,
+  "independent_operator_custody_qualified": false,
+  "global_key_custody_qualified": false,
+  "private_genesis_retirement_or_hosted_recovery_performed": false,
+  "repeat_owner_collection_or_signer_proof_required": false,
+  "gate3_closed": false,
+  "B27": "FAILED_IN_SYNTHETIC_ATTACK",
+  "parity_superiority": "NOT_CERTIFIED",
+  "unavailable_final_usage": "UNKNOWN",
+  "release_status": "NOT_RELEASE"
+}
