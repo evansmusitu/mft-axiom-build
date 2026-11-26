@@ -5,6 +5,7 @@ on:
       - experiments/studio-g56-budgeted-render-20261122
     paths:
       - '.github/workflows/studio-isolated-modal-t4-smoke-20261126.yml'
+      - 'musitu_studio/modal/gpu_smoke_isolated_20261126.py'
 permissions:
   contents: read
 concurrency:
@@ -38,6 +39,7 @@ jobs:
           modal deploy modal/gpu_smoke_isolated_20261126.py --name musitu-studio-gpu-smoke-20261126
           echo 'MUSITU_MODAL_PRIVATE_T4_APP_DEPLOYED=TRUE'
       - name: Invoke one genuine T4 CUDA Blender smoke and validate provider receipt
+        timeout-minutes: 15
         working-directory: musitu_studio
         env:
           MODAL_TOKEN_ID: ${{ secrets.MODAL_TOKEN_ID }}
