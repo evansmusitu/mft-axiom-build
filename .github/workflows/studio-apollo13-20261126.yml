@@ -47,13 +47,17 @@ jobs:
         run: |
           set -euo pipefail
           repo=evansmusitu/mft-axiom-build
+          state=pending
+          shutdown=""
           for i in $(seq 1 120); do
-            state=$(gh api repos/$repo/actions/runs/45764578042 --jq .status)
+            shutdown=$(gh api 'repos/'$repo'/actions/runs?head_sha=86185406c5a93d757e871a67bea5194eeaccf3dc' --jq '[.workflow_runs[] | select(.name == "MUSITU Studio — stop superseded Last Signal only")][0].id // empty')
+            if [ -z "$shutdown" ]; then sleep 5; continue; fi
+            state=$(gh api repos/$repo/actions/runs/$shutdown --jq .status)
             [ "$state" = completed ] && break
             sleep 5
           done
           [ "$state" = completed ]
-          [ "$(gh api repos/$repo/actions/runs/45764578042 --jq .conclusion)" = success ]
+          [ "$(gh api repos/$repo/actions/runs/$shutdown --jq .conclusion)" = success ]
           [ "$(gh api repos/$repo/actions/runs/45763486407 --jq .status)" = completed ]
           echo 'SUPERSEDED_FILM_SHUTDOWN_VERIFIED'
       - name: Deploy dedicated private film app
