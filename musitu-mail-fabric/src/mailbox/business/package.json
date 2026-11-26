@@ -1,0 +1,16 @@
+{
+  "name": "mft-mailbox-pilot",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "node --test test.mjs",
+    "check": "node --check worker.mjs && node --check core.mjs && node --check public/app.mjs"
+  },
+  "dependencies": {
+    "jose": "^6.0.0",
+    "postal-mime": "^2.4.0"
+  },
+  "devDependencies": {
+    "wrangler": "^4.0.0"
+  }
+}
