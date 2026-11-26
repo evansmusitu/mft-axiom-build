@@ -1,0 +1,6 @@
+# 205,000 MILES FROM HOME
+Original historical dramatization of Apollo 13, April 11–17, 1970. Three approximate procedural human characters: Jim Lovell, Jack Swigert, Fred Haise. Not archival footage, photoreal likenesses, or a recreation of the 1995 feature. The narrator is an original synthetic documentary voice, not an imitation of any astronaut. The crew's gestures are illustrative, not literal reconstructed conversations; no dialogue or lip-sync is represented as authentic.
+
+Historical sources: https://www.nasa.gov/missions/apollo/apollo-13-mission-details/ ; https://www.nasa.gov/mission/apollo-13/ ; https://www.nasa.gov/news-release/nasa-commemorates-50th-anniversary-of-apollo-13-a-successful-failure/ ; https://www.nasa.gov/history/apollo-13-crew-returns-to-houston/ .
+
+Production: 5400 frames, 30 fps, 1080x1920, 12-frame T4 CUDA batches, private Modal volume, original score, synthesized narration, strict frame and ffprobe checks. GPU qualification and shutdown of the previous film are mandatory gates. Source is a procedural candidate; visual fidelity and final output remain unverified until real render and review.
