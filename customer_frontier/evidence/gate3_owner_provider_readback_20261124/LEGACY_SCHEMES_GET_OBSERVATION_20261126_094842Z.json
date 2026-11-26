@@ -1,0 +1,73 @@
+{
+  "schema": "musitu.axiom.gate3.existing-legacy-scheme-observation.v1",
+  "observed_at_utc": "2026-11-26T09:48:42.565Z",
+  "execution_origin": "BUILD_CONTROLLED_NOT_INDEPENDENT_OPERATOR",
+  "account_id": "67469478aa9349fa0a57fe3a72da200a",
+  "owner_metadata_observed_at_utc": "2026-11-26T04:23:47.830Z",
+  "subjects": [
+    {
+      "reference": "CLOUDFLARE_GLOBAL_API_KEY",
+      "global_key_attempts": [
+        {
+          "variant": "recorded_ci_email",
+          "state": "NON200_NOT_WRITE_DENIAL",
+          "http_status": 403,
+          "principal_identifier_sha256": null,
+          "matches_owner_principal": false
+        }
+      ],
+      "bearer_verification_attempts": [
+        {
+          "scope": "user",
+          "state": "NON200_NOT_WRITE_DENIAL",
+          "http_status": 401
+        },
+        {
+          "scope": "account_a2",
+          "state": "NON200_NOT_WRITE_DENIAL",
+          "http_status": 401
+        },
+        {
+          "scope": "account_source",
+          "state": "NON200_NOT_WRITE_DENIAL",
+          "http_status": 401
+        }
+      ],
+      "bearer_token_identifier_sha256": null,
+      "bearer_token_status": "UNKNOWN",
+      "revocation_verified": false,
+      "state": "NO_CREDENTIAL_IDENTITY_QUALIFIED_NOT_REVOCATION_PROOF"
+    },
+    {
+      "reference": "CLOUDFLARE_API_KEY",
+      "global_key_attempts": [],
+      "bearer_verification_attempts": [],
+      "bearer_token_identifier_sha256": null,
+      "bearer_token_status": "UNKNOWN",
+      "revocation_verified": false,
+      "state": "NOT_AVAILABLE_IN_THIS_CONTEXT_NOT_ABSENCE"
+    }
+  ],
+  "provider_write_requests": 0,
+  "credential_values_or_value_hashes_exported": false,
+  "build_credential_inventory_exhaustive": false,
+  "global_key_custody_qualified": false,
+  "independent_operator_custody_qualified": false,
+  "all_provider_write_denial_verified": false,
+  "gate3_closed": false,
+  "B27": "FAILED_IN_SYNTHETIC_ATTACK",
+  "parity_superiority": "NOT_CERTIFIED",
+  "unavailable_final_usage": "UNKNOWN",
+  "release_status": "NOT_RELEASE",
+  "metadata_reader": {
+    "state": "PROVIDER_GET_OBSERVED",
+    "http_status": 200,
+    "matches_owner_principal": true
+  },
+  "configured_email_matches_metadata_principal": true,
+  "provider_get_requests": 5,
+  "build_legacy_reference_matches_broad_owner_token": false,
+  "build_global_key_matches_owner_principal": false,
+  "status": "EXISTING_LEGACY_SCHEMES_GET_OBSERVATIONS_CUSTODY_HOLD",
+  "owner_metadata_file_sha256": "fad4a419c0c8c9b47d3b132f00ad1b9a3c573ea8fd0c85913f74d58c19989365"
+}

@@ -33,3 +33,12 @@ jobs:
           if($LASTEXITCODE -ne 0){throw 'Packet generation failed'}
           powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File customer_frontier/tests/gate3_owner_custody_windows.test.ps1 -Packet "$env:RUNNER_TEMP/OWNER_CUSTODY_READBACK.ps1"
           if($LASTEXITCODE -ne 0){throw 'Native public inspection failed'}
+      - name: Offline private inventory projection and refusal on PowerShell 5.1 and 7
+        shell: pwsh
+        run: |
+          python scripts/build_gate3_owner_custody_reconciliation.py --out "$env:RUNNER_TEMP/OWNER_CUSTODY_RECONCILIATION.ps1" --source-commit $env:GITHUB_SHA
+          if($LASTEXITCODE -ne 0){throw 'Offline review generation failed'}
+          powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File customer_frontier/tests/gate3_owner_custody_reconciliation_windows.test.ps1 -Packet "$env:RUNNER_TEMP/OWNER_CUSTODY_RECONCILIATION.ps1"
+          if($LASTEXITCODE -ne 0){throw 'PowerShell 5.1 offline review tests failed'}
+          pwsh -NoProfile -NonInteractive -File customer_frontier/tests/gate3_owner_custody_reconciliation_windows.test.ps1 -Packet "$env:RUNNER_TEMP/OWNER_CUSTODY_RECONCILIATION.ps1"
+          if($LASTEXITCODE -ne 0){throw 'PowerShell 7 offline review tests failed'}
