@@ -1,0 +1,117 @@
+{
+  "schema": "musitu.axiom.gate3.operator-acceptance-execution-readiness.v1",
+  "recorded_at_utc": "2026-11-26T14:35:14.279614+00:00",
+  "repository": "evansmusitu/mft-axiom-build",
+  "status": "APPROVED_SOURCE_PREFLIGHT_PASSED_INDEPENDENT_OPERATOR_EXECUTION_HOLD",
+  "approved_source_commit": "68799a41a367865649b833de649edcb26f77c0d3",
+  "approved_source_tree": "c83c922864ea3d7551625b79de7a0222bbd524d3",
+  "approved_public_config_sha256": "bc09d63349f611a71f0eef6c1ad1d00bd861454aeab7c41f9565056758f2f8e3",
+  "source_config_reapproval_required": false,
+  "accepted_signer_proof_repetition_required": false,
+  "owner_two_token_declaration_file": "OWNER_TWO_TOKEN_BUILD_INACCESSIBILITY_DECLARATION.json",
+  "provider_router_observation": {
+    "schema": "musitu.axiom.operator-provider-status.v1",
+    "status": "UNAVAILABLE",
+    "external_provider_execution_authority": false,
+    "provider_admission_required": true,
+    "production_authority": false,
+    "evidence_origin": "ACTUAL_CONNECTED_READONLY_STATUS_RESPONSE",
+    "scope": "This is a governed operator router status, not a Cloudflare administration connection. No alternative separately admitted Cloudflare operator execution capability was found."
+  },
+  "existing_earned_evidence": {
+    "complete_owner_metadata_receipt_sha256": "fad4a419c0c8c9b47d3b132f00ad1b9a3c573ea8fd0c85913f74d58c19989365",
+    "known_recovery_and_admin_read_only_metadata_accepted": true,
+    "scoped_actual_build_write_denials": 6,
+    "scoped_denial_run_id": 45459847877,
+    "scoped_denial_job_id": 138679115528,
+    "original_preview_scope_qualified": false,
+    "all_provider_denial_qualified": false,
+    "owner_two_other_tokens_builder_inaccessibility_declaration_accepted": true
+  },
+  "fresh_approved_source_preflight": {
+    "local_synthetic_checks_passed": 190,
+    "local_synthetic_checks_failed": 0,
+    "local_synthetic_log_sha256": "9eef8178f985f6480ad6ad5b57fe8242a2482a7a303c857ddff16d7b7d93588c",
+    "local_runtime": "Node24.22.3",
+    "local_dependency_install_attempt": {
+      "offline": true,
+      "exit_code": 1,
+      "result": "ENOTCACHED_ESBUILD",
+      "source_or_assertions_changed": false,
+      "classification": "LOCAL_DEPENDENCY_CACHE_LIMITATION_NOT_A_TEST_PASS"
+    },
+    "credential_free_CI_alternative": {
+      "run_id": 43726748255,
+      "run_attempt": 2,
+      "candidate_job_id": 139978025850,
+      "candidate_conclusion": "success",
+      "tested_merge": "815ab741e331e246debce41bc7e096edc090c574",
+      "tested_tree": "c83c922864ea3d7551625b79de7a0222bbd524d3",
+      "exact_approved_source_tree_match": true,
+      "synthetic_checks_passed": 190,
+      "real_local_workerd_SQLite_R2_checks_passed": 35,
+      "total_checks_passed": 225,
+      "Github_provider_boundary_and_custody_in_these_tests": "SYNTHETIC",
+      "actual_Cloudflare_hosted_destructive_acceptance": false
+    },
+    "mandatory_release_veto": {
+      "job_id": 139978375883,
+      "conclusion": "failure",
+      "reason": "INDEPENDENT_CUSTODY_AND_SEPARATE_HOST_PROVIDER_ACCEPTANCE_PENDING",
+      "veto_unchanged": true
+    }
+  },
+  "artifact_integrity_preflight": [
+    {
+      "original_archive": "14166403026.zip",
+      "source_commit": "68799a41a367865649b833de649edcb26f77c0d3",
+      "artifact": "PRIVATE_INITIALIZER_BUILD_MANIFEST.json",
+      "ZIP_integrity_passed": true,
+      "bundle_bytes": 27153,
+      "bundle_sha256": "ec884e4117e3ba392c59ae33b029722cb23bba03889a6dd23facd52a9a5aa3c4",
+      "manifest_source_SHA256_pins_matched_exact_approved_Git_blobs": 9
+    },
+    {
+      "original_archive": "14166586455.zip",
+      "source_commit": "68799a41a367865649b833de649edcb26f77c0d3",
+      "artifact": "A2_BUILD_MANIFEST.json",
+      "ZIP_integrity_passed": true,
+      "bundle_bytes": 15548,
+      "bundle_sha256": "d1ddd1e944bfa4560cc662f7fd12a9b22b3f6493175e4a38b2b3db7e1aed4210",
+      "manifest_source_SHA256_pins_matched_exact_approved_Git_blobs": 3
+    }
+  ],
+  "fresh_GitHub_checkpoint_observation": {
+    "repository": "evansmusitu/mft-axiom-qualification-isolated-20260913",
+    "repository_id": 1368351153,
+    "published_releases": 18,
+    "immutable_true_releases": 18,
+    "immutable_false_or_unreported_releases": 0,
+    "read_only_requests_only": true,
+    "new_genesis_checkpoint_published": false,
+    "independent_credential_custody_inferred": false
+  },
+  "requested_acceptance_results": {
+    "independent_credential_boundary": "HOLD_NOT_QUALIFIED",
+    "private_genesis": "NOT_RUN_PREDECESSOR_HOLD_AND_NO_INDEPENDENT_OPERATOR_CHANNEL",
+    "private_initializer_retirement": "NOT_RUN_NO_GENESIS_OR_OPERATOR_UPLOAD",
+    "actual_hosted_destructive_recovery": "NOT_RUN_PREDECESSOR_HOLDS_AND_NO_INDEPENDENT_OPERATOR_CHANNEL"
+  },
+  "remaining_executable_prerequisite": "An independently controlled owner/operator execution environment with the existing approved Authority2 signer, Cloudflare administration/recovery and private checkpoint read capability. Keep private material outside chat and builder CI. The unavailable router and generic builder workflow are not substitutes.",
+  "subsequent_required_sequence": [
+    "Independently qualify current credential custody and effective restriction evidence; preserve already accepted read-only scopes, denials and owner declarations.",
+    "Verify the approved disposable namespace is unused; generate fresh operator nonce/window, publish/read back an immutable pre-genesis commitment and obtain the operator's approval of its exact hash before the once-only trigger.",
+    "Run the exact approved private initializer on disposable resources, retain provider state/receipts, retire temporary controls and restore the exact reviewed serving version without erasing history.",
+    "Perform actual hosted signed bootstrap/readback, consumed replay, stale restore, ambiguous acknowledgements, abort after external commit, revocation and separate-host recovery; require no second permit and independent reviewer acceptance."
+  ],
+  "private_material_requested_or_exported": false,
+  "provider_mutations_this_revision": 0,
+  "public_routes_or_previews_enabled": false,
+  "new_paid_resources_created": false,
+  "main_and_PR1_preserved": true,
+  "gate3_closed": false,
+  "B27": "FAILED_IN_SYNTHETIC_ATTACK",
+  "parity_superiority": "NOT_CERTIFIED",
+  "unavailable_final_usage": "UNKNOWN",
+  "release_status": "NOT_RELEASE"
+}
