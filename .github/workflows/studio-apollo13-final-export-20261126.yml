@@ -1,0 +1,88 @@
+name: MUSITU Studio Apollo 13 — final movie verification and export
+on:
+  push:
+    branches: [experiments/studio-apollo13-20261126]
+    paths: ['.github/workflows/studio-apollo13-final-export-20261126.yml']
+permissions:
+  contents: read
+concurrency:
+  group: studio-apollo13-final-export
+  cancel-in-progress: false
+jobs:
+  export:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 240
+    steps:
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065
+        with:
+          python-version: '3.13'
+      - run: python -m pip install --disable-pip-version-check -q 'modal==1.6.4'
+      - name: Await existing controller only; never launch new render
+        env:
+          MODAL_TOKEN_ID: ${{ secrets.MODAL_TOKEN_ID }}
+          MODAL_TOKEN_SECRET: ${{ secrets.MODAL_TOKEN_SECRET }}
+        run: |
+          set -euo pipefail
+          mkdir -p final-film final-evidence
+          python - <<'PY'
+          import modal,hashlib,pathlib,json,time
+          root='4d2b3ea97e99eb85efd9e8d98e98a0f3600878a0'
+          callid='fc-01M8CBR636N4MMWQX03XPTVF12'
+          v=modal.Volume.from_name('musitu-studio-apollo13-20261126',create_if_missing=False)
+          call=modal.FunctionCall.from_id(callid)
+          def read(n):return b''.join(v.read_file(root+'/'+n))
+          for attempt in range(220):
+              try:
+                  result=call.get(timeout=0)
+              except TimeoutError:
+                  if attempt%10==0:print('EXISTING_CONTROLLER_PENDING',attempt,flush=True)
+                  time.sleep(60);continue
+              except Exception as exc:
+                  pathlib.Path('final-evidence/controller-error.txt').write_text(str(exc))
+                  raise
+              print('CONTROLLER_RESULT',json.dumps(result),flush=True)
+              break
+          else:raise RuntimeError('Existing controller still pending; no render restarted')
+          manifest=read('completeness_manifest.json');m=json.loads(manifest)
+          assert m['status']=='VERIFIED'
+          assert m['source']['commit']==root and m['source']['scene_sha256']=='a6bf8ce8bf7e753c4a6e5193d460b16a8b6d47caaf0ceaf019d7975c6c9b6d24'
+          frames=[f['frame'] for b in m['batches'] for f in b['frames']]
+          assert len(m['batches'])==450 and frames==list(range(1,5401))
+          assert all(b['renderer']=='CYCLES_CUDA' and b['device']=='Tesla T4' and b['gpu_peak_utilization']>0 for b in m['batches'])
+          def export(n,dest,sha):
+              h=hashlib.sha256();p=pathlib.Path(dest)
+              with p.open('wb') as out:
+                  for part in v.read_file(root+'/'+n):h.update(part);out.write(part)
+              assert h.hexdigest()==sha,(n,'digest mismatch')
+              print('FINAL_FILE_VERIFIED',n,p.stat().st_size,h.hexdigest(),flush=True)
+          export('205000_MILES_FROM_HOME.mp4','final-film/205000_MILES_FROM_HOME.mp4',m['mp4_sha256'])
+          export('narrated_score.wav','final-evidence/narrated_score.wav',m['audio_sha256'])
+          export('APOLLO13.blend','final-evidence/APOLLO13.blend',m['source']['scene_sha256'])
+          pathlib.Path('final-evidence/completeness_manifest.json').write_bytes(manifest)
+          pathlib.Path('final-evidence/controller-result.json').write_text(json.dumps(result,indent=2))
+          PY
+          ffprobe -v error -count_frames -show_streams -show_format -of json final-film/205000_MILES_FROM_HOME.mp4 > final-evidence/independent-ffprobe.json
+          python - <<'PY'
+          import json
+          x=json.load(open('final-evidence/independent-ffprobe.json'))
+          v=next(z for z in x['streams'] if z['codec_type']=='video')
+          assert (v['codec_name'],v['width'],v['height'],v['r_frame_rate'],int(v['nb_read_frames']))==('h264',1080,1920,'30/1',5400)
+          assert abs(float(v['duration'])-180)<.034 and any(z['codec_type']=='audio' for z in x['streams'])
+          print('INDEPENDENT_MP4_PROBE_PASS')
+          PY
+          ffmpeg -v error -xerror -i final-film/205000_MILES_FROM_HOME.mp4 -f null -
+          echo 'INDEPENDENT_FULL_DECODE_PASS'
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        if: success()
+        with:
+          name: APOLLO13-VERIFIED-FINAL-MP4
+          path: final-film/
+          compression-level: 0
+          retention-days: 30
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        if: always()
+        with:
+          name: APOLLO13-FINAL-PROVENANCE-AND-SOURCE
+          path: final-evidence/
+          if-no-files-found: warn
+          retention-days: 30
