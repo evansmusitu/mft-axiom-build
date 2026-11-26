@@ -1,0 +1,9 @@
+{
+ "name": "mft-mailbox-pilot",
+ "main": "worker.mjs",
+ "compatibility_date": "2026-11-26",
+ "workers_dev": false,
+ "preview_urls": false,
+ "assets": {"directory":"./public","binding":"ASSETS","run_worker_first":true},
+ "vars":{"MMF_MAILBOX_ADDRESS":"mail-pilot@mftintelligence.com","MMF_ORIGIN":"https://mail-pilot.mftintelligence.com","MMF_SEND_ENABLED":"false","MMF_RECEIVE_ENABLED":"false","MMF_EXISTING_ROUTE_APPROVED":"false"}
+}
