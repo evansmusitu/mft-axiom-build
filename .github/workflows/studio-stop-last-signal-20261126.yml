@@ -55,7 +55,7 @@ jobs:
               if state=='stopped':continue
               app_id=next((v for v in row.values() if isinstance(v,str) and v.startswith('ap-')),None)
               if not app_id:raise SystemExit('UNRECOGNIZED_APP_ID')
-              subprocess.run(['modal','app','stop',app_id],input='y\n',text=True,check=True)
+              subprocess.run(['modal','app','stop','--yes',app_id],check=True)
           PY
           modal app list --json > "$RUNNER_TEMP/after.json"
           python - <<'PY'
