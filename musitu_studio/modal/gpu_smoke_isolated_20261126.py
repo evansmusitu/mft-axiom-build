@@ -13,7 +13,28 @@ import subprocess
 import tempfile
 
 import modal
-from studio_modal import IMAGE, BLENDER
+
+# Self-contained remote function: Modal imports this module inside the GPU
+# container, where the deployment-only studio_modal.py file is absent.
+# Match the verified original Studio Blender 4.5.14 image without importing
+# the deployment module at remote runtime.
+ROOT = pathlib.Path(__file__).resolve().parent.parent
+BLENDER = "/opt/blender-4.5.14-linux-x64/blender"
+ARCHIVE = "blender-4.5.14-linux-x64.tar.xz"
+DIGEST = "9ba871ff2ecd36526b77432745980b7e6664ecd0c7ca11c48849073dcfe06da3"
+IMAGE = (modal.Image.debian_slim(python_version="3.11")
+    .apt_install("curl", "xz-utils", "libx11-6", "libxkbcommon0",
+                 "libxi6", "libxrender1", "libxfixes3", "libgl1", "libegl1",
+                 "libsm6", "libglib2.0-0", "libxext6", "libxrandr2",
+                 "libxinerama1", "libxcursor1", "libgomp1")
+    .run_commands(
+        "set -e; cd /opt; curl -fLsS --retry 3 --max-time 180 -o "+ARCHIVE+
+        " https://download.blender.org/release/Blender4.5/"+ARCHIVE+
+        "; echo '"+DIGEST+"  "+ARCHIVE+
+        "' | sha256sum -c -; tar -xJf "+ARCHIVE+"; rm "+ARCHIVE)
+    .pip_install("fastapi>=0.115,<1")
+    .add_local_dir(ROOT/"studio", "/opt/studio", copy=True)
+    .add_local_file(ROOT/"modal"/"verify_outputs.py", "/opt/verify_outputs.py", copy=True))
 
 app = modal.App("musitu-studio-gpu-smoke-20261126")
 
@@ -31,6 +52,8 @@ app = modal.App("musitu-studio-gpu-smoke-20261126")
 def smoke_gpu():
     """Run one real Blender/Cycles CUDA frame; return artifact digest receipt."""
     from importlib.machinery import SourceFileLoader
+    import sys
+    sys.path.insert(0, "/opt")
 
     from studio.job_schema import validate_job
 
