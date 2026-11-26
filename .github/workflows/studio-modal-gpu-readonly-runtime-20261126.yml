@@ -1,0 +1,57 @@
+name: MUSITU Studio GPU read-only runtime logs and container state
+on:
+  push:
+    branches: [experiments/studio-g56-budgeted-render-20261122]
+    paths: ['.github/workflows/studio-modal-gpu-readonly-runtime-20261126.yml']
+permissions: {contents: read}
+jobs:
+  runtime:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 6
+    env:
+      MODAL_TOKEN_ID: ${{ secrets.MODAL_TOKEN_ID }}
+      MODAL_TOKEN_SECRET: ${{ secrets.MODAL_TOKEN_SECRET }}
+    steps:
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065
+        with: {python-version: '3.13'}
+      - run: python -m pip install -q --disable-pip-version-check 'modal==1.6.4'
+      - name: Filter sanitized Modal logs and inspect active containers
+        run: |
+          python - <<'PY'
+          import json,subprocess,re
+          commands={
+            'app_logs':['modal','app','logs','musitu-studio-gpu-smoke-20261126'],
+            'container_list':['modal','container','list','--json'],
+            'app_info':['modal','app','info','musitu-studio-gpu-smoke-20261126','--json'],
+            'function_info':['modal','function','info','musitu-studio-gpu-smoke-20261126/smoke_gpu','--json'],
+          }
+          for name,cmd in commands.items():
+            try:
+              p=subprocess.run(cmd,capture_output=True,text=True,timeout=65)
+              data={}
+              if name in ('app_info','function_info') and p.returncode==0:
+                j=json.loads(p.stdout)
+                data=({k:j.get(k) for k in ('app_id','lifecycle','functions')}
+                      if name=='app_info' else
+                      {k:j.get(k) for k in ('gpus','gpu','name','max_containers','timeout','max_retries','cpu','memory_mib')})
+              elif name=='container_list' and p.returncode==0:
+                j=json.loads(p.stdout)
+                data={'summary':str(j)[:1400]}
+              elif name=='app_logs':
+                lines=p.stdout.splitlines()+p.stderr.splitlines()
+                # Log lines can contain private data; emit only bounded diagnostic markers.
+                markers=('error','failed','exception','timeout','cancel','cuda','blender','gpu','queue','resource','container','start','stop','no available','capacity','not found','expired','image')
+                safe=[]
+                for l in lines:
+                  if any(m in l.lower() for m in markers):
+                    # Replace potential private strings; retain only timestamp and event type.
+                    types=[m for m in markers if m in l.lower()]
+                    safe.append({'event_types':types[:4],'timestamp':l[:24] if re.match(r'^\\d{4}-\\d{2}-\\d{2}',l) else None})
+                data={'log_lines':len(lines),'diagnostic_events':safe[-40:],
+                      'stderr_chars':len(p.stderr)}
+              else:
+                data={'stdout_chars':len(p.stdout),'stderr_chars':len(p.stderr)}
+              print('MUSITU_MODAL_RUNTIME='+json.dumps({'probe':name,'return_code':p.returncode,'data':data},sort_keys=True))
+            except Exception as e:
+              print('MUSITU_MODAL_RUNTIME='+json.dumps({'probe':name,'exception':type(e).__name__}))
+          PY
