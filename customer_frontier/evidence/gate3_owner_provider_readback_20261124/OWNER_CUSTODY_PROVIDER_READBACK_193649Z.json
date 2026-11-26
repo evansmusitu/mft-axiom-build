@@ -1,0 +1,436 @@
+{
+  "schema": "musitu.axiom.gate3.owner-custody-provider-readback.v1",
+  "observed_at_utc": "2026-11-24T19:36:49.432Z",
+  "challenge_nonce": "f7b18952f0793423c8cdc7adbd51134c",
+  "source_commit": "a932c5f7b9a4bf40c9b0bf1af811015b9b88383b",
+  "public_challenge_sha256": "6de58d818afce1ecbdf4bda622e141be5ab8ceb4c416ef76202ad16fdead1dcd",
+  "repository": "evansmusitu/mft-axiom-build",
+  "account_id": "67469478aa9349fa0a57fe3a72da200a",
+  "execution_origin": "OWNER_LOCAL_SOURCE_PATH_NOT_OS_ATTESTATION",
+  "private_credential_written_or_exported": false,
+  "profile_read": {
+    "state": "PROVIDER_READ_OBSERVED",
+    "http_status": 200
+  },
+  "provider_principal_identifier_sha256": "29293f773babce484eb7b17af2b293a083d8311ea296ef8d3e0dac119e63c243",
+  "provider_mfa_enabled": true,
+  "authentication_kind": "global_key",
+  "collection_complete": false,
+  "independent_custody_automatically_qualified": false,
+  "credential_content_inventory_exhaustive": false,
+  "gate3_closed": false,
+  "B27": "FAILED_IN_SYNTHETIC_ATTACK",
+  "release_status": "NOT_RELEASE",
+  "memberships": {
+    "complete": true,
+    "pages": 1,
+    "rows": [
+      {
+        "account_is_a2": false,
+        "status": "accepted",
+        "administrator_role_observed": true
+      },
+      {
+        "account_is_a2": false,
+        "status": "accepted",
+        "administrator_role_observed": true
+      },
+      {
+        "account_is_a2": false,
+        "status": "accepted",
+        "administrator_role_observed": true
+      },
+      {
+        "account_is_a2": true,
+        "status": "accepted",
+        "administrator_role_observed": true
+      }
+    ],
+    "last_read": {
+      "state": "PROVIDER_READ_OBSERVED",
+      "http_status": 200
+    }
+  },
+  "operator_a2_accepted_administrator_observed": true,
+  "account_members": {
+    "complete": true,
+    "pages": 1,
+    "rows": [
+      {
+        "member_identifier_sha256": "0390de3363a18cdd99f8b824710a32433c9285edb8e2500e4514a039ca13d5af",
+        "status": "accepted",
+        "is_authenticated_operator": true,
+        "administrator_role_observed": true,
+        "any_role_write_permission_observed": false,
+        "modern_policies_present": true
+      }
+    ],
+    "last_read": {
+      "state": "PROVIDER_READ_OBSERVED",
+      "http_status": 200
+    }
+  },
+  "user_tokens": {
+    "complete": false,
+    "pages": 2,
+    "rows": [
+      {
+        "token_identifier_sha256": "83eda64c33252d73b0ae28ebcb902d35d5aa081a7b43f77728924820021860f5",
+        "known_build_reference": "AXIOM_D1_RECOVERY_CF_API_TOKEN",
+        "status": "active",
+        "metadata_available": true,
+        "policies": [
+          {
+            "effect": "allow",
+            "explicit_a2_resource": true,
+            "all_account_resource": false,
+            "unclassified_resource_scope": false,
+            "read_named_groups": 11,
+            "potential_write_or_execute_named_groups": 0,
+            "other_groups": 0
+          }
+        ],
+        "full_effective_policy_verified": false
+      },
+      {
+        "token_identifier_sha256": "70ec61d527033d9e31d43571ce8b891c66c1bedc4d214fc81a40c5624e984e28",
+        "known_build_reference": null,
+        "status": "active",
+        "metadata_available": true,
+        "policies": [
+          {
+            "effect": "allow",
+            "explicit_a2_resource": false,
+            "all_account_resource": false,
+            "unclassified_resource_scope": true,
+            "read_named_groups": 1,
+            "potential_write_or_execute_named_groups": 0,
+            "other_groups": 0
+          },
+          {
+            "effect": "allow",
+            "explicit_a2_resource": false,
+            "all_account_resource": false,
+            "unclassified_resource_scope": true,
+            "read_named_groups": 4,
+            "potential_write_or_execute_named_groups": 0,
+            "other_groups": 0
+          },
+          {
+            "effect": "allow",
+            "explicit_a2_resource": false,
+            "all_account_resource": true,
+            "unclassified_resource_scope": false,
+            "read_named_groups": 22,
+            "potential_write_or_execute_named_groups": 0,
+            "other_groups": 0
+          }
+        ],
+        "full_effective_policy_verified": false
+      },
+      {
+        "token_identifier_sha256": "33d26c62069787423055c851cf3c6d60ad512ae35cf444bd79aef889dbec24d5",
+        "known_build_reference": null,
+        "status": "active",
+        "metadata_available": true,
+        "policies": [
+          {
+            "effect": "allow",
+            "explicit_a2_resource": false,
+            "all_account_resource": false,
+            "unclassified_resource_scope": true,
+            "read_named_groups": 0,
+            "potential_write_or_execute_named_groups": 1,
+            "other_groups": 0
+          },
+          {
+            "effect": "allow",
+            "explicit_a2_resource": false,
+            "all_account_resource": false,
+            "unclassified_resource_scope": false,
+            "read_named_groups": 0,
+            "potential_write_or_execute_named_groups": 3,
+            "other_groups": 0
+          }
+        ],
+        "full_effective_policy_verified": false
+      },
+      {
+        "token_identifier_sha256": "acec766fe00dd3934028a9c8ab9395f10f51ff089815f935237a7ced05134680",
+        "known_build_reference": null,
+        "status": "active",
+        "metadata_available": true,
+        "policies": [
+          {
+            "effect": "allow",
+            "explicit_a2_resource": false,
+            "all_account_resource": false,
+            "unclassified_resource_scope": true,
+            "read_named_groups": 0,
+            "potential_write_or_execute_named_groups": 1,
+            "other_groups": 0
+          },
+          {
+            "effect": "allow",
+            "explicit_a2_resource": false,
+            "all_account_resource": false,
+            "unclassified_resource_scope": false,
+            "read_named_groups": 0,
+            "potential_write_or_execute_named_groups": 3,
+            "other_groups": 0
+          }
+        ],
+        "full_effective_policy_verified": false
+      },
+      {
+        "token_identifier_sha256": "9d7d225787122f7d9fdd69f20af171c70fe72d7818c1ed8f37fcef7aa726fc2a",
+        "known_build_reference": null,
+        "status": "active",
+        "metadata_available": true,
+        "policies": [
+          {
+            "effect": "allow",
+            "explicit_a2_resource": false,
+            "all_account_resource": false,
+            "unclassified_resource_scope": true,
+            "read_named_groups": 0,
+            "potential_write_or_execute_named_groups": 1,
+            "other_groups": 0
+          },
+          {
+            "effect": "allow",
+            "explicit_a2_resource": false,
+            "all_account_resource": false,
+            "unclassified_resource_scope": false,
+            "read_named_groups": 0,
+            "potential_write_or_execute_named_groups": 3,
+            "other_groups": 0
+          }
+        ],
+        "full_effective_policy_verified": false
+      },
+      {
+        "token_identifier_sha256": "30932350f92d7eab37c2493a1e9cccadaed4512ea00c01baffb64317ce27fb50",
+        "known_build_reference": null,
+        "status": "active",
+        "metadata_available": true,
+        "policies": [
+          {
+            "effect": "allow",
+            "explicit_a2_resource": false,
+            "all_account_resource": false,
+            "unclassified_resource_scope": true,
+            "read_named_groups": 0,
+            "potential_write_or_execute_named_groups": 1,
+            "other_groups": 0
+          },
+          {
+            "effect": "allow",
+            "explicit_a2_resource": false,
+            "all_account_resource": false,
+            "unclassified_resource_scope": false,
+            "read_named_groups": 0,
+            "potential_write_or_execute_named_groups": 3,
+            "other_groups": 0
+          }
+        ],
+        "full_effective_policy_verified": false
+      },
+      {
+        "token_identifier_sha256": "a8652e7fb7e12458d0a261ddf2e511f6eae16fdd515dd8c0cce149f5c88355df",
+        "known_build_reference": null,
+        "status": "active",
+        "metadata_available": true,
+        "policies": [
+          {
+            "effect": "allow",
+            "explicit_a2_resource": false,
+            "all_account_resource": false,
+            "unclassified_resource_scope": true,
+            "read_named_groups": 0,
+            "potential_write_or_execute_named_groups": 1,
+            "other_groups": 0
+          },
+          {
+            "effect": "allow",
+            "explicit_a2_resource": false,
+            "all_account_resource": false,
+            "unclassified_resource_scope": false,
+            "read_named_groups": 0,
+            "potential_write_or_execute_named_groups": 3,
+            "other_groups": 0
+          }
+        ],
+        "full_effective_policy_verified": false
+      },
+      {
+        "token_identifier_sha256": "a61976bdfd55a6a235b2bc155fca14b29483f095cba436147615f0c142b23b93",
+        "known_build_reference": null,
+        "status": "active",
+        "metadata_available": true,
+        "policies": [
+          {
+            "effect": "allow",
+            "explicit_a2_resource": false,
+            "all_account_resource": false,
+            "unclassified_resource_scope": true,
+            "read_named_groups": 0,
+            "potential_write_or_execute_named_groups": 1,
+            "other_groups": 0
+          },
+          {
+            "effect": "allow",
+            "explicit_a2_resource": false,
+            "all_account_resource": false,
+            "unclassified_resource_scope": false,
+            "read_named_groups": 0,
+            "potential_write_or_execute_named_groups": 3,
+            "other_groups": 0
+          }
+        ],
+        "full_effective_policy_verified": false
+      },
+      {
+        "token_identifier_sha256": "f0766690927cde396cd5c2c7f434df558e9a1d672f4383565c56850b95bdcf35",
+        "known_build_reference": null,
+        "status": "active",
+        "metadata_available": true,
+        "policies": [
+          {
+            "effect": "allow",
+            "explicit_a2_resource": false,
+            "all_account_resource": false,
+            "unclassified_resource_scope": true,
+            "read_named_groups": 0,
+            "potential_write_or_execute_named_groups": 1,
+            "other_groups": 0
+          },
+          {
+            "effect": "allow",
+            "explicit_a2_resource": false,
+            "all_account_resource": false,
+            "unclassified_resource_scope": false,
+            "read_named_groups": 0,
+            "potential_write_or_execute_named_groups": 3,
+            "other_groups": 0
+          }
+        ],
+        "full_effective_policy_verified": false
+      },
+      {
+        "token_identifier_sha256": "79369b3625c566964c46fac99bc79a718e8bd76e99948fca5df409077b27b237",
+        "known_build_reference": null,
+        "status": "active",
+        "metadata_available": true,
+        "policies": [
+          {
+            "effect": "allow",
+            "explicit_a2_resource": false,
+            "all_account_resource": false,
+            "unclassified_resource_scope": true,
+            "read_named_groups": 0,
+            "potential_write_or_execute_named_groups": 1,
+            "other_groups": 0
+          },
+          {
+            "effect": "allow",
+            "explicit_a2_resource": false,
+            "all_account_resource": false,
+            "unclassified_resource_scope": false,
+            "read_named_groups": 0,
+            "potential_write_or_execute_named_groups": 3,
+            "other_groups": 0
+          }
+        ],
+        "full_effective_policy_verified": false
+      },
+      {
+        "token_identifier_sha256": "7a4067daea4579380cbdcf17534ccdefb4d2bb0aace2b300526d9ef46f5ae2fe",
+        "known_build_reference": null,
+        "status": "active",
+        "metadata_available": true,
+        "policies": [
+          {
+            "effect": "allow",
+            "explicit_a2_resource": false,
+            "all_account_resource": false,
+            "unclassified_resource_scope": true,
+            "read_named_groups": 0,
+            "potential_write_or_execute_named_groups": 1,
+            "other_groups": 0
+          },
+          {
+            "effect": "allow",
+            "explicit_a2_resource": false,
+            "all_account_resource": false,
+            "unclassified_resource_scope": false,
+            "read_named_groups": 0,
+            "potential_write_or_execute_named_groups": 3,
+            "other_groups": 0
+          }
+        ],
+        "full_effective_policy_verified": false
+      },
+      {
+        "token_identifier_sha256": "f8aaeedc1c90698085d6815a1d2c2d300ec9957c41b0a14175a7c3f12b13889a",
+        "known_build_reference": null,
+        "status": "active",
+        "metadata_available": true,
+        "policies": [
+          {
+            "effect": "allow",
+            "explicit_a2_resource": false,
+            "all_account_resource": false,
+            "unclassified_resource_scope": true,
+            "read_named_groups": 0,
+            "potential_write_or_execute_named_groups": 1,
+            "other_groups": 0
+          },
+          {
+            "effect": "allow",
+            "explicit_a2_resource": false,
+            "all_account_resource": false,
+            "unclassified_resource_scope": false,
+            "read_named_groups": 0,
+            "potential_write_or_execute_named_groups": 3,
+            "other_groups": 0
+          }
+        ],
+        "full_effective_policy_verified": false
+      }
+    ],
+    "last_read": {
+      "state": "PROVIDER_READ_OBSERVED",
+      "http_status": 200
+    }
+  },
+  "account_owned_tokens": {
+    "complete": true,
+    "pages": 1,
+    "rows": [],
+    "last_read": {
+      "state": "PROVIDER_READ_OBSERVED",
+      "http_status": 200
+    }
+  },
+  "retention_read": {
+    "state": "PROVIDER_READ_OBSERVED",
+    "http_status": 200,
+    "indefinite_b27_rule_observed": true
+  },
+  "authority_worker_read": {
+    "state": "PROVIDER_READ_UNAVAILABLE_NOT_ABSENCE",
+    "http_status": 404
+  },
+  "github": {
+    "repository_identity_verified": false,
+    "metadata_complete": false,
+    "scopes": [],
+    "state": "REPOSITORY_IDENTITY_OR_OWNER_SCOPE_UNQUALIFIED"
+  },
+  "provider_get_requests": 8,
+  "provider_write_requests": 0,
+  "github_secret_values_requested": false,
+  "github_variable_values_exported": false,
+  "status": "OWNER_PROVIDER_METADATA_PARTIAL_REVIEW_REQUIRED_NOT_RELEASE"
+}

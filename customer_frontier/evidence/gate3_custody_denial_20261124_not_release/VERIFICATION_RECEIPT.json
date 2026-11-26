@@ -1,0 +1,152 @@
+{
+  "source_commit": "a932c5f7b9a4bf40c9b0bf1af811015b9b88383b",
+  "source_tree": "0038ded9e2a5a125e4b0b161516c520ea46b02b0",
+  "tested_merge": "c71ee5d34a740d1309783aecd937320010fab60a",
+  "source_ci": {
+    "run_id": 45459859978,
+    "run_attempt": 1,
+    "job_id": 138679157897,
+    "conclusion": "success",
+    "node_tests": 580,
+    "python_tests": 356,
+    "local_workerd_tests": 16,
+    "total_checks": 952
+  },
+  "native_ci": {
+    "run_id": 45459859759,
+    "run_attempt": 1,
+    "job_id": 138679155761,
+    "conclusion": "success",
+    "node_tests": 9,
+    "python_tests": 4,
+    "PowerShell_versions": [
+      "5.1",
+      "7"
+    ],
+    "inspection_passed": true,
+    "owner_execution": false
+  },
+  "live_ci": {
+    "run_id": 45459847877,
+    "run_attempt": 1,
+    "job_id": 138679115528,
+    "conclusion": "success",
+    "six_bounded_denials_passed": true,
+    "independent_custody_qualified": false,
+    "report_path": "ACTUAL_BOUNDED_WORKER_ASSETS_R2_DENIAL_PASS_182812Z.json",
+    "report_sha256": "a2f3e2cb193c52b697fbf81919162c15763cc539d53fb9d96211a3db9ceac1a4",
+    "observed_at_utc": "2026-11-24T18:28:12.881Z"
+  },
+  "prior_runs": [
+    {
+      "run_id": 45416476424,
+      "job_id": 138523947877,
+      "source_commit": "7a5792a36bddbcc2016d7cedc1f45d282cd23ab2",
+      "report": "ACTUAL_R2_DENIAL_AND_PREVIEW_SESSION_HOLD_143913Z.json"
+    },
+    {
+      "run_id": 45418631497,
+      "job_id": 138531676210,
+      "source_commit": "9daa12cfa27a96da5802304c1b35d5d593b50ca4",
+      "report": "ACTUAL_ASSETS_RESPONSE_CONTRACT_HOLD_145051Z.json"
+    },
+    {
+      "run_id": 45422019308,
+      "job_id": 138543810648,
+      "source_commit": "3589155579aa726882bae66cfe47a7a4770fd274",
+      "report": "ACTUAL_ASSETS_NULLABLE_ERROR_DIAGNOSTIC_HOLD_150837Z.json"
+    },
+    {
+      "run_id": 45423511215,
+      "job_id": 138549111456,
+      "source_commit": "f0383cf82e575ab7f4d7ae0567ff9317277929f0",
+      "report": "ACTUAL_ASSETS_OPTIONAL_CODE_CONTRACT_HOLD_151611Z.json"
+    }
+  ],
+  "deliverable": {
+    "path": "/workspace/scratch/bc4651aff037/deliverables/MUSITU_AXIOM_GATE3_OWNER_CUSTODY_READBACK_20261124.ps1",
+    "bytes": 32616,
+    "sha256": "eafcceea22692a2b1f00bb89735bf098943c108387714ca9abaa060bed84be71",
+    "source_commit": "a932c5f7b9a4bf40c9b0bf1af811015b9b88383b",
+    "module_sha256": "3f3975e8865793afc9316fad9d7c2b1f65e21cd67417529f2a6383b8e50d3e76",
+    "parser_sha256": "febacc931864f47fcab3eed109e917d112dbc5f643720c18ec6c8fef42b7fb53",
+    "challenge_sha256": "6de58d818afce1ecbdf4bda622e141be5ab8ceb4c416ef76202ad16fdead1dcd",
+    "private_credentials_included": false,
+    "gate3_closed": false,
+    "release_status": "NOT_RELEASE",
+    "library_file_id": "libfile_7badc4704e4081918fbc1fb16800f8dc",
+    "public_challenge": {
+      "account_id": "67469478aa9349fa0a57fe3a72da200a",
+      "expires_at_utc": "2026-11-26T18:28:56.603552Z",
+      "gate3_closed": false,
+      "issued_at_utc": "2026-11-24T18:28:56.603552Z",
+      "nonce": "f7b18952f0793423c8cdc7adbd51134c",
+      "release_status": "NOT_RELEASE",
+      "repository": "evansmusitu/mft-axiom-build",
+      "schema": "musitu.axiom.gate3.owner-custody-challenge.v1",
+      "source_commit": "a932c5f7b9a4bf40c9b0bf1af811015b9b88383b"
+    }
+  },
+  "log_sha256": {
+    "source": "fa11d377dc09baf25722570b7366415584c6c208603b2040cf31d226b4c823f3",
+    "windows": "85314be3f561bc87ac0f0edd7b6fd5f2431607aacbc16035ff930ac959873c77",
+    "live": "012b418ae6e0f58613c5c01dd05bd737bd26ce74acdb243a03a52a546c0c31f8"
+  },
+  "schema": "musitu.axiom.gate3.custody-boundary-verification.v1",
+  "verified_at_utc": "2026-11-24T18:31:13.924776Z",
+  "actual_reports": [
+    {
+      "file": "ACTUAL_ASSETS_NULLABLE_ERROR_DIAGNOSTIC_HOLD_150837Z.json",
+      "sha256": "bdc1b701be3a6c652e7af6fcabc95685d3a47a53851d793a31ec88b59142d8d7",
+      "status": "BOUNDED_DENIAL_TESTS_PARTIAL_OR_FAILED_CUSTODY_HOLD"
+    },
+    {
+      "file": "ACTUAL_ASSETS_OPTIONAL_CODE_CONTRACT_HOLD_151611Z.json",
+      "sha256": "dcbdf906a9cd3e646320daa914331d7d871a2790db363f29c7a206d0ec566c6e",
+      "status": "BOUNDED_DENIAL_TESTS_PARTIAL_OR_FAILED_CUSTODY_HOLD"
+    },
+    {
+      "file": "ACTUAL_ASSETS_RESPONSE_CONTRACT_HOLD_145051Z.json",
+      "sha256": "8d36260e74bf285b8c80c40d92e7bb019ec90e734f006ddd032b4fdad1c14e6a",
+      "status": "BOUNDED_DENIAL_TESTS_PARTIAL_OR_FAILED_CUSTODY_HOLD"
+    },
+    {
+      "file": "ACTUAL_BOUNDED_WORKER_ASSETS_R2_DENIAL_PASS_182812Z.json",
+      "sha256": "a2f3e2cb193c52b697fbf81919162c15763cc539d53fb9d96211a3db9ceac1a4",
+      "status": "BOUNDED_WORKER_ASSET_SESSION_AND_R2_CREATE_DENIALS_PASSED_CUSTODY_HOLD"
+    },
+    {
+      "file": "ACTUAL_R2_DENIAL_AND_PREVIEW_SESSION_HOLD_143913Z.json",
+      "sha256": "06d201b8b1df2cd04a0608577d1c217252a829d4462aa80a735c634c9c264be9",
+      "status": "BOUNDED_DENIAL_TESTS_PARTIAL_OR_FAILED_CUSTODY_HOLD"
+    }
+  ],
+  "provider_requests": {
+    "PR250_prior_GET_only_requests": 147,
+    "PR251_five_live_runs_GET_requests": 250,
+    "PR251_five_live_runs_write_attempts": 36,
+    "combined_GET_requests": 397,
+    "combined_write_attempts": 36,
+    "combined_total_requests": 433
+  },
+  "qualifications": {
+    "bounded_worker_assets_r2_denial_tests_passed": true,
+    "bounded_write_denial_tests_passed": false,
+    "all_provider_write_denial_verified": false,
+    "global_key_custody_verified": false,
+    "alternative_credential_inventory_exhaustive": false,
+    "independent_operator_custody_qualified": false,
+    "gate3_closed": false,
+    "hosted_genesis_qualified": false,
+    "hosted_retirement_qualified": false,
+    "hosted_destructive_recovery_qualified": false,
+    "B27": "FAILED_IN_SYNTHETIC_ATTACK",
+    "parity_superiority": "NOT_CERTIFIED",
+    "unavailable_final_usage": "UNKNOWN",
+    "release_status": "NOT_RELEASE"
+  },
+  "tested_merge_tree_matches_source_tree": true,
+  "main_preserved": "c3c5aaab90e94f1ca84ac9903f9d481c23c4f350",
+  "pr1_preserved": "8fc1fbb7c5ebbcc1604ecf24c5f4594f2d5667e3",
+  "pr1_open_draft_unmerged": true
+}

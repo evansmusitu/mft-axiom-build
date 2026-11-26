@@ -1,0 +1,28 @@
+✔ valid source controls and six real-endpoint authorization denials qualify only the bounded checks (58.751845ms)
+✔ global key is checked against the provider-verified principal without exporting email or credential values (15.016897ms)
+✔ inactive or mismatched subjects cannot trigger canary mutation attempts (2.191787ms)
+✔ 401,404,429,500 responses cannot be promoted to effective authorization denial (57.297398ms)
+✔ failed positive controls leave the affected endpoint tests unqualified (3.81892ms)
+✔ missing Authority2 upload session prevents a malformed Worker request from being called a denial (5.694105ms)
+✔ an unexpected private bucket creation fails denial and cleans only its acknowledged new empty name (8.915331ms)
+✔ failed cleanup is retained as a blocker with its exact disposable name (6.304205ms)
+✔ provider identifier drift after denied calls invalidates the acceptance (6.448719ms)
+✔ bad nonce values are refused before any network request (0.86026ms)
+✔ untrusted transport errors never leak secrets and never become denied writes (0.645614ms)
+✔ CLI refuses outside its exact isolated push context before provider access (122.976017ms)
+✔ all mutation requests remain outside retained buckets, authority scripts, D1, tokens and routing settings (12.454654ms)
+✔ redirects cannot forward credentials and cannot supply a successful control or denial (0.950533ms)
+✔ hanging fetches have a real deadline and cannot become qualified failures (103.31413ms)
+✔ duplicate JSON and reflected credentials in a purported403 body cannot qualify denial (5.038531ms)
+✔ global-key membership absence is not inferred from an incomplete provider page (9.945448ms)
+✔ a separate asset-session scope proves Workers write denial without waiving the unavailable preview test (5.213589ms)
+✔ an unavailable or failed asset-session control cannot qualify that permission test (3.39929ms)
+✔ an unexpectedly granted asset-upload capability is a denial failure and is never used (2.698285ms)
+ℹ tests 20
+ℹ suites 0
+ℹ pass 20
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 603.909978

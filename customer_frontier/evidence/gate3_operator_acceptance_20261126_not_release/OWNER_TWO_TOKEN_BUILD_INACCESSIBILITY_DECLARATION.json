@@ -1,0 +1,21 @@
+{
+  "schema": "musitu.axiom.gate3.owner-two-token-builder-access-declaration.v1",
+  "recorded_date": "2026-11-26",
+  "evidence_origin": "DIRECT_USER_CHAT_STATEMENT",
+  "statement_exact": "They cannot use them",
+  "context": "The immediately preceding exchange referred to Axiom builders' ability to use the two unmapped token identities.",
+  "token_identifiers_sha256": [
+    "f0885fe1d8c056f3972b4e24ebec8c249300fb7d572bcbfa28a9f219996304fe",
+    "3faa5c18db7e0fabffe1a3721d889e1e1f115aef77043ccda82d5ed3fed7277a"
+  ],
+  "owner_declares_available_to_Axiom_builders": false,
+  "owner_information_question_answered": true,
+  "repeat_confirmation_or_offline_review_script_required_for_this_same_fact": false,
+  "exclusive_owner_custody_inferred": false,
+  "purpose_or_storage_location_inferred": false,
+  "provider_policy_change_inferred": false,
+  "all_other_credential_inventory_complete_inferred": false,
+  "independent_provider_access_denial_test": false,
+  "gate3_closed": false,
+  "release_status": "NOT_RELEASE"
+}

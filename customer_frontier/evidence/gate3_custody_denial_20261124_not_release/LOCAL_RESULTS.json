@@ -1,0 +1,62 @@
+{
+  "schema": "musitu.axiom.gate3.custody-boundary-source-results.v2",
+  "verified_at_utc": "2026-11-24T18:31:13.924776Z",
+  "source_commit": "a932c5f7b9a4bf40c9b0bf1af811015b9b88383b",
+  "source_tree": "0038ded9e2a5a125e4b0b161516c520ea46b02b0",
+  "focused_local_tests": 35,
+  "focused_local_test_pass": 35,
+  "focused_local_test_log": "focused_optional_codes_and_owner_tests.log",
+  "focused_local_test_log_sha256": "682a07fbacb7bde8219dc6d0361fb692845c6594cc79f94b802ee6c48942de14",
+  "latest_hosted_source_ci": {
+    "run_id": 45459859978,
+    "run_attempt": 1,
+    "job_id": 138679157897,
+    "conclusion": "success",
+    "node_tests": 580,
+    "python_tests": 356,
+    "local_workerd_tests": 16,
+    "total_checks": 952
+  },
+  "native_Windows_inspection": {
+    "run_id": 45459859759,
+    "run_attempt": 1,
+    "job_id": 138679155761,
+    "conclusion": "success",
+    "node_tests": 9,
+    "python_tests": 4,
+    "PowerShell_versions": [
+      "5.1",
+      "7"
+    ],
+    "inspection_passed": true,
+    "owner_execution": false
+  },
+  "live_provider_acceptance": {
+    "run_id": 45459847877,
+    "run_attempt": 1,
+    "job_id": 138679115528,
+    "conclusion": "success",
+    "six_bounded_denials_passed": true,
+    "independent_custody_qualified": false,
+    "report_path": "ACTUAL_BOUNDED_WORKER_ASSETS_R2_DENIAL_PASS_182812Z.json",
+    "report_sha256": "a2f3e2cb193c52b697fbf81919162c15763cc539d53fb9d96211a3db9ceac1a4",
+    "observed_at_utc": "2026-11-24T18:28:12.881Z"
+  },
+  "qualifications": {
+    "bounded_worker_assets_r2_denial_tests_passed": true,
+    "bounded_write_denial_tests_passed": false,
+    "all_provider_write_denial_verified": false,
+    "global_key_custody_verified": false,
+    "alternative_credential_inventory_exhaustive": false,
+    "independent_operator_custody_qualified": false,
+    "gate3_closed": false,
+    "hosted_genesis_qualified": false,
+    "hosted_retirement_qualified": false,
+    "hosted_destructive_recovery_qualified": false,
+    "B27": "FAILED_IN_SYNTHETIC_ATTACK",
+    "parity_superiority": "NOT_CERTIFIED",
+    "unavailable_final_usage": "UNKNOWN",
+    "release_status": "NOT_RELEASE"
+  },
+  "historical_initial_results_path": "HISTORICAL_INITIAL_LOCAL_RESULTS.json"
+}

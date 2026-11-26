@@ -1,0 +1,49 @@
+{
+  "schema": "musitu.axiom.gate3.legacy-scheme-run-binding.v1",
+  "source_commit": "60f7cfd1edc168945c15e3d45b94fc0a19e9b990",
+  "source_tree": "d973ee5f01b4765592ae0384c802ff6e6cd9a102",
+  "tested_merge": "35f97aefa1ededd2de7c9273b6fda0df02c65a3e",
+  "probe": {
+    "run_id": 45795411005,
+    "job_id": 139824684404,
+    "conclusion": "success",
+    "observed_at_utc": "2026-11-26T09:48:42.565Z",
+    "report_file": "LEGACY_SCHEMES_GET_OBSERVATION_20261126_094842Z.json",
+    "provider_GETs": 5,
+    "provider_writes": 0,
+    "legacy_global_auth_http_status": 403,
+    "bearer_http_statuses": [
+      401,
+      401,
+      401
+    ],
+    "credential_identity_established": false,
+    "revocation_or_custody_proven": false
+  },
+  "source_CI": {
+    "run_id": 45795424161,
+    "job_id": 139824728119,
+    "conclusion": "success",
+    "Node_tests": 601,
+    "Python_tests": 358,
+    "real_local_workerd_tests": 16,
+    "total": 975
+  },
+  "existing_Windows_CI": {
+    "run_id": 45795424170,
+    "job_id": 139824727050,
+    "conclusion": "success",
+    "Node_tests": 20,
+    "Python_tests": 6,
+    "PowerShell_versions": [
+      "5.1",
+      "7"
+    ],
+    "actual_owner_execution": false
+  },
+  "gate3_closed": false,
+  "B27": "FAILED_IN_SYNTHETIC_ATTACK",
+  "parity_superiority": "NOT_CERTIFIED",
+  "unavailable_final_usage": "UNKNOWN",
+  "release_status": "NOT_RELEASE"
+}

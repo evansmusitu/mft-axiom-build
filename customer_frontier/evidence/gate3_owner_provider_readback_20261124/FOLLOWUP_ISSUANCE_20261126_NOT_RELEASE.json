@@ -1,0 +1,71 @@
+{
+  "schema": "musitu.axiom.gate3.owner-followup-issuance.v1",
+  "source_commit": "2bc70a7341e9de5f650c3d4dccc2d1ef279f259d",
+  "source_tree": "b511f439a5c177bdf48d154f06841733e366b02a",
+  "tested_merge": "1bcdff8468a0e13d8684bcb8b8bb2ab3b1e517c2",
+  "source_ci": {
+    "run_id": 45714706141,
+    "run_attempt": 1,
+    "job_id": 139557671116,
+    "conclusion": "success",
+    "Node_checks": 583,
+    "Python_checks": 358,
+    "real_local_workerd_checks": 16,
+    "total_checks": 957
+  },
+  "native_ci": {
+    "run_id": 45714706284,
+    "run_attempt": 1,
+    "job_id": 139557670469,
+    "conclusion": "success",
+    "Node_checks": 12,
+    "Python_checks": 6,
+    "PowerShell_versions": [
+      "5.1",
+      "7"
+    ],
+    "source_ACL_inspection_passed": true,
+    "real_CLI_discovery_and_status_output_containment_passed": true,
+    "hosted_full_mode_refused_before_owner_input": true,
+    "owner_PC_installation_or_login_executed": false
+  },
+  "deliverable": {
+    "bytes": 38071,
+    "sha256": "0bb44669a61b1462384eec8a4bbf1df9f858b48aa06eff2e5aafd9ae2ddc62cd",
+    "source_commit": "2bc70a7341e9de5f650c3d4dccc2d1ef279f259d",
+    "module_sha256": "782f323c70bdeba94705179439e87400d51ee8a0586ad99edb1d10a707d264af",
+    "parser_sha256": "febacc931864f47fcab3eed109e917d112dbc5f643720c18ec6c8fef42b7fb53",
+    "challenge_sha256": "2b23a07daef100c4eb18a1ab31735aa508f0e6e7207454bc756a265d74dee78e",
+    "challenge": {
+      "account_id": "67469478aa9349fa0a57fe3a72da200a",
+      "expires_at_utc": "2026-11-27T22:36:59.505692Z",
+      "gate3_closed": false,
+      "issued_at_utc": "2026-11-25T22:36:59.505692Z",
+      "nonce": "9fb3a288055ef779519004ef33876196",
+      "release_status": "NOT_RELEASE",
+      "repository": "evansmusitu/mft-axiom-build",
+      "schema": "musitu.axiom.gate3.owner-custody-challenge.v1",
+      "source_commit": "2bc70a7341e9de5f650c3d4dccc2d1ef279f259d"
+    },
+    "private_credentials_included": false,
+    "gate3_closed": false,
+    "release_status": "NOT_RELEASE",
+    "library_file_id": "libfile_a26ac734a20c819185e7623c903430dc"
+  },
+  "actual_owner_followup_execution": false,
+  "actual_updated_token_inventory_complete": false,
+  "actual_updated_GitHub_inventory_complete": false,
+  "global_key_custody_qualified": false,
+  "independent_operator_custody_qualified": false,
+  "additional_provider_write_attempts": 0,
+  "gate3_closed": false,
+  "B27": "FAILED_IN_SYNTHETIC_ATTACK",
+  "parity_superiority": "NOT_CERTIFIED",
+  "unavailable_final_usage": "UNKNOWN",
+  "release_status": "NOT_RELEASE",
+  "recorded_at_utc": "2026-11-25T22:39:40.420881Z",
+  "log_sha256": {
+    "source": "71d7496a954ed7cd1b5aea06f5fcdf980a3b8109cd9d5f87943bc5fadcab8b88",
+    "native": "a01a58e4d0259ac3be02c6ba71f2bb35eb7b31772dae1a784b8fac61a9698512"
+  }
+}

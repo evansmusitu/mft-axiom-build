@@ -1,0 +1,45 @@
+{
+  "schema": "musitu.axiom.gate3.profile-diagnostics-source-checks.v1",
+  "baseline_new_regression_cases": 8,
+  "baseline_failed_for_expected_gaps": 8,
+  "Node_tests": 20,
+  "Node_pass": 20,
+  "Python_packet_checks": 6,
+  "Python_pass": 6,
+  "actual_owner_connection_recovered": false,
+  "root_cause_of_uploaded_attempt_still_unknown": true,
+  "native_Windows_and_source_CI": {
+    "source": {
+      "run_id": 45722138508,
+      "run_attempt": 1,
+      "job_id": 139582815062,
+      "conclusion": "success",
+      "Node_checks": 591,
+      "Python_checks": 358,
+      "real_local_workerd_checks": 16,
+      "total_checks": 965
+    },
+    "native": {
+      "run_id": 45722138482,
+      "run_attempt": 1,
+      "job_id": 139582814963,
+      "conclusion": "success",
+      "Node_checks": 20,
+      "Python_checks": 6,
+      "PowerShell_versions": [
+        "5.1",
+        "7"
+      ],
+      "public_inspection_passed": true,
+      "CLI_discovery_status_containment_passed": true,
+      "hosted_full_mode_refused_before_owner_input": true,
+      "actual_owner_provider_collection": false
+    }
+  },
+  "gate3_closed": false,
+  "release_status": "NOT_RELEASE",
+  "log_sha256": {
+    "profile_diagnostics_regressions_20261126.log": "cd812f758d13b62605b96c46d2534cdebfe355ad2abe697a7aabe5c1ae028af9",
+    "profile_diagnostics_packet_checks_20261126.log": "b9c435c42ab71f12228b712965f62ce4b3421904b6d5c9e9fd755882de063911"
+  }
+}

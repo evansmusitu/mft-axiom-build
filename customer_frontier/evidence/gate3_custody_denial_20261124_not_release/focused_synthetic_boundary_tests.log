@@ -1,0 +1,25 @@
+✔ valid source controls and six real-endpoint authorization denials qualify only the bounded checks (44.635693ms)
+✔ global key is checked against the provider-verified principal without exporting email or credential values (11.664159ms)
+✔ inactive or mismatched subjects cannot trigger canary mutation attempts (1.5979ms)
+✔ 401,404,429,500 responses cannot be promoted to effective authorization denial (46.757103ms)
+✔ failed positive controls leave the affected endpoint tests unqualified (3.524937ms)
+✔ missing Authority2 upload session prevents a malformed Worker request from being called a denial (4.978553ms)
+✔ an unexpected private bucket creation fails denial and cleans only its acknowledged new empty name (6.730432ms)
+✔ failed cleanup is retained as a blocker with its exact disposable name (3.213727ms)
+✔ provider identifier drift after denied calls invalidates the acceptance (5.703766ms)
+✔ bad nonce values are refused before any network request (0.733754ms)
+✔ untrusted transport errors never leak secrets and never become denied writes (0.649579ms)
+✔ CLI refuses outside its exact isolated push context before provider access (113.106391ms)
+✔ all mutation requests remain outside retained buckets, authority scripts, D1, tokens and routing settings (9.7619ms)
+✔ redirects cannot forward credentials and cannot supply a successful control or denial (0.79215ms)
+✔ hanging fetches have a real deadline and cannot become qualified failures (103.007939ms)
+✔ duplicate JSON and reflected credentials in a purported403 body cannot qualify denial (3.674488ms)
+✔ global-key membership absence is not inferred from an incomplete provider page (6.509034ms)
+ℹ tests 17
+ℹ suites 0
+ℹ pass 17
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 507.465661
