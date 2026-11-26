@@ -1,4 +1,4 @@
-name: MUSITU Studio Apollo 13 — read-only Modal production diagnostics
+name: MUSITU Studio Apollo 13 — production readback and verified export
 on:
   push:
     branches: [experiments/studio-apollo13-20261126]
@@ -11,56 +11,100 @@ concurrency:
 jobs:
   readback:
     runs-on: ubuntu-24.04
-    timeout-minutes: 10
+    timeout-minutes: 25
     steps:
       - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065
         with:
           python-version: '3.13'
       - run: python -m pip install --disable-pip-version-check -q 'modal==1.6.4'
-      - name: Inspect only existing film app and volume without launching compute
+      - name: Read production controller and persisted receipts; export verified files
         env:
           MODAL_TOKEN_ID: ${{ secrets.MODAL_TOKEN_ID }}
           MODAL_TOKEN_SECRET: ${{ secrets.MODAL_TOKEN_SECRET }}
         run: |
           set -euo pipefail
-          mkdir -p evidence
+          mkdir -p evidence qualification-export
           modal app list --json > "$RUNNER_TEMP/apps.json"
           python - <<'PY'
-          import json,os,pathlib,modal,traceback,collections
+          import json,os,pathlib,modal,hashlib,concurrent.futures
           name='musitu-studio-apollo13-20261126'
-          root='3d6376959f043323c1b35d828bd25c8523103c00'
-          apps=json.load(open(os.environ['RUNNER_TEMP']+'/apps.json'))
-          report={'app':[x for x in apps if x.get('description')==name], 'render_commit':root}
+          root='4d2b3ea97e99eb85efd9e8d98e98a0f3600878a0'
+          scene='a6bf8ce8bf7e753c4a6e5193d460b16a8b6d47caaf0ceaf019d7975c6c9b6d24'
+          callid='fc-01M8CBR636N4MMWQX03XPTVF12'
           v=modal.Volume.from_name(name,create_if_missing=False)
-          for rel in ('source.json','status.json','completeness_manifest.json','batches/000001-000012/receipt.json','batches/000001-000012/failed-render.log','build.log'):
+          report={'app':[x for x in json.load(open(os.environ['RUNNER_TEMP']+'/apps.json')) if x.get('description')==name],'commit':root,'function_call_id':callid}
+          def read(rel):return b''.join(v.read_file(root+'/'+rel))
+          def getjson(rel):return json.loads(read(rel))
+          for rel in ['source.json','status.json','completeness_manifest.json']:
               try:
-                  raw=b''.join(v.read_file(root+'/'+rel))
-                  if rel.endswith('.json'):
-                      data=json.loads(raw)
-                      if rel=='completeness_manifest.json':data={k:data.get(k) for k in ('status','source','mp4_sha256','mp4_bytes','ffprobe')}
-                      report[rel]=data
-                  else:report[rel]=raw.decode(errors='replace')[-10000:]
-              except Exception as e:report[rel]={'read_error':type(e).__name__+': '+str(e)[:500]}
+                  obj=getjson(rel)
+                  if rel=='completeness_manifest.json':obj={k:obj.get(k) for k in ['status','source','mp4_sha256','mp4_bytes','audio_sha256','ffprobe']}
+                  report[rel]=obj
+              except Exception as e:report[rel]={'error':str(e)[:600]}
           try:
-              entries=v.listdir(root+'/batches')
-              report['batch_dirs']=[str(x.path) for x in entries]
-          except Exception as e:report['batch_dirs_error']=str(e)[:500]
-          try:report['root_entries']=[{'path':x.path,'size':x.size} for x in v.listdir(root)]
-          except Exception as e:report['root_entries_error']=str(e)[:500]
-          p=pathlib.Path('evidence/modal-readback.json');p.write_text(json.dumps(report,indent=2,default=str))
-          print('MODAL_READBACK',json.dumps(report,default=str)[:45000])
+              report['controller_result']=modal.FunctionCall.from_id(callid).get(timeout=0)
+          except TimeoutError:report['controller_result']='PENDING'
+          except Exception as e:report['controller_result']={'error':type(e).__name__+': '+str(e)[:1000]}
+          def check(a):
+              b=a+11;folder=f'batches/{a:06d}-{b:06d}'
+              try:
+                  x=getjson(folder+'/receipt.json')
+                  assert x['start']==a and x['end']==b and x['renderer']=='CYCLES_CUDA' and x['device']=='Tesla T4' and x['scene_sha256']==scene and x['gpu_peak_utilization']>0
+                  assert [z['frame'] for z in x['frames']]==list(range(a,b+1))
+                  assert all(len(z['sha256'])==64 and z['bytes']>0 for z in x['frames'])
+                  return (a,'verified',sum(z['bytes'] for z in x['frames']))
+              except FileNotFoundError:return(a,'missing',0)
+              except Exception as e:return(a,'invalid:'+str(e)[:150],0)
+          try:
+              dirs=v.listdir(root+'/batches')
+              present={int(pathlib.PurePosixPath(x.path).name.split('-')[0]) for x in dirs if '-' in pathlib.PurePosixPath(x.path).name}
+          except Exception as e:present=set();report['list_error']=str(e)
+          with concurrent.futures.ThreadPoolExecutor(max_workers=6) as pool:
+              rows=list(pool.map(check,sorted(present.intersection(range(1,5401,12)))))
+          valid=[a for a,state,size in rows if state=='verified']
+          report['verified_batches']=len(valid);report['verified_frames']=12*len(valid);report['verified_png_bytes']=sum(size for a,state,size in rows if state=='verified')
+          report['invalid_or_uncommitted']=[x for x in rows if x[1]!='verified']
+          report['completed_batch_starts']=valid
+          pathlib.Path('evidence/readback.json').write_text(json.dumps(report,indent=2,default=str))
+          print('PRODUCTION_READBACK',json.dumps({k:v for k,v in report.items() if k!='completed_batch_starts'},default=str)[:20000],flush=True)
+          def export(rel,dest,expected):
+              h=hashlib.sha256();p=pathlib.Path(dest)
+              with p.open('wb') as out:
+                  for chunk in v.read_file(root+'/'+rel):h.update(chunk);out.write(chunk)
+              if h.hexdigest()!=expected:p.unlink();raise RuntimeError('checksum mismatch '+rel)
+              print('VERIFIED_EXPORT',rel,p.stat().st_size,h.hexdigest(),flush=True)
+          rec=getjson('batches/000001-000012/receipt.json')
+          export('APOLLO13.blend','qualification-export/APOLLO13.blend',scene)
+          export('batches/000001-000012/frame_000001.png','qualification-export/frame_000001.png',rec['frames'][0]['sha256'])
+          export('batches/000001-000012/render.log','qualification-export/render.log',rec['log_sha256'])
+          pathlib.Path('qualification-export/qualification.json').write_text(json.dumps(rec,indent=2))
+          pathlib.Path('qualification-export/source.json').write_text(json.dumps(report['source.json'],indent=2))
+          m=report['completeness_manifest.json']
+          if m.get('status')=='VERIFIED' and len(valid)==450:
+              pathlib.Path('final-export').mkdir()
+              export('205000_MILES_FROM_HOME.mp4','final-export/205000_MILES_FROM_HOME.mp4',m['mp4_sha256'])
+              export('narrated_score.wav','final-export/narrated_score.wav',m['audio_sha256'])
+              pathlib.Path('final-export/completeness_manifest.json').write_bytes(read('completeness_manifest.json'))
           PY
-          appid=$(python -c "import json; a=json.load(open('evidence/modal-readback.json'))['app']; print(a[0]['app_id'] if len(a)==1 else '')")
-          if [ -n "$appid" ]; then
-            modal app logs --help
-            timeout 20s modal app logs "$appid" > "$RUNNER_TEMP/apollo-logs.txt" 2>&1 || true
-            tail -c 20000 "$RUNNER_TEMP/apollo-logs.txt" > evidence/modal-app-log-tail.txt
-            cat evidence/modal-app-log-tail.txt
-          fi
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         if: always()
         with:
-          name: apollo13-readonly-provider-evidence
+          name: apollo13-current-progress
           path: evidence/
           if-no-files-found: warn
+          retention-days: 14
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        if: success()
+        with:
+          name: apollo13-qualified-blender-and-preview
+          path: qualification-export/
+          if-no-files-found: error
+          retention-days: 14
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        if: success()
+        with:
+          name: apollo13-verified-final-movie
+          path: final-export/
+          if-no-files-found: ignore
+          compression-level: 0
           retention-days: 14
