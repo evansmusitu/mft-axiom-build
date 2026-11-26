@@ -1,0 +1,75 @@
+name: AXIOM A2 online owner operator validation (NOT HOSTED PROOF)
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/axiom-a2-owner-online-operator-20261126.yml'
+      - 'scripts/build_authority2_online_operator.py'
+      - 'customer_frontier/qualification/authority2_operator/**'
+      - 'customer_frontier/tests/authority2_operator*'
+      - 'qualification/authority2-operator-20261126/**'
+permissions: {contents: read}
+jobs:
+  local-runtime-and-build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with: {persist-credentials: false}
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: '68799a41a367865649b833de649edcb26f77c0d3'
+          path: '_operator_approved'
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with: {node-version: '24.12.0'}
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065
+        with: {python-version: '3.12'}
+      - name: Fixed local build and runtime dependencies; no owner credentials
+        run: npm install --prefix "$RUNNER_TEMP/operator-deps" --no-save --no-package-lock --ignore-scripts --no-audit --no-fund esbuild@0.25.9 miniflare@4.20260730.0
+      - name: Build single owner file from exact original approved bundles
+        env:
+          OPERATOR_SOURCE_COMMIT: ${{ github.event.pull_request.head.sha }}
+        run: |
+          mkdir -p "$RUNNER_TEMP/operator-output"
+          python scripts/build_authority2_online_operator.py --source-commit "$OPERATOR_SOURCE_COMMIT" --approved-root _operator_approved --stage "$RUNNER_TEMP/operator-stage" --esbuild "$RUNNER_TEMP/operator-deps/node_modules/esbuild" --out "$RUNNER_TEMP/operator-output/MUSITU_AXIOM_A2_ONLINE_OPERATOR_20261126.ps1"
+          cp "$RUNNER_TEMP/operator-stage/PACKAGE_BUILD_RECEIPT.json" "$RUNNER_TEMP/operator-output/"
+      - name: Endpoint confinement, actual local workerd/SQLite/R2 and fail-closed handling
+        env:
+          A2_OPERATOR_STAGE: ${{ runner.temp }}/operator-stage
+          A2_OPERATOR_DEPS: ${{ runner.temp }}/operator-deps/node_modules
+        run: |
+          node --test customer_frontier/tests/authority2_operator_transport.test.mjs
+          node --test qualification/authority2-operator-20261126/operator-integration.test.mjs
+      - name: Reproduce exact public package bytes in a second build directory
+        env:
+          OPERATOR_SOURCE_COMMIT: ${{ github.event.pull_request.head.sha }}
+        run: |
+          python scripts/build_authority2_online_operator.py --source-commit "$OPERATOR_SOURCE_COMMIT" --approved-root _operator_approved --stage "$RUNNER_TEMP/operator-stage-reproduction" --esbuild "$RUNNER_TEMP/operator-deps/node_modules/esbuild" --out "$RUNNER_TEMP/operator-reproduction.ps1"
+          cmp "$RUNNER_TEMP/operator-output/MUSITU_AXIOM_A2_ONLINE_OPERATOR_20261126.ps1" "$RUNNER_TEMP/operator-reproduction.ps1"
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: a2-online-owner-operator-public-package
+          path: ${{ runner.temp }}/operator-output/
+          retention-days: 7
+          if-no-files-found: error
+  native-windows-public-validation:
+    needs: local-runtime-and-build
+    runs-on: windows-2022
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with: {persist-credentials: false}
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with: {node-version: '24.12.0'}
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+        with:
+          name: a2-online-owner-operator-public-package
+          path: ${{ runner.temp }}/operator-packet
+      - name: Native PowerShell 5.1 and 7; no private provider credentials or signer
+        shell: pwsh
+        run: |
+          $packet=Join-Path $env:RUNNER_TEMP 'operator-packet/MUSITU_AXIOM_A2_ONLINE_OPERATOR_20261126.ps1'
+          powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File customer_frontier/tests/authority2_operator_windows.test.ps1 -Packet $packet
+          if($LASTEXITCODE -ne 0){throw 'Native PowerShell5.1 operator validation failed'}
+          pwsh -NoProfile -NonInteractive -File customer_frontier/tests/authority2_operator_windows.test.ps1 -Packet $packet
+          if($LASTEXITCODE -ne 0){throw 'Native PowerShell7 operator validation failed'}
