@@ -9,9 +9,11 @@ volume=modal.Volume.from_name('musitu-studio-apollo13-20261126',create_if_missin
 image=(modal.Image.debian_slim(python_version='3.11')
     .apt_install('curl','xz-utils','libx11-6','libxkbcommon0','libxi6','libxrender1','libxfixes3','libgl1','libegl1','libsm6','libglib2.0-0','libxext6','libxrandr2','libxinerama1','libxcursor1','libgomp1','ffmpeg','espeak-ng')
     .run_commands("set -e; cd /opt; curl -fLsS --retry 3 --max-time 180 -o "+ARCHIVE+" https://download.blender.org/release/Blender4.5/"+ARCHIVE+"; echo '"+DIGEST+"  "+ARCHIVE+"' | sha256sum -c -; tar -xJf "+ARCHIVE+"; rm "+ARCHIVE)
-    .pip_install('Pillow==11.3.0','numpy==2.2.6')
-    .add_local_dir(HERE,'/opt/film',copy=True)
-    .add_local_file(HERE.parents[1]/'creative/god_mode_2099/build_awaken_2099.py','/opt/film/build_awaken_2099.py',copy=True))
+    .pip_install('Pillow==11.3.0','numpy==2.2.6'))
+# The remote runtime imports /root/film_modal.py; never resolve checkout paths there.
+if modal.is_local():
+    image=(image.add_local_dir(HERE,'/opt/film',copy=True)
+        .add_local_file(HERE.parents[1]/'creative/god_mode_2099/build_awaken_2099.py','/opt/film/build_awaken_2099.py',copy=True))
 def root(run):
     if not re.fullmatch('[0-9a-f]{40}',run):raise ValueError('commit sha required')
     return pathlib.Path('/film')/run
@@ -35,6 +37,15 @@ def validate(folder,a,b,scene_hash):
             if im.size!=(1080,1920) or im.format!='PNG':raise ValueError('bad frame geometry')
             im.verify()
     return rec
+@app.function(image=image,cpu=1,memory=1024,timeout=60,max_containers=1)
+def startup_check():
+    required=['build_film.py','build_awaken_2099.py','render_frames.py','contract.py']
+    for name in required:
+        if not (pathlib.Path('/opt/film')/name).is_file():raise RuntimeError('missing packaged file '+name)
+    if modal.is_local():raise RuntimeError('expected remote container')
+    version=command([BLENDER,'--version'],30).splitlines()[0]
+    if '4.5.14' not in version:raise RuntimeError(version)
+    return {'status':'REMOTE_STARTUP_PASS','version':version,'files':required,'module':__file__}
 @app.function(image=image,cpu=4,memory=8192,timeout=1800,volumes={'/film':volume},max_containers=1)
 def prepare(run):
     volume.reload();p=root(run);p.mkdir(parents=True,exist_ok=True)
@@ -45,7 +56,14 @@ def prepare(run):
         return rec
     with tempfile.TemporaryDirectory() as tmp:
         f=pathlib.Path(tmp)/'APOLLO13.blend'
-        log=command([BLENDER,'-b','--factory-startup','--python-exit-code','2','--python','/opt/film/build_film.py','--',str(f)],1500)
+        try:
+            log=command([BLENDER,'-b','--factory-startup','--python-exit-code','2','--python','/opt/film/build_film.py','--',str(f)],1500)
+        except subprocess.CalledProcessError as exc:
+            log=exc.stdout or str(exc);(p/'build.log').write_text(log);volume.commit()
+            raise RuntimeError('SCENE_BUILD_FAILED: '+log[-7000:]) from exc
+        except subprocess.TimeoutExpired as exc:
+            log=exc.stdout or b'';log=log.decode(errors='replace') if isinstance(log,bytes) else log
+            (p/'build.log').write_text(log);volume.commit();raise RuntimeError('SCENE_BUILD_TIMEOUT: '+log[-7000:]) from exc
         if not f.is_file() or 'APOLLO13_SCENE_SAVED' not in log:raise RuntimeError(log[-3000:])
         shutil.copyfile(f,blend);(p/'build.log').write_text(log)
     rec={'commit':run,'scene_sha256':sha(blend),'frames':5400,'fps':30,'resolution':[1080,1920],'characters':['Jim Lovell','Jack Swigert','Fred Haise']}

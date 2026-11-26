@@ -25,7 +25,7 @@ jobs:
         working-directory: musitu_studio/film_apollo13
         run: |
           python -m py_compile *.py
-          python -m unittest -v test_contract
+          python -m unittest -v test_contract test_container_import
       - name: Install pinned Modal SDK
         run: python -m pip install --disable-pip-version-check -q 'modal==1.6.4'
       - name: Inspect existing Modal app without compute
@@ -47,18 +47,9 @@ jobs:
         run: |
           set -euo pipefail
           repo=evansmusitu/mft-axiom-build
-          state=pending
-          shutdown=""
-          for i in $(seq 1 120); do
-            shutdown=$(gh api 'repos/'$repo'/actions/runs?head_sha='$GITHUB_SHA --jq '[.workflow_runs[] | select(.name == "MUSITU Studio — stop superseded Last Signal only")][0].id // empty')
-            if [ -z "$shutdown" ]; then sleep 5; continue; fi
-            state=$(gh api repos/$repo/actions/runs/$shutdown --jq .status)
-            [ "$state" = completed ] && break
-            sleep 5
-          done
-          [ "$state" = completed ]
-          [ "$(gh api repos/$repo/actions/runs/$shutdown --jq .conclusion)" = success ]
+          [ "$(gh api repos/$repo/actions/runs/45764789533 --jq .conclusion)" = success ]
           [ "$(gh api repos/$repo/actions/runs/45763486407 --jq .status)" = completed ]
+          [ "$(gh api repos/$repo/actions/runs/45764789541 --jq .status)" = completed ]
           echo 'SUPERSEDED_FILM_SHUTDOWN_VERIFIED'
       - name: Deploy dedicated private film app
         env:
@@ -74,9 +65,19 @@ jobs:
           python - <<'PY'
           import json,modal,os,pathlib
           app='musitu-studio-apollo13-20261126';commit=os.environ['GITHUB_SHA']
-          source=modal.Function.from_name(app,'prepare').remote(commit)
+          def bounded(name,seconds,*args):
+              call=modal.Function.from_name(app,name).spawn(*args)
+              print('FUNCTION_CALL',name,call.object_id,flush=True)
+              try:return call.get(timeout=seconds)
+              except TimeoutError:
+                  call.cancel();raise RuntimeError(f'{name} timed out; cancelled {call.object_id}')
+          startup=bounded('startup_check',180)
+          print('REMOTE_STARTUP',json.dumps(startup),flush=True)
+          pathlib.Path('film-evidence/startup.json').write_text(json.dumps(startup,indent=2))
+          assert startup['status']=='REMOTE_STARTUP_PASS'
+          source=bounded('prepare',1800,commit)
           pathlib.Path('film-evidence/source.json').write_text(json.dumps(source,indent=2));print('SOURCE',json.dumps(source))
-          batch=modal.Function.from_name(app,'render_batch').remote(commit,1,12)
+          batch=bounded('render_batch',3700,commit,1,12)
           pathlib.Path('film-evidence/qualification.json').write_text(json.dumps(batch,indent=2))
           assert batch['renderer']=='CYCLES_CUDA' and batch['device']=='Tesla T4' and batch['gpu_peak_utilization']>0 and len(batch['frames'])==12
           assert len(set(x['sha256'] for x in batch['frames']))>1
