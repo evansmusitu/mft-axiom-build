@@ -2,15 +2,13 @@ name: MUSITU Axiom D1 Parallel Clone
 
 on:
   workflow_dispatch:
-  push:
-    paths:
-      - '.github/workflows/axiom-d1-musitu-parallel-clone.yml'
 
 permissions:
   contents: read
 
 jobs:
   clone-d1:
+    if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     timeout-minutes: 20
     env:

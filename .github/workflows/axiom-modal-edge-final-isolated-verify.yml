@@ -1,12 +1,11 @@
 name: MUSITU Axiom Modal Edge Final Isolated Verify
 on:
   workflow_dispatch:
-  push:
-    paths: ['.github/workflows/axiom-modal-edge-final-isolated-verify.yml']
 permissions:
   contents: read
 jobs:
   verify:
+    if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     timeout-minutes: 15
     env:

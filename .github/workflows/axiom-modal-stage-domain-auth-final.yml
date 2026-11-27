@@ -1,12 +1,11 @@
 name: MUSITU Axiom Modal Stage Domain Auth Final
 on:
   workflow_dispatch:
-  push:
-    paths: ['.github/workflows/axiom-modal-stage-domain-auth-final.yml']
 permissions:
   contents: read
 jobs:
   verify-auth:
+    if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     timeout-minutes: 15
     env:
