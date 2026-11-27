@@ -17,6 +17,14 @@ DANGEROUS=[
     '.github/workflows/cloudflare-service-fetch-signature-probe.yml',
     '.github/workflows/axiom-modal-adapter-transport-diagnostic.yml',
     '.github/workflows/axiom-service-binding-request-object-probe.yml',
+    # 2026-11-24: six production-mutating workflows the 2026-10-29 sweep missed.
+    # Each could still be triggered by a branch that edited its own file.
+    '.github/workflows/axiom-d1-musitu-parallel-clone.yml',
+    '.github/workflows/axiom-mcp-v3-search-descriptor-diagnostic.yml',
+    '.github/workflows/axiom-modal-edge-authenticated-verify-v2.yml',
+    '.github/workflows/axiom-modal-edge-final-isolated-verify.yml',
+    '.github/workflows/axiom-modal-stage-domain-auth-final.yml',
+    '.github/workflows/axiom-openai-domain-challenge-install.yml',
 ]
 MANUAL="if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main'"
 

@@ -2,9 +2,6 @@ name: MUSITU Axiom OpenAI Domain Challenge Installer
 
 on:
   workflow_dispatch:
-  push:
-    paths:
-      - '.github/workflows/axiom-openai-domain-challenge-install.yml'
 
 permissions:
   contents: read
@@ -15,6 +12,7 @@ concurrency:
 
 jobs:
   validate:
+    if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
