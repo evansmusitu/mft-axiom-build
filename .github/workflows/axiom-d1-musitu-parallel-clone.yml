@@ -9,8 +9,13 @@ on:
 permissions:
   contents: read
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
+
 jobs:
   clone-d1:
+    if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main' && github.ref_protected == true && github.repository_id == '1356837528' && github.actor_id == '285482095'
     runs-on: ubuntu-latest
     timeout-minutes: 20
     env:
@@ -20,7 +25,9 @@ jobs:
       MUSITU_D1: musitu-axiom-prod
       MIGRATION_SHA256: efc2817e42fbba2efa0471ca5a10758b858540beff819ef6c054edd87ab93379
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
+        with:
+          persist-credentials: false
       - name: Reconstruct canonical migration fail-closed
         env:
           CLOUDFLARE_GLOBAL_API_KEY: ${{ secrets.CLOUDFLARE_GLOBAL_API_KEY }}
@@ -142,7 +149,7 @@ jobs:
           print(json.dumps({'musitu_d1_clone_pass':True,'table_count':len(expected),'total_rows':sum(src_counts.values()),'legacy_retained':True},sort_keys=True))
           PY
           sha256sum musitu-d1-cutover-evidence.json > musitu-d1-cutover-evidence.sha256
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
           name: musitu-axiom-d1-parallel-cutover
           path: |

@@ -14,18 +14,22 @@ permissions:
   actions: read
   pull-requests: read
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
+
 jobs:
   archive-authoritative-tracked-snapshots:
     runs-on: ubuntu-latest
     timeout-minutes: 24
     steps:
       - name: Checkout whole repository history
-        uses: actions/checkout@v4
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
         with:
           fetch-depth: 0
           persist-credentials: false
       - name: Use Python 3.12
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065
         with:
           python-version: '3.12'
       - name: Build SHA-verified, clean, no-secrets transfer package
@@ -36,7 +40,7 @@ jobs:
           python -c 'import ast,pathlib; ast.parse(pathlib.Path("tools/packaging/musitu_clean_handoff.py").read_text())'
           PYTHONDONTWRITEBYTECODE=1 python -B tools/packaging/musitu_clean_handoff.py
       - name: Archive all 3 source trees and sealed public research evidence
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
           name: MUSITU_AXIOM_CONNECT_WHOLE_PRODUCT_CLEAN_HANDOFF_20261027
           path: ${{ runner.temp }}/musitu-clean-whole-product-20261027/

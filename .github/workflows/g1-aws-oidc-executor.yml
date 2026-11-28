@@ -31,7 +31,7 @@ jobs:
       id-token: write
     env:
       G1_MODE: ${{ inputs.mode }}
-      G1_AWS_ROLE_ARN: ${{ vars.AWS_G1_ADMIN_ROLE_ARN }}
+      G1_AWS_ROLE_ARN: ${{ vars.AWS_G1_VERIFICATION_ROLE_ARN }}
       G1_AWS_ACCOUNT_ID: ${{ vars.AWS_G1_ACCOUNT_ID }}
       AWS_REGION: us-east-2
       AWS_DEFAULT_REGION: us-east-2
@@ -66,7 +66,7 @@ jobs:
         if: inputs.mode != 'discover'
         uses: aws-actions/configure-aws-credentials@61815dcd50bd041e203e49132bacad1fd04d2708 # v5.1.1
         with:
-          role-to-assume: ${{ vars.AWS_G1_ADMIN_ROLE_ARN }}
+          role-to-assume: ${{ vars.AWS_G1_VERIFICATION_ROLE_ARN }}
           allowed-account-ids: ${{ vars.AWS_G1_ACCOUNT_ID }}
           aws-region: us-east-2
           audience: sts.amazonaws.com

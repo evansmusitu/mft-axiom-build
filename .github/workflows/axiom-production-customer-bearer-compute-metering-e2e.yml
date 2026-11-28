@@ -12,7 +12,7 @@ concurrency:
 
 jobs:
   e2e:
-    if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main'
+    if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main' && github.ref_protected == true && github.repository_id == '1356837528' && github.actor_id == '285482095' && (github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main')
     runs-on: ubuntu-latest
     timeout-minutes: 12
     env:
@@ -24,7 +24,9 @@ jobs:
       V3_PATH: .github/workflows/axiom-customer-bearer-compute-metering-e2e-v3.yml
       V3_BLOB: 5c3d3e1b78afedab04b98e68f0c11cc1706008cb
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
+        with:
+          persist-credentials: false
 
       - name: Execute pinned v3 proof engine against production hostname
         env:
@@ -120,7 +122,7 @@ jobs:
           print(json.dumps({**out,'evidence_sha256':digest},sort_keys=True))
           PY
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
           name: musitu-axiom-production-bearer-compute-metering-e2e
           path: |

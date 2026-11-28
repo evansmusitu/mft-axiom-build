@@ -5,8 +5,13 @@ on:
     paths: ['.github/workflows/axiom-modal-edge-final-isolated-verify.yml']
 permissions:
   contents: read
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
+
 jobs:
   verify:
+    if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main' && github.ref_protected == true && github.repository_id == '1356837528' && github.actor_id == '285482095'
     runs-on: ubuntu-latest
     timeout-minutes: 15
     env:
@@ -16,7 +21,9 @@ jobs:
       EDGE_WORKER: mft-axiom-modal-edge-stage
       BUILD_ID: MFT-AXIOM-V3-FULL-SELF-CONTAINED-20260904
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
+        with:
+          persist-credentials: false
       - name: Install exact Wrangler and verify bindings
         shell: bash
         run: |
@@ -105,7 +112,7 @@ jobs:
           raw=json.dumps(x,sort_keys=True,separators=(',',':')).encode();x['evidence_sha256']=hashlib.sha256(raw).hexdigest();open('isolated-final.json','w').write(json.dumps(x,indent=2,sort_keys=True))
           PY
           sha256sum isolated-final.json > isolated-final.sha256
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
           name: musitu-axiom-modal-edge-isolated-final
           path: |

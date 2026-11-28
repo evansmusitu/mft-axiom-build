@@ -9,8 +9,13 @@ on:
 permissions:
   contents: read
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
+
 jobs:
   audit:
+    if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main' && github.ref_protected == true && github.repository_id == '1356837528' && github.actor_id == '285482095'
     runs-on: ubuntu-latest
     timeout-minutes: 10
     env:
@@ -20,7 +25,9 @@ jobs:
       EXPECTED_ACCOUNT_ID: 93f395f5121954671f92fffa453d6b61
       PAYMENTS_HOST: payments.mftintelligence.com
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
+        with:
+          persist-credentials: false
       - name: Read Cloudflare payments topology without mutation
         env:
           CLOUDFLARE_EMAIL: ${{ secrets.CLOUDFLARE_EMAIL }}
@@ -85,7 +92,7 @@ jobs:
           digest=hashlib.sha256(raw).hexdigest(); open('payments-topology.sha256','w').write(digest+'  payments-topology.json\n')
           print(json.dumps({'gate':out['gate'],'hostname':host,'service':service,'binding_names':sorted([x.get('name') for x in safe_bindings if x.get('name')]),'host_routes':host_routes,'scoped_rule_count':len(scoped_rules),'probes':probes,'write_performed':False,'sha256':digest},sort_keys=True))
           PY
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
           name: musitu-payments-mftintelligence-topology
           path: |

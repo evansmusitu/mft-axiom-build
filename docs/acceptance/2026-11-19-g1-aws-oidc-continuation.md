@@ -108,10 +108,13 @@ No new workflow reads persistent AWS keys or accepts arbitrary commands.
    AWS currently documents these GitHub-specific condition keys. The repository
    was created on 4 September 2026, so the newer immutable subject format may
    apply; do not assume the older name-only subject. Unknown formats fail closed.
-4. Review the concrete IAM trust/access expansion before applying it. The role
-   may have managed `AdministratorAccess`, subject to SCPs/boundaries and explicit
-   denies; that does not authorize unrelated writes or spending. No root keys.
-   Protect the role ARN/account as environment variables `AWS_G1_ADMIN_ROLE_ARN`
+4. Review the concrete IAM trust/access expansion before applying it. Use only
+   the separate fixed-operation verification role policy in
+   `.github/policies/g1-aws-verification-role.template.json`, replacing its
+   role ARN placeholder with independently verified native metadata. Do not
+   attach `AdministratorAccess`. Deployment/bootstrap roles require a separate
+   exact resource and action inventory before their permissions can be defined. No root keys.
+   Protect the role ARN/account as environment variables `AWS_G1_VERIFICATION_ROLE_ARN`
    and `AWS_G1_ACCOUNT_ID`. They are metadata, not access keys.
 5. Run the identity workflow's `identity` operation. The action is pinned to
    verified upstream v5.1.1 commit `61815dcd50bd041e203e49132bacad1fd04d2708`.
@@ -136,10 +139,7 @@ responses are uploaded as artifacts. Preserve GitHub run approvals, run/attempt
 IDs and CloudTrail STS session correlation as audit evidence. A new CloudTrail
 trail/storage subscription is not provisioned without a cost review.
 
-Long-lived keys are not used by this proposal. If separately authorized later,
-the only permitted destination remains protected environment secrets
-`AWS_ADMIN_ACCESS_KEY_ID` and `AWS_ADMIN_SECRET_ACCESS_KEY`, entered by the owner
-through the secure interface after native protections have been verified.
+Long-lived AWS keys are not permitted by this integration. Use OIDC only.
 
 ## Infrastructure and financial gate
 

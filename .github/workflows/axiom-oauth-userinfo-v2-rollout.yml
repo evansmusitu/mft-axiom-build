@@ -16,8 +16,9 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
         with:
+          persist-credentials: false
           fetch-depth: 0
 
       - name: Build and statically validate additive OAuth candidate
@@ -41,7 +42,7 @@ jobs:
           node --check oauth-userinfo-v2-review-candidate.mjs
           sha256sum oauth-userinfo-v2-review-candidate.mjs > oauth-userinfo-v2-review-candidate.sha256
           echo 'OAUTH_REVIEW_CANDIDATE_ONLY_NOT_DEPLOYED'
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
           name: musitu-axiom-oauth-userinfo-review-candidate
           path: |

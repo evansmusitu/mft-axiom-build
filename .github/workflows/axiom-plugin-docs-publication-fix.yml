@@ -18,8 +18,9 @@ jobs:
     env:
       MCP_BASE: https://mcp.mftintelligence.com
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
         with:
+          persist-credentials: false
           fetch-depth: 0
 
       - name: Build one-line docs candidate and repaired full v4 harness
@@ -80,7 +81,7 @@ jobs:
           cp mcp/musitu_axiom_plugin_gate_v4.mjs axiom-plugin-docs-review-candidate.mjs
           sha256sum axiom-plugin-docs-review-candidate.mjs > axiom-plugin-docs-review-candidate.sha256
           echo 'MCP_DOCUMENTATION_CANDIDATE_ONLY_NOT_DEPLOYED'
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
           name: musitu-axiom-plugin-docs-review-candidate
           path: |

@@ -9,12 +9,19 @@ on:
 permissions:
   contents: read
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
+
 jobs:
   inspect:
+    if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main' && github.ref_protected == true && github.repository_id == '1356837528' && github.actor_id == '285482095'
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
+        with:
+          persist-credentials: false
       - name: Reconstruct protected source
         env:
           CLOUDFLARE_GLOBAL_API_KEY: ${{ secrets.CLOUDFLARE_GLOBAL_API_KEY }}
@@ -67,7 +74,7 @@ jobs:
           pathlib.Path('billing-provider-contract.sha256').write_text(digest+'  billing-provider-contract.json\n')
           print(json.dumps({'schema':out['schema'],'environment_identifiers':env_names,'billing_routes':routes,'billing_host_literals':host_literals,'helper_names':[x['name'] for x in helpers],'payments_mftintelligence_literal_present':out['payments_mftintelligence_literal_present'],'stripe_literal_present':out['stripe_literal_present'],'paynow_literal_present':out['paynow_literal_present'],'sha256':digest},sort_keys=True))
           PY
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
           name: musitu-axiom-billing-provider-contract
           path: |

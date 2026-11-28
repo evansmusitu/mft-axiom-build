@@ -12,7 +12,7 @@ concurrency:
 
 jobs:
   patch:
-    if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main'
+    if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main' && github.ref_protected == true && github.repository_id == '1356837528' && github.actor_id == '285482095' && (github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main')
     runs-on: ubuntu-latest
     timeout-minutes: 12
     env:
@@ -24,7 +24,9 @@ jobs:
       EXPECTED_SOURCE_SHA256: 583fab34da0bee20b436a9448f7647591d452ae518f83108d1cc3a059c12faf5
       MAIN_MODULE: musitu.js
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
+        with:
+          persist-credentials: false
       - name: Apply scheduling-only live patch with rollback protection
         env:
           CLOUDFLARE_EMAIL: ${{ secrets.CLOUDFLARE_EMAIL }}
@@ -117,7 +119,7 @@ jobs:
           raw=(json.dumps(evidence,indent=2,sort_keys=True)+'\n').encode();open('metering-durability-patch.json','wb').write(raw);dg=hashlib.sha256(raw).hexdigest();open('metering-durability-patch.sha256','w').write(dg+'  metering-durability-patch.json\n')
           print(json.dumps({**evidence,'evidence_sha256':dg},sort_keys=True))
           PY
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
           name: musitu-axiom-live-metering-durability-patch
           path: |

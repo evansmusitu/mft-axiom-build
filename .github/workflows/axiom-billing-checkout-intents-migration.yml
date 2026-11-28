@@ -6,9 +6,13 @@ on:
 permissions:
   contents: read
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
+
 jobs:
   migrate:
-    if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main'
+    if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main' && github.ref_protected == true && github.repository_id == '1356837528' && github.actor_id == '285482095' && (github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main')
     runs-on: ubuntu-latest
     timeout-minutes: 10
     env:
@@ -17,7 +21,9 @@ jobs:
       D1_NAME: musitu-axiom-prod
       D1_UUID: 504029cc-f9a5-495e-818f-63c6144b4ea4
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
+        with:
+          persist-credentials: false
       - name: Create additive checkout-intent ledger and verify exact contract
         env:
           CLOUDFLARE_EMAIL: ${{ secrets.CLOUDFLARE_EMAIL }}
@@ -79,7 +85,7 @@ jobs:
           blob=(json.dumps(out,indent=2,sort_keys=True)+'\n').encode();open('billing-checkout-intent-migration.json','wb').write(blob);dg=hashlib.sha256(blob).hexdigest();open('billing-checkout-intent-migration.sha256','w').write(dg+'  billing-checkout-intent-migration.json\n')
           print(json.dumps({**out,'evidence_sha256':dg},sort_keys=True))
           PY
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
           name: musitu-axiom-billing-checkout-intent-migration
           path: |

@@ -9,6 +9,10 @@ on:
 permissions:
   contents: read
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
+
 jobs:
   probe:
     runs-on: ubuntu-latest
@@ -39,7 +43,7 @@ jobs:
               shape='json' if body.lstrip().startswith(('{','[')) else 'other'
               print(f'probe path={p} http={code} shape={shape}')
           PY
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
           name: musitu-axiom-modal-live-routes
           path: modal-live-routes.json

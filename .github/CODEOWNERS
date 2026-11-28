@@ -4,3 +4,17 @@
 /ops/g1_aws/ @evansmusitu
 /tests/g1_aws/ @evansmusitu
 /docs/acceptance/2026-11-19-g1-aws-oidc-continuation.md @evansmusitu
+
+# Protected infrastructure, IAM and deployment configuration surfaces.
+/.github/actions/ @evansmusitu
+/infrastructure/ @evansmusitu
+/infra/ @evansmusitu
+/ops/ @evansmusitu
+/auth/ @evansmusitu
+/deploy_payload/ @evansmusitu
+/iam/ @evansmusitu
+**/wrangler*.toml @evansmusitu
+**/Dockerfile* @evansmusitu
+**/*.tf @evansmusitu
+**/*iam*.json @evansmusitu
+/tools/packaging/ @evansmusitu

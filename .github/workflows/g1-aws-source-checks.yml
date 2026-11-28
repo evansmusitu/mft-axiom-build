@@ -1,12 +1,16 @@
 name: G1 AWS source security checks
 on:
   push:
-    branches: [security/g1-aws-oidc-20261119, main]
+    branches: [security/g1-aws-oidc-20261119, security/g1-completion-20261126, main]
     paths: ['ops/g1_aws/**', 'tests/g1_aws/**', '.github/workflows/g1-aws-*', '.github/policies/g1-*', '.github/CODEOWNERS']
   pull_request:
     branches: [main]
 permissions:
   contents: read
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
+
 jobs:
   g1-aws-source:
     name: g1-aws-source
@@ -20,3 +24,18 @@ jobs:
         run: python3 -m pip install --disable-pip-version-check 'PyYAML==6.0.3'
       - name: Run offline negative security and plan tests
         run: python3 -m unittest discover -s tests/g1_aws -p 'test_*.py' -v
+      - name: Install pinned coverage measurement
+        run: python3 -m pip install --disable-pip-version-check coverage==7.17.5
+      - name: Measure G1 module coverage against the observed 70 percent baseline
+        run: |
+          python3 -m coverage run --source=ops.g1_aws.discover,ops.g1_aws.guardrails,ops.g1_aws.readonly -m unittest discover -s tests/g1_aws -p 'test_*.py' -v
+          python3 -m coverage xml -o coverage-g1.xml
+          python3 -m coverage report --fail-under=70
+      - name: Upload measured coverage evidence
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: g1-coverage-${{ github.run_id }}-${{ github.run_attempt }}
+          path: coverage-g1.xml
+          retention-days: 7
+          if-no-files-found: error
+          include-hidden-files: false

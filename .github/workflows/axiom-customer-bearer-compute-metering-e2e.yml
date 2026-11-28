@@ -12,7 +12,7 @@ concurrency:
 
 jobs:
   e2e:
-    if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main'
+    if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main' && github.ref_protected == true && github.repository_id == '1356837528' && github.actor_id == '285482095' && (github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main')
     runs-on: ubuntu-latest
     timeout-minutes: 12
     env:
@@ -22,7 +22,9 @@ jobs:
       EDGE: https://axiom-stage.mftintelligence.com
       EXPECTED_BUILD: MFT-AXIOM-V3-FULL-SELF-CONTAINED-20260904
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
+        with:
+          persist-credentials: false
       - name: Prove disposable Bearer compute and exact metering delta
         env:
           CLOUDFLARE_EMAIL: ${{ secrets.CLOUDFLARE_EMAIL }}
@@ -140,7 +142,7 @@ jobs:
           raw=(json.dumps(evidence,indent=2,sort_keys=True)+'\n').encode();open('bearer-compute-metering-e2e.json','wb').write(raw);dg=hashlib.sha256(raw).hexdigest();open('bearer-compute-metering-e2e.sha256','w').write(dg+'  bearer-compute-metering-e2e.json\n')
           print(json.dumps({'gate':evidence['gate'],'edge_host':evidence['edge_host'],'build_id':evidence['build_id'],'operation_count':evidence['operation_count'],'unauth_compute_http':401,'authenticated_compute_http':evidence['authenticated_compute_http'],'operation':evidence['operation'],'result_42_observed':True,'usage_event_delta':1,'usage_bucket_unit_delta':evidence['usage_bucket_unit_delta'],'compute_units':evidence['compute_units'],'result_sha256_present':True,'receipt_or_signature_material_present':True,'request_id_matched':True,'api_key_last_used_updated':True,'raw_api_key_published':False,'worker_secret_mutation':False,'cleanup_complete':True,'fixture_rows_remaining':0,'evidence_sha256':dg},sort_keys=True))
           PY
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
           name: musitu-axiom-customer-bearer-compute-metering-e2e
           path: |

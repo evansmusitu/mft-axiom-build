@@ -1,0 +1,1127 @@
+{
+  "workflow_count": 223,
+  "workflows": [
+    {
+      "path": ".github/workflows/axiom-admin-auth-contract.yml",
+      "credentialed": true,
+      "sha256": "8d7e62b2b21ece73b63c0c56a5086fd08e4a76fa1c3386dd0f732eaf6ecdf062"
+    },
+    {
+      "path": ".github/workflows/axiom-admin-create-customer-contract.yml",
+      "credentialed": true,
+      "sha256": "d040a2b1d5333bd23c5d6db5e41ec053fbf224cb8c95c3b9e95f2d5638fb3208"
+    },
+    {
+      "path": ".github/workflows/axiom-admin-customer-validation-probe-v2.yml",
+      "credentialed": true,
+      "sha256": "c6a92ea74da66d63454f65924138e18089b1fc3a2b76d44928e67567ac37603a"
+    },
+    {
+      "path": ".github/workflows/axiom-admin-customer-validation-probe.yml",
+      "credentialed": true,
+      "sha256": "5b179ae918322e0a030097adc51437751cca8e10ce86ff7b793d2b66a4f8218a"
+    },
+    {
+      "path": ".github/workflows/axiom-admin-key-regex-routes.yml",
+      "credentialed": true,
+      "sha256": "f6fe2436d725abd70f4977698f22597e740e0f5a081878925dc10d473d2457b0"
+    },
+    {
+      "path": ".github/workflows/axiom-api-key-issuance-contract.yml",
+      "credentialed": true,
+      "sha256": "2c758c21f25083fec598854af3b6873b9d0c066eb7cd5b321fca8bf72168a2d1"
+    },
+    {
+      "path": ".github/workflows/axiom-arithmetic-evaluate-contract-readonly.yml",
+      "credentialed": true,
+      "sha256": "0c6d2751e283a5f01e829d3af019d39fe0defe830b893b9960fa4e06b0b77306"
+    },
+    {
+      "path": ".github/workflows/axiom-auth-metering-contract.yml",
+      "credentialed": true,
+      "sha256": "0bbb3f1bb5d205b30e1b14baaa488afa39236006ca47844f877f6faab909c860"
+    },
+    {
+      "path": ".github/workflows/axiom-bearer-auth-hash-contract-readonly.yml",
+      "credentialed": true,
+      "sha256": "6cf657909e9c69583ac11085464d256dbeaed12a82ddf6018fe47e0c4b86553f"
+    },
+    {
+      "path": ".github/workflows/axiom-billing-bridge-debug-readonly.yml",
+      "credentialed": true,
+      "sha256": "42e42106e5fa623c02ba3e835e9f22428a9dc7b0a7a7e0b073072c215fc0920d"
+    },
+    {
+      "path": ".github/workflows/axiom-billing-checkout-intents-migration.yml",
+      "credentialed": true,
+      "sha256": "135e4014d5e11927ed8fd22b9e3de24a211db883df189cbcf4a07ed1fc51f50d"
+    },
+    {
+      "path": ".github/workflows/axiom-billing-checkout-persistence-diagnostic.yml",
+      "credentialed": true,
+      "sha256": "057ef52002bd164880e52a3625229cb507c8c6616532d5fcee681d5c0dc4cb3c"
+    },
+    {
+      "path": ".github/workflows/axiom-billing-commercial-enable.yml",
+      "credentialed": true,
+      "sha256": "aba05eb935c75f7cb3d52cb3cc34b9916023dbd7da548625ab8db8ff611ad255"
+    },
+    {
+      "path": ".github/workflows/axiom-billing-commercial-postdeploy-verify.yml",
+      "credentialed": true,
+      "sha256": "4af6d57ebaf33e71891bf81725f3bf6a414d37ba19e520590f1b8d2fcea849ba"
+    },
+    {
+      "path": ".github/workflows/axiom-billing-d1-contract-readonly.yml",
+      "credentialed": true,
+      "sha256": "2858b148705813be3724be595cbe8e74d426a1dbb8db463daef5231a295fc27e"
+    },
+    {
+      "path": ".github/workflows/axiom-billing-disposable-checkout-e2e.yml",
+      "credentialed": true,
+      "sha256": "f33090694a67f0d9ead9570bf50426362681c603fa3465a820c74d8c2801a2e7"
+    },
+    {
+      "path": ".github/workflows/axiom-billing-ingress-postdeploy-verify.yml",
+      "credentialed": true,
+      "sha256": "67f9e2efd9dda6dd994f7da525b9a91b05b9e9b40668891a98686cd074c6800f"
+    },
+    {
+      "path": ".github/workflows/axiom-billing-ingress-preflight.yml",
+      "credentialed": true,
+      "sha256": "940caaf6eed66f9e51dfe71dea52cb6c72a81e5235632abd7928a8ad3c3da923"
+    },
+    {
+      "path": ".github/workflows/axiom-billing-ingress-production-deploy.yml",
+      "credentialed": true,
+      "sha256": "d59e334983937232af79ef432b3041f3ede4fa33d6ee1fbea4f0db170ae6ad8c"
+    },
+    {
+      "path": ".github/workflows/axiom-billing-provider-contract.yml",
+      "credentialed": true,
+      "sha256": "45d0072f077fbfccdb73fb8682cb88530bffabe814ed0b0e18e2e14c1694c4eb"
+    },
+    {
+      "path": ".github/workflows/axiom-billing-schema-contract-readonly.yml",
+      "credentialed": true,
+      "sha256": "49b67f5ef57ec881423c689768e7a73507124b2d772eee74d9ee2afc2e91f4d5"
+    },
+    {
+      "path": ".github/workflows/axiom-billing-status-contract-patch.yml",
+      "credentialed": true,
+      "sha256": "ce0490bc429c331bf0407b1da2cbd92473a173bb4ad74aeff131f4e8768a0725"
+    },
+    {
+      "path": ".github/workflows/axiom-canonical-kernel-payload-capture.yml",
+      "credentialed": true,
+      "sha256": "c6c3bd6467d4fae44fccc9714d4afd0c4cb127639b362d38e96d578778ab8058"
+    },
+    {
+      "path": ".github/workflows/axiom-chatgpt-app-submission-package.yml",
+      "credentialed": false,
+      "sha256": "003e05372f109191b5dfd0c163cc7fef1eee068672c39b4685574fbd83046fe5"
+    },
+    {
+      "path": ".github/workflows/axiom-cloudflare-modal-reconcile.yml",
+      "credentialed": true,
+      "sha256": "d188358b3442578396d066489de1cf95a62883f39080d34fc8cf9f316cbfcd3e"
+    },
+    {
+      "path": ".github/workflows/axiom-cloudflare-staging-deploy-v2.yml",
+      "credentialed": true,
+      "sha256": "93d2b8560fc80c706070870a62ee586a51538a02fc600a75ccffb075aa5c75de"
+    },
+    {
+      "path": ".github/workflows/axiom-cloudflare-staging-deploy.yml",
+      "credentialed": true,
+      "sha256": "265b44bdc2ce112ddb940b82f32b272e9404a4f322485390c43a9aebf87f49b5"
+    },
+    {
+      "path": ".github/workflows/axiom-commercial-cutover-preflight-readonly.yml",
+      "credentialed": true,
+      "sha256": "6637c3184c4742b1faebfd93651859a9c9bdf29deeccfdc527e1de81988adb9e"
+    },
+    {
+      "path": ".github/workflows/axiom-compute-request-contract-readonly.yml",
+      "credentialed": true,
+      "sha256": "4df42f01e362d9d19102c687e7d9048dca0bd22546026b8ac199c739d13e32a4"
+    },
+    {
+      "path": ".github/workflows/axiom-compute-unit-economics-readonly.yml",
+      "credentialed": true,
+      "sha256": "ba100503b3434365f8e24b3d2db8534d067519aad993f55520a8fd33e5233c53"
+    },
+    {
+      "path": ".github/workflows/axiom-customer-bearer-compute-metering-e2e-v3.yml",
+      "credentialed": true,
+      "sha256": "daa82417b1d36328b09dcad11f4cef6e7f26e30d4805e79c7add2f93d0225d16"
+    },
+    {
+      "path": ".github/workflows/axiom-customer-bearer-compute-metering-e2e.yml",
+      "credentialed": true,
+      "sha256": "9a459bc6f8c25421048b0fb63eb048927ac8cb7f967a3c0788d8eac450fcb143"
+    },
+    {
+      "path": ".github/workflows/axiom-customer-provision-contract.yml",
+      "credentialed": true,
+      "sha256": "7c53b08a26dc781cded9f3f51d9fb8b67cc160ca297bc3931b681ee97a83d37d"
+    },
+    {
+      "path": ".github/workflows/axiom-d1-canonical-migration.yml",
+      "credentialed": true,
+      "sha256": "dbcda589b4000cf48222afe9e85639fbc82dfe13a0957bed978051b205975c3d"
+    },
+    {
+      "path": ".github/workflows/axiom-d1-musitu-parallel-clone.yml",
+      "credentialed": true,
+      "sha256": "9fd8372f22f141ff510f1f87af2980501e48dc705ad00373fc03feb024b5d15d"
+    },
+    {
+      "path": ".github/workflows/axiom-d1-production-provision.yml",
+      "credentialed": true,
+      "sha256": "5610e780b301675a35d9c5eb93c324a636f512327d43173409d69a7bb11f12c7"
+    },
+    {
+      "path": ".github/workflows/axiom-d1-readonly-schema-audit.yml",
+      "credentialed": true,
+      "sha256": "497fa7419a564f30abba5c3bc94c703b2006d580c8a2657b4647c4bd7e953ff7"
+    },
+    {
+      "path": ".github/workflows/axiom-dynamic-admin-route-auth-contract.yml",
+      "credentialed": true,
+      "sha256": "9c667d9efb186d30987fd01a5d6fe932fb4122e5be397c5fb95b6e6aca8a0389"
+    },
+    {
+      "path": ".github/workflows/axiom-edge-write-preflight.yml",
+      "credentialed": true,
+      "sha256": "baf11f68c0fdfd7f22de1e89e294a9dc95a5c0267e0bb0a6dae92ff40e48b1cb"
+    },
+    {
+      "path": ".github/workflows/axiom-internal-principal-contract.yml",
+      "credentialed": true,
+      "sha256": "865525aeae1afff88c701aa5836a420763c3b0f9e48c7d8442e8a7c7a95d4b60"
+    },
+    {
+      "path": ".github/workflows/axiom-kernel-binding-trace.yml",
+      "credentialed": true,
+      "sha256": "b2f44da51ffd17159b94468b48d8566be51f4f25f2967e7be4a73bc7dd463aee"
+    },
+    {
+      "path": ".github/workflows/axiom-kernel-exception-diagnostic.yml",
+      "credentialed": true,
+      "sha256": "c512c4feb3232a531a41b983b62e2890753deb26a2e6d8c031f6a0d0cb7c8afb"
+    },
+    {
+      "path": ".github/workflows/axiom-kernel-forward-contract.yml",
+      "credentialed": true,
+      "sha256": "abdb73973728a6387366b9b741a8d44def06bca87aced877f03179b5d0d765a2"
+    },
+    {
+      "path": ".github/workflows/axiom-kernel-payload-contract.yml",
+      "credentialed": true,
+      "sha256": "9d1876a4cad59d85a417c0cbf601a8c6f67cdfdcad1802a3a8872fb4068eb382"
+    },
+    {
+      "path": ".github/workflows/axiom-kernel-payload-shape.yml",
+      "credentialed": true,
+      "sha256": "ad295d3a760c0c6216c1f2135fb640e81323d97c1a24a0c9d3012571f68bc69d"
+    },
+    {
+      "path": ".github/workflows/axiom-kernel-request-contract.yml",
+      "credentialed": true,
+      "sha256": "fd232971817f063cab10934eba16e571837104e40ea75b46dbe93a47181b1138"
+    },
+    {
+      "path": ".github/workflows/axiom-kernel-response-contract.yml",
+      "credentialed": true,
+      "sha256": "ec7de7cc7105ec9c7f20b51c0a06f8a7d20b6a577320751a525ea570b6ed69ff"
+    },
+    {
+      "path": ".github/workflows/axiom-kernel-selection-binding-readback.yml",
+      "credentialed": true,
+      "sha256": "ac3bd11c083bab90dd92113a26f281beea86f0bddb352ade15278be56cbba94c"
+    },
+    {
+      "path": ".github/workflows/axiom-kernel-timeout-contract.yml",
+      "credentialed": true,
+      "sha256": "f8d2c9bf8e246f9033e2f7010d6a273d7d10eca78e87aee439745548ac2096eb"
+    },
+    {
+      "path": ".github/workflows/axiom-live-backend-readonly-audit.yml",
+      "credentialed": true,
+      "sha256": "e6696950723859474fc9afe54ea782372b0da5fbf432a5b4974bd99c2de1a556"
+    },
+    {
+      "path": ".github/workflows/axiom-live-metering-durability-patch.yml",
+      "credentialed": true,
+      "sha256": "0d8268b5df1665af992a2d1922b886a21f564ed4eeffec152c2a933221f5f5f5"
+    },
+    {
+      "path": ".github/workflows/axiom-live-metering-scheduling-readonly.yml",
+      "credentialed": true,
+      "sha256": "0959eae4bcc061ab0f7763fd8ba816164702f5a426b98ff0a1b934e2de59a7e7"
+    },
+    {
+      "path": ".github/workflows/axiom-live-plan-contract-readonly.yml",
+      "credentialed": true,
+      "sha256": "ec76ca27cdbeedf869968bfb18766a4004f0317b4bad801977b502af86b61581"
+    },
+    {
+      "path": ".github/workflows/axiom-live-request-id-propagation-patch.yml",
+      "credentialed": true,
+      "sha256": "101c9cd9e601c8814962d4cb5ab25891bf9a937b52d298655def18b6b75185b8"
+    },
+    {
+      "path": ".github/workflows/axiom-live-usage-schema-readonly.yml",
+      "credentialed": true,
+      "sha256": "8b2cc5771abc144152ecf65468f55838e3b1543cead6ffe63e26d436cde6dabb"
+    },
+    {
+      "path": ".github/workflows/axiom-live-worker-module-layout-readonly.yml",
+      "credentialed": true,
+      "sha256": "ca8485b2b4c1b28592a2931043cb44984d1b4b348a1f72e9c8f8abcade301592"
+    },
+    {
+      "path": ".github/workflows/axiom-local-match-regex-routes.yml",
+      "credentialed": true,
+      "sha256": "4ac9260c06754827726ef8e27ab98acd61d7c07397c0a5a0fea8237fe6a14b35"
+    },
+    {
+      "path": ".github/workflows/axiom-mcp-auth-metering-e2e.yml",
+      "credentialed": true,
+      "sha256": "17527eb831148ffab7ccd7468b09985c5e4a48b474d5a6450543a57ab4b82767"
+    },
+    {
+      "path": ".github/workflows/axiom-mcp-oauth-gate-v3-cutover-v2.yml",
+      "credentialed": true,
+      "sha256": "83c101465434f5c45484b8e0a212f29725c5331d78382317d15827389042d423"
+    },
+    {
+      "path": ".github/workflows/axiom-mcp-oauth-gate-v3-cutover-v3.yml",
+      "credentialed": true,
+      "sha256": "56c9345c351faa554c6851c2e2bedafd272dea19743c20cc4b722ddb2eb4e62c"
+    },
+    {
+      "path": ".github/workflows/axiom-mcp-oauth-gate-v3-cutover.yml",
+      "credentialed": true,
+      "sha256": "4763d72eea3e595df734a8a281aef328ed0e4b49e4a4f67515598e5216ac885f"
+    },
+    {
+      "path": ".github/workflows/axiom-mcp-production-deploy-v2.yml",
+      "credentialed": true,
+      "sha256": "6bef5b240ba9cc49ac700bbe6fb014ed53b9a0a4d5f092ee933dc8e0d3e39c2c"
+    },
+    {
+      "path": ".github/workflows/axiom-mcp-production-deploy.yml",
+      "credentialed": true,
+      "sha256": "9e416142c4aa9beccf8f266f952170315f1a1268c8483c92c66eeddd9671c88d"
+    },
+    {
+      "path": ".github/workflows/axiom-mcp-production-diagnostic.yml",
+      "credentialed": true,
+      "sha256": "d8265b6aca12a5187153b740fb571213882f2fdcac9dcad8e25566d1a0987fcd"
+    },
+    {
+      "path": ".github/workflows/axiom-mcp-v3-search-descriptor-diagnostic.yml",
+      "credentialed": true,
+      "sha256": "1b005bf171fdfed04050e86833ee0f179995e7e37cfff6a57c0ab1767e28178e"
+    },
+    {
+      "path": ".github/workflows/axiom-metering-identity-diagnostic.yml",
+      "credentialed": true,
+      "sha256": "9b1011663bfaad2f7b7a9843a5e942230473fc7109fb52fb2388536939d61b4d"
+    },
+    {
+      "path": ".github/workflows/axiom-metering-write-contract-readonly.yml",
+      "credentialed": true,
+      "sha256": "54baf738c29100ac0bef919c1c7a7a31f93580eb6faf90026f30b4321048d9f2"
+    },
+    {
+      "path": ".github/workflows/axiom-modal-adapter-exact-request-probe.yml",
+      "credentialed": true,
+      "sha256": "86011e6576f594458a14c2eed091227f119c40843d3491a01710fab976947cc5"
+    },
+    {
+      "path": ".github/workflows/axiom-modal-adapter-repair-probe.yml",
+      "credentialed": true,
+      "sha256": "24b2351c762bd7cd9ef66e71797bac11b8c029e34f9ff6b377c8a03018ac0ab0"
+    },
+    {
+      "path": ".github/workflows/axiom-modal-adapter-transport-diagnostic.yml",
+      "credentialed": true,
+      "sha256": "9ef2e8ab61bdfd26f0a2ba9ea3b57aca29faef592c016456641325afb05526f5"
+    },
+    {
+      "path": ".github/workflows/axiom-modal-auth-source-preflight.yml",
+      "credentialed": true,
+      "sha256": "6e55f30883d70b9602f6596ae2b847191bb87276ea96f465fd0d9131b7602d2c"
+    },
+    {
+      "path": ".github/workflows/axiom-modal-canonical-request-probe.yml",
+      "credentialed": true,
+      "sha256": "c90fcaf825ab95be665f63aad8818a3b94e6f669eedc6faee14021c7c3ecbcb9"
+    },
+    {
+      "path": ".github/workflows/axiom-modal-compute-contract-diagnostic.yml",
+      "credentialed": true,
+      "sha256": "8c8a07076bee795e898014414253a94661dd9d44bc95935550316104bfdddfb5"
+    },
+    {
+      "path": ".github/workflows/axiom-modal-edge-adapter-preflight.yml",
+      "credentialed": true,
+      "sha256": "d672783a66aa1dfc1f02595cc04c356eff3033038f936bc5dd27ffcb26410e36"
+    },
+    {
+      "path": ".github/workflows/axiom-modal-edge-authenticated-verify-v2.yml",
+      "credentialed": true,
+      "sha256": "16c1e063a15aea6f800c8e85a57f075d302c8b8adca1168059ab19370690c946"
+    },
+    {
+      "path": ".github/workflows/axiom-modal-edge-final-isolated-verify.yml",
+      "credentialed": true,
+      "sha256": "318bcaf8d4e3d412977b2683aac3dfb40ddfe30a88867ae82e3de2e028fab485"
+    },
+    {
+      "path": ".github/workflows/axiom-modal-edge-isolated-deploy.yml",
+      "credentialed": true,
+      "sha256": "49638d1c753b8056fd498dca0ce8028844f080e446f03334890a3e9a606e3f7f"
+    },
+    {
+      "path": ".github/workflows/axiom-modal-edge-service-compat-patch.yml",
+      "credentialed": true,
+      "sha256": "955acc51448bb7640d38eb2b876691c8e443547d2eb32b557484b03fbbf8d727"
+    },
+    {
+      "path": ".github/workflows/axiom-modal-edge-transport-repair.yml",
+      "credentialed": true,
+      "sha256": "9aea05f4e5a7b78c781018aef01dfab5bca167646555296e1052ea63f0df5d7f"
+    },
+    {
+      "path": ".github/workflows/axiom-modal-kernel-contract.yml",
+      "credentialed": true,
+      "sha256": "ccb601bb6118e0bb76c11b3523b2f6b9abb0e93d0d227f45b0078a66e5a291d8"
+    },
+    {
+      "path": ".github/workflows/axiom-modal-musitu-parallel-deploy.yml",
+      "credentialed": true,
+      "sha256": "9e8e2e5f8e0958ecbeff8e5eb9934f70ac05912875dc9e14f473920ce6fd3afd"
+    },
+    {
+      "path": ".github/workflows/axiom-modal-private-deploy.yml",
+      "credentialed": true,
+      "sha256": "2c42c52d30d33455dedb00738d90bfab38ef2a5131e780ff858293fcc33553a8"
+    },
+    {
+      "path": ".github/workflows/axiom-modal-production-deploy.yml",
+      "credentialed": true,
+      "sha256": "538d800cbdc8c95f95802e0f540b5bfaca96f917c988f568585024d091d67bfe"
+    },
+    {
+      "path": ".github/workflows/axiom-modal-route-contract-probe.yml",
+      "credentialed": false,
+      "sha256": "a90ba89f3e13cae0c03968269f605273aeeae49e75e5a420b6d1379fb8a4838a"
+    },
+    {
+      "path": ".github/workflows/axiom-modal-runtime-diagnostic.yml",
+      "credentialed": true,
+      "sha256": "421efd825220d6d972c0ea48ef0c9e6910265c292debded49e7abed5bb9dbdf4"
+    },
+    {
+      "path": ".github/workflows/axiom-modal-runtime-reconstruction-gate.yml",
+      "credentialed": true,
+      "sha256": "2ccdc36719fb57558d8dd647962c941e8aada2566be43b44bb8d698fb33d7eba"
+    },
+    {
+      "path": ".github/workflows/axiom-modal-stage-domain-auth-final-v2.yml",
+      "credentialed": true,
+      "sha256": "1aedc3fbd67e24a287214d184f42adb4e2f257b62dca98f14f0472c057a3d03a"
+    },
+    {
+      "path": ".github/workflows/axiom-modal-stage-domain-auth-final.yml",
+      "credentialed": true,
+      "sha256": "f5eb8742aa51603246540879f04549d92bb628ebab4cdf8f1fca8e9607d8af3d"
+    },
+    {
+      "path": ".github/workflows/axiom-modal-stage-domain-promotion-v2.yml",
+      "credentialed": true,
+      "sha256": "adec405b71828d18866b0b51a11aa63a6f485b90511966be9da1c1f96fcf86a8"
+    },
+    {
+      "path": ".github/workflows/axiom-modal-stage-domain-promotion.yml",
+      "credentialed": true,
+      "sha256": "b0d0c76441bfc6cb9b132ba26863f41d6d1a0a6db3e656e37042160cb0da9c56"
+    },
+    {
+      "path": ".github/workflows/axiom-musitu-cloudflare-compat-aliases.yml",
+      "credentialed": true,
+      "sha256": "e0a70253eba84804736653323bfdbaf5dce5fdee94bdc0d77cb7fd0b8112cafa"
+    },
+    {
+      "path": ".github/workflows/axiom-musitu-d1-live-cutover.yml",
+      "credentialed": true,
+      "sha256": "4482fbd9bbe159de1a71fe7d4cdba4dccb643095c7b2deabe147ca2ae2fbaa62"
+    },
+    {
+      "path": ".github/workflows/axiom-musitu-modal-backend-cutover.yml",
+      "credentialed": true,
+      "sha256": "a1c8bda3194ed882bcccc927efe5433277feb7a7be24303c5143c8aa4abfd9a1"
+    },
+    {
+      "path": ".github/workflows/axiom-musitu-stage-domain-cutover.yml",
+      "credentialed": true,
+      "sha256": "e85bd481ad5fdce3fced7ce51ce5b0da22262622ee0ea21de4c45a64ec898c52"
+    },
+    {
+      "path": ".github/workflows/axiom-oauth-production-deploy.yml",
+      "credentialed": true,
+      "sha256": "4af85fbe46ab6801f50a2ab37d7d56e5ca7d1d0fc2f485e0b800d8bc691237d4"
+    },
+    {
+      "path": ".github/workflows/axiom-oauth-userinfo-v2-rollout.yml",
+      "credentialed": false,
+      "sha256": "0ba9d7b5147b8bf93944c4e251e4c3a5b88bff6801ddd365dd13d8a1132b317c"
+    },
+    {
+      "path": ".github/workflows/axiom-openai-domain-challenge-install.yml",
+      "credentialed": true,
+      "sha256": "8b579c54266e39a87e19210069013aae814bbb092c0457a0a783bd02eb1e16c5"
+    },
+    {
+      "path": ".github/workflows/axiom-openai-submission-readiness.yml",
+      "credentialed": false,
+      "sha256": "8a0ee71f418868c1c3ca7a5746c6ef47bf833322a2a77b825fb9c124052f219a"
+    },
+    {
+      "path": ".github/workflows/axiom-pathname-match-arguments.yml",
+      "credentialed": true,
+      "sha256": "bf3638475c603322d71a5ce84bef05af1752308cb106bcb353326ae3c3e4874c"
+    },
+    {
+      "path": ".github/workflows/axiom-paynow-account-integration-inventory-readonly.yml",
+      "credentialed": true,
+      "sha256": "320a06c42ef3b37f0fe1dc396297f6a016a1f3e868c6aead292ab4286cf1e92e"
+    },
+    {
+      "path": ".github/workflows/axiom-paynow-authority-binding-inventory-readonly.yml",
+      "credentialed": true,
+      "sha256": "b9b9df9d9a39bf25a0c373227999882f2a0c71d479cd01b620a8831551323031"
+    },
+    {
+      "path": ".github/workflows/axiom-paynow-authority-contract-readonly.yml",
+      "credentialed": true,
+      "sha256": "6554f19910dc289b8c37729e55bff20281d123ddc4cfd847379b1887f7cf6de9"
+    },
+    {
+      "path": ".github/workflows/axiom-paynow-authority-wrapper-readonly.yml",
+      "credentialed": true,
+      "sha256": "cff76fbd0d3d9a95da2a6290fe7cfe6b35300eaf209e9c1ccbca3a286b36b935"
+    },
+    {
+      "path": ".github/workflows/axiom-paynow-billing-contract-readonly.yml",
+      "credentialed": true,
+      "sha256": "f78d2312aa0c5a36e3ed30116e11d03467d34871a6cdeb7be5f74849cbfeed90"
+    },
+    {
+      "path": ".github/workflows/axiom-paynow-initiate-contract-readonly.yml",
+      "credentialed": true,
+      "sha256": "b09c81a5ad4b95dfdd8abf2fcaaaf4570cc9299ba0d1aa46189d2c43b5efb41a"
+    },
+    {
+      "path": ".github/workflows/axiom-paynow-interface-schema-readonly.yml",
+      "credentialed": true,
+      "sha256": "272089fc10dff4a35d45ca2be18fcefabaccbebdcd5b13a46663c7f3dab1893c"
+    },
+    {
+      "path": ".github/workflows/axiom-paynow-negative-admission-probe.yml",
+      "credentialed": false,
+      "sha256": "8ccc8bea68872fea7e9fe28e843ef2f54e20863a362fbb08bde88000edcb761e"
+    },
+    {
+      "path": ".github/workflows/axiom-paynow-offline-auth-bypass-contract-v2.yml",
+      "credentialed": true,
+      "sha256": "33a46edc0364ce775dae94d210dcde86a9a23bdda0accc15e94406a4358e4b2c"
+    },
+    {
+      "path": ".github/workflows/axiom-paynow-offline-auth-bypass-contract.yml",
+      "credentialed": true,
+      "sha256": "9ea15e107b79404b51a13176c335418e23df457770ea15fcacbb422fffeff4b6"
+    },
+    {
+      "path": ".github/workflows/axiom-paynow-offline-authorized-contract.yml",
+      "credentialed": true,
+      "sha256": "b6f4776eda28460d9d23dc9a1c23eb186eb32be1c2e54e721ec0fe0556d1abe4"
+    },
+    {
+      "path": ".github/workflows/axiom-paynow-offline-contract-execution.yml",
+      "credentialed": true,
+      "sha256": "690b7ee3563d34e1da15727640ac5f2f7bef1454b7621408e23a9d220b01c3ee"
+    },
+    {
+      "path": ".github/workflows/axiom-paynow-offline-contract-v3.yml",
+      "credentialed": true,
+      "sha256": "cd471eba01c46abbb8cdaba86ef2c8af366630659d13ccc30c02e868eee40247"
+    },
+    {
+      "path": ".github/workflows/axiom-paynow-parser-verifier-contract-readonly.yml",
+      "credentialed": true,
+      "sha256": "baa8e7c1ff67e7e1420bba5067191cd1aa0aa37bdbf4c1612d72cee056834a42"
+    },
+    {
+      "path": ".github/workflows/axiom-paynow-poll-contract-readonly.yml",
+      "credentialed": true,
+      "sha256": "86a391854c3be90eb494010325b60050d66645bfb0819dd9e17faffe393c98a6"
+    },
+    {
+      "path": ".github/workflows/axiom-paynow-route-contract-readonly.yml",
+      "credentialed": true,
+      "sha256": "dab5bad7540e076df45dd271f7b6c33da6a5bda8c58caca1df0929852a02f9a1"
+    },
+    {
+      "path": ".github/workflows/axiom-paynow-transport-contract-readonly.yml",
+      "credentialed": true,
+      "sha256": "28f420e5a63d5065f25319ec0a670e6db7bbfc4de581951a9d294ed1ea6cb513"
+    },
+    {
+      "path": ".github/workflows/axiom-phase8-dispatch-shape-readonly.yml",
+      "credentialed": true,
+      "sha256": "e73a56b7997d903113651b81ef37966cbb82851ab9494cd66ebfc1a2c1796c35"
+    },
+    {
+      "path": ".github/workflows/axiom-phase8-payment-authority-contract-readonly.yml",
+      "credentialed": true,
+      "sha256": "c04582c78d876a3904eeaede48cd060e6946e6facc3d0cb22f2e97c887d620a8"
+    },
+    {
+      "path": ".github/workflows/axiom-phase8-sign-contract-readonly.yml",
+      "credentialed": true,
+      "sha256": "21d187672ad52b7716afd2402e4dde2a83f75889ecb6b4ea087a893fdb2e4cbf"
+    },
+    {
+      "path": ".github/workflows/axiom-plugin-docs-publication-fix.yml",
+      "credentialed": false,
+      "sha256": "0be3b4cb9e947f0056fde21aa1fd4f73285b7e979f2513f373512013e8d73f9b"
+    },
+    {
+      "path": ".github/workflows/axiom-plugin-gate-v4-cutover-v2.yml",
+      "credentialed": true,
+      "sha256": "f843da1305c8124b53d735bc1fd0a3dabf410d6a08e168ccdcf66c50937de736"
+    },
+    {
+      "path": ".github/workflows/axiom-plugin-gate-v4-cutover-v3.yml",
+      "credentialed": true,
+      "sha256": "252d2b57044b9e255ade26b4bff836c502ef88f7d789426da621e7ca4c1c358d"
+    },
+    {
+      "path": ".github/workflows/axiom-plugin-gate-v4-cutover.yml",
+      "credentialed": true,
+      "sha256": "daf229986c3a89d9fe27f49fc10f5e109bc363d99d78798a5d548cef398189e7"
+    },
+    {
+      "path": ".github/workflows/axiom-private-edge-implementation-contract.yml",
+      "credentialed": true,
+      "sha256": "8fa17f87fa218ca97c8af69867fbe143fd2984529d24b3543386537847568251"
+    },
+    {
+      "path": ".github/workflows/axiom-production-admission-gate-v5.yml",
+      "credentialed": true,
+      "sha256": "0680177d123eb7e3a4b4b2bf70f96746cb66887b8b5347bd85ed92307362f5e2"
+    },
+    {
+      "path": ".github/workflows/axiom-production-admission-gate.yml",
+      "credentialed": true,
+      "sha256": "26eaa63c2d70436733a4ea46d138a8c995dc1590cf1d68aad0e2adb38a29b959"
+    },
+    {
+      "path": ".github/workflows/axiom-production-custom-domain-cutover.yml",
+      "credentialed": true,
+      "sha256": "b82f07a9bf1c74b1c12a00042bf4857d08868685b6b2e127456b4fd95523ec32"
+    },
+    {
+      "path": ".github/workflows/axiom-production-customer-bearer-compute-metering-e2e.yml",
+      "credentialed": true,
+      "sha256": "fac6c603362dfe2a627d9ef98b45f4e86602c533d19ab747ebc9bad591096ccf"
+    },
+    {
+      "path": ".github/workflows/axiom-production-entitlement-and-d1-gate.yml",
+      "credentialed": true,
+      "sha256": "82c4573954b38adbce6503c992415ffb15393886b06ed6dcff54f7759432a0eb"
+    },
+    {
+      "path": ".github/workflows/axiom-provision-response-shape.yml",
+      "credentialed": true,
+      "sha256": "c7d1e35bd8815a1f4e78a2c5f9bec7dfea06052e6fd9a011f3a2304fffbbed6a"
+    },
+    {
+      "path": ".github/workflows/axiom-public-health-diagnostics.yml",
+      "credentialed": false,
+      "sha256": "700bfc926d01e095c3f3c3e37be0e32d525357462e20e647274b89dc87708d7d"
+    },
+    {
+      "path": ".github/workflows/axiom-real-money-certification-checkout-initiate.yml",
+      "credentialed": true,
+      "sha256": "51e89395b2f277553a47d2b9c591822ccee988a0c71504412f6a670326ee2701"
+    },
+    {
+      "path": ".github/workflows/axiom-real-money-certification-reconcile.yml",
+      "credentialed": true,
+      "sha256": "78f7f92b1a93fc358a3dae2686d5adfc0abe3c0aaabb0dd0893655f8434c096d"
+    },
+    {
+      "path": ".github/workflows/axiom-real-money-e2e-readonly-audit.yml",
+      "credentialed": true,
+      "sha256": "95a7bf39a752a17b6c2a26c41f5f19812a391b97556f9fa87822fd23c6691a41"
+    },
+    {
+      "path": ".github/workflows/axiom-reasoning-conformance.yml",
+      "credentialed": false,
+      "sha256": "f37408d62898bc913214afbcc2afd20b49dfbd85ec4d5a7e5abebce37c2ad7c2"
+    },
+    {
+      "path": ".github/workflows/axiom-reasoning-verification.yml",
+      "credentialed": false,
+      "sha256": "735bdb2bc0d4ad352662a3213c3ef5ebf4e7f46c3572018584803a528d533035"
+    },
+    {
+      "path": ".github/workflows/axiom-record-usage-ast-contract.yml",
+      "credentialed": true,
+      "sha256": "7bf7e9cb7dec246cbf3a5f27e54f53b6a10f774dc0664a4153e35edd8fd4d1a2"
+    },
+    {
+      "path": ".github/workflows/axiom-record-usage-scheduling-contract.yml",
+      "credentialed": true,
+      "sha256": "23bb28e12d25d29fb931dd6683e7d63840864568e532b98702e89a9658b8fc4a"
+    },
+    {
+      "path": ".github/workflows/axiom-request-id-contract-readonly.yml",
+      "credentialed": true,
+      "sha256": "047e8086c952b5299427738c07a0c99310cbf431321ea380937bc0fdfe595a5f"
+    },
+    {
+      "path": ".github/workflows/axiom-request-id-handler-contract-readonly.yml",
+      "credentialed": true,
+      "sha256": "43351ebebe52c7a4e27a57f30d712752ee1077644ed95a01c78582226aad2405"
+    },
+    {
+      "path": ".github/workflows/axiom-router-and-auth-literals.yml",
+      "credentialed": true,
+      "sha256": "0711c26e192066b0256e4ce21a6dc662072bd7967dbf5bfb6d25f5dd57524de8"
+    },
+    {
+      "path": ".github/workflows/axiom-runtime-arithmetic-ast-contract.yml",
+      "credentialed": true,
+      "sha256": "f0edcc8eeee689b51f1d91fc52d5c3e96c22e65daaab25c905d274d5d036813f"
+    },
+    {
+      "path": ".github/workflows/axiom-runtime-arithmetic-evaluate-contract.yml",
+      "credentialed": true,
+      "sha256": "ec47824e93f1cedad5a22c91b4f0d1e25eb7cca5d1af70e8f37e65df2fc27f1e"
+    },
+    {
+      "path": ".github/workflows/axiom-runtime-transport-gate.yml",
+      "credentialed": true,
+      "sha256": "8cbafd78e9b351f489985b9bdf0ee5decd93fd6261731290fffcf86e4d7bac8c"
+    },
+    {
+      "path": ".github/workflows/axiom-secret-requirement-contract.yml",
+      "credentialed": true,
+      "sha256": "2c137a31ce8a40aefc5903694510f685cd293d6e1516989eb994a6d6cac7babb"
+    },
+    {
+      "path": ".github/workflows/axiom-select-kernel-health-contract.yml",
+      "credentialed": true,
+      "sha256": "ec02f86dcb75105b7b7f35208da99ffc239a6a0a31344e5337f7fd5a97fc607b"
+    },
+    {
+      "path": ".github/workflows/axiom-service-binding-request-object-probe.yml",
+      "credentialed": true,
+      "sha256": "b6a1e6cc6fc4a267c1d9eca79db6c94d1d1bdb9c99789776a1a102ae2e4042a0"
+    },
+    {
+      "path": ".github/workflows/axiom-service-binding-runtime-shape.yml",
+      "credentialed": true,
+      "sha256": "9118ad450354263f65fd60b4909b89be587a774c02c58951cd69737a25d43dd8"
+    },
+    {
+      "path": ".github/workflows/axiom-worker-kernel-schema-alignment.yml",
+      "credentialed": true,
+      "sha256": "478021413dc5536a6b4701f05b4c3010defca1f64a50c1fe1ba31896218cfb31"
+    },
+    {
+      "path": ".github/workflows/axiom-worker-private-contract.yml",
+      "credentialed": true,
+      "sha256": "98369c5f3adabe45afcd7072e275552c27aba64241804c01b5fe55aa2d4e0b8d"
+    },
+    {
+      "path": ".github/workflows/build-axiom-accelerators.yml",
+      "credentialed": false,
+      "sha256": "72c73a426b2ee3e570081d0205b0acd6cdbc49bf9ac4ba9cf01f1ba781f6d60e"
+    },
+    {
+      "path": ".github/workflows/cloudflare-access-audit.yml",
+      "credentialed": true,
+      "sha256": "7be6e9b3fcf3df3a3e57225d2d17a13b763520c3bc3c7a306dadd52e2738e22b"
+    },
+    {
+      "path": ".github/workflows/cloudflare-axiom-403-diagnostic.yml",
+      "credentialed": true,
+      "sha256": "048cc02f031c7e14dcb9707343d328426905001143ca9bb15debe37ade725c23"
+    },
+    {
+      "path": ".github/workflows/cloudflare-axiom-bootstrap-enable.yml",
+      "credentialed": true,
+      "sha256": "8b58cfebeef15d9d79ad2164fef7318c8ef299fdf3b165d0ea394fd103bb392f"
+    },
+    {
+      "path": ".github/workflows/cloudflare-axiom-bootstrap.yml",
+      "credentialed": true,
+      "sha256": "fd6470b69e0f86f4438b475b7cc21db0da7e171996af2db107553b6ac271f27b"
+    },
+    {
+      "path": ".github/workflows/cloudflare-axiom-http-forensics.yml",
+      "credentialed": false,
+      "sha256": "522b0228e7772c2cf593126db74a2854d88c09039fddb6ef0a54ce4dd43cdc32"
+    },
+    {
+      "path": ".github/workflows/cloudflare-axiom-security-audit.yml",
+      "credentialed": true,
+      "sha256": "98f6c031d57817ed72725f5a8ea2fbb6fbd7630367f81f5865c1f9e6e56a4acf"
+    },
+    {
+      "path": ".github/workflows/cloudflare-axiom-stage-domain.yml",
+      "credentialed": true,
+      "sha256": "448ac586e4c20093c1e04e9ed1c0c1a2700138a778c05b23ccf7ddc96772f0a5"
+    },
+    {
+      "path": ".github/workflows/cloudflare-axiom-stage-readback.yml",
+      "credentialed": true,
+      "sha256": "7184223ae60b3dd125bcef0c7b7ac2a2f8ab48c7969c3a8a79034dcb82a91321"
+    },
+    {
+      "path": ".github/workflows/cloudflare-axiom-stage-security-exception.yml",
+      "credentialed": true,
+      "sha256": "76feb11913f82921c3ff6ae1900bf5fb09ec13f1c03f98fb7aea324a13afbfe4"
+    },
+    {
+      "path": ".github/workflows/cloudflare-bearer-auth-probe.yml",
+      "credentialed": true,
+      "sha256": "cb71a4a2570fde7acb387144883b001b2cb9031c6969b1a1d8ddbbd3eeb925a8"
+    },
+    {
+      "path": ".github/workflows/cloudflare-container-entitlement.yml",
+      "credentialed": true,
+      "sha256": "e5cea077b853cf432717a11d7e4998995eefc4f4a68214d712c4c8cc53e5bc5e"
+    },
+    {
+      "path": ".github/workflows/cloudflare-control-plane.yml",
+      "credentialed": true,
+      "sha256": "b45d65a8cb713822bbe446be88a0b204c63a628d8326b32a2691d46df559452a"
+    },
+    {
+      "path": ".github/workflows/cloudflare-domain-topology-audit.yml",
+      "credentialed": true,
+      "sha256": "656918a6fc94edfcfb8fb451689506f19a57285d41a35909d2825cb089873900"
+    },
+    {
+      "path": ".github/workflows/cloudflare-production-readiness.yml",
+      "credentialed": true,
+      "sha256": "cc766775cc6247fb78ef1e0ac1fe1b0a21a7caef913ac4af26e953dfd8555176"
+    },
+    {
+      "path": ".github/workflows/cloudflare-service-fetch-signature-probe.yml",
+      "credentialed": true,
+      "sha256": "a246b9664d79d1695b5a283bff411545622cebb43243acb9c4d0605a1f1ff74a"
+    },
+    {
+      "path": ".github/workflows/cloudflare-token-capability-audit.yml",
+      "credentialed": true,
+      "sha256": "88950df8e2f582948f68fb673ad43d1406d760566c9d2d029c3017af23bf4130"
+    },
+    {
+      "path": ".github/workflows/connect-d1-readonly-regression.yml",
+      "credentialed": false,
+      "sha256": "746393e02c1dee5a7e6b64f57f0edfc537aff01817968e843c32dc7f73d1ab4c"
+    },
+    {
+      "path": ".github/workflows/g1-aws-oidc-executor.yml",
+      "credentialed": false,
+      "sha256": "fe28191af6d1ee023565923ec9f47df7a7bb5bb2f8661f0b155e0e6181e45837"
+    },
+    {
+      "path": ".github/workflows/g1-aws-oidc-identity.yml",
+      "credentialed": false,
+      "sha256": "09f4cd60eef21822d95bfa1149054a0bcc02b1e59f35187c604319a4106e40cf"
+    },
+    {
+      "path": ".github/workflows/g1-aws-oidc-inventory.yml",
+      "credentialed": false,
+      "sha256": "226563ed3b0efed856af65b57b614eb89433808582ced4f2017099d0e2f97dfd"
+    },
+    {
+      "path": ".github/workflows/g1-aws-pilot-plan.yml",
+      "credentialed": true,
+      "sha256": "f013916ecb738019365beccc383de86c50f6869eef520f8ad817f806c6b2d5af"
+    },
+    {
+      "path": ".github/workflows/g1-aws-source-checks.yml",
+      "credentialed": false,
+      "sha256": "33a9971b2379e3b07c68465c8f1241b9e8ec9132b870452e5d79b31b9b8dc3ef"
+    },
+    {
+      "path": ".github/workflows/g1-security-ci.yml",
+      "credentialed": false,
+      "sha256": "5e54f8bdeed79a60e45d2be6830e01d7d22a34638e1f18248bcfe44d4a563269"
+    },
+    {
+      "path": ".github/workflows/musitu-axiom-catboost-research.yml",
+      "credentialed": false,
+      "sha256": "8dd696fc1b76ba12bbce521a9f7fd03c44ad577cfd4845dffb98c9bcfc5d446f"
+    },
+    {
+      "path": ".github/workflows/musitu-axiom-challenger-comparison.yml",
+      "credentialed": false,
+      "sha256": "992c92d07b29b2db32173d0371abce44dc01a8c8f07086aeeb3185f15aacc256"
+    },
+    {
+      "path": ".github/workflows/musitu-axiom-external-event-proxy-audit.yml",
+      "credentialed": false,
+      "sha256": "e6fbda7d5e9506974c0897f53de10bb964781530090bd490505d38885529b5de"
+    },
+    {
+      "path": ".github/workflows/musitu-axiom-external-source-preflight.yml",
+      "credentialed": false,
+      "sha256": "1c85a8999a5eeecd479c9943ca4e0e91c0c466cebd18bf6c3f5a7aca9b924cea"
+    },
+    {
+      "path": ".github/workflows/musitu-axiom-frozen-model-contract.yml",
+      "credentialed": false,
+      "sha256": "2753d2c264ed982c6c126c6388af040e3837d7d5027172f5cf129a28c1db069a"
+    },
+    {
+      "path": ".github/workflows/musitu-axiom-frozen-public-artifact-smoke.yml",
+      "credentialed": false,
+      "sha256": "a8f3ed01e79bea1d0ff3c2493ad1a26411a2d94b39150b815ec642a774f0d90b"
+    },
+    {
+      "path": ".github/workflows/musitu-axiom-independent-holdout-protocol.yml",
+      "credentialed": false,
+      "sha256": "f798adf1f2e787daef745c62093b1e01f37592f90edac7d8ef6b362260c6f7b8"
+    },
+    {
+      "path": ".github/workflows/musitu-axiom-independent-holdout-replay.yml",
+      "credentialed": false,
+      "sha256": "ff4027fbb9db0591f9d9eec4837a4ecd083734e4d07d7e2a03c8ff6539e9de20"
+    },
+    {
+      "path": ".github/workflows/musitu-axiom-independent-mine-readiness.yml",
+      "credentialed": false,
+      "sha256": "2b8bfc145a8831ec743b7d69b464ab1c6444b6fff3a2d0169f0f2458eed2c737"
+    },
+    {
+      "path": ".github/workflows/musitu-axiom-lightgbm-research.yml",
+      "credentialed": false,
+      "sha256": "35d5a71d56d729a11632f4767ff3be94daffd131bc955204e1a319980079b846"
+    },
+    {
+      "path": ".github/workflows/musitu-axiom-public-mine-forensics.yml",
+      "credentialed": false,
+      "sha256": "22fc8d7a6f957239578507eed0886d65aedd22b96c2c4391fcc7be00f67c01eb"
+    },
+    {
+      "path": ".github/workflows/musitu-axiom-regime-shadow-review.yml",
+      "credentialed": false,
+      "sha256": "c965ab1f7e274a2fb6cb32bd37e515bd84b1a47b92792b20aafc939d84815a19"
+    },
+    {
+      "path": ".github/workflows/musitu-brand-guard.yml",
+      "credentialed": false,
+      "sha256": "5c6ddd71d92e0c3c433b8497dece8bdbda34f5e47cb12293d70bbaee495ad460"
+    },
+    {
+      "path": ".github/workflows/musitu-cloudflare-zone-inventory.yml",
+      "credentialed": true,
+      "sha256": "20fdc5fcc1843137188c18639bcdfe26f198fc503b78fda77edf5d889841c898"
+    },
+    {
+      "path": ".github/workflows/musitu-com-production-topology-audit.yml",
+      "credentialed": true,
+      "sha256": "5e922af93144f68d4ea4b5f372a381eb289766b7c131dd50b170b5b0a3f66629"
+    },
+    {
+      "path": ".github/workflows/musitu-commercial-ga-release-gate.yml",
+      "credentialed": false,
+      "sha256": "002f378e6cf067f2050fb995b4ba60e820aac86c6dcb7f4775157bc67e37db83"
+    },
+    {
+      "path": ".github/workflows/musitu-connect-axiom-credentialed-e2e.yml",
+      "credentialed": true,
+      "sha256": "3d376a7eecc394a098c9c31f4b5c09f1125ba7d768f719b425a38ec7691b71ab"
+    },
+    {
+      "path": ".github/workflows/musitu-connect-customer-accounting-audit.yml",
+      "credentialed": false,
+      "sha256": "a15f999a30a91317e80f1a4e3b1443a223e154202c90fec5a368effe838976b8"
+    },
+    {
+      "path": ".github/workflows/musitu-connect-d1-local.yml",
+      "credentialed": false,
+      "sha256": "3681c882a1e2a44e3495e23bf150a253c7d88087996ad210b37de5891bfb5b41"
+    },
+    {
+      "path": ".github/workflows/musitu-connect-hosted-d1-readonly.yml",
+      "credentialed": true,
+      "sha256": "1042fa4cbf96fbc703f0f094ae5c876dcbe682e36bfc3d8df4d72bbda7a12692"
+    },
+    {
+      "path": ".github/workflows/musitu-connect-industrial-field-benchmark.yml",
+      "credentialed": false,
+      "sha256": "9496fa8889f5b2788ead9cf59bde0b811b0a90fbdb00d6eaf3b40f952590ccf0"
+    },
+    {
+      "path": ".github/workflows/musitu-connect-infrastructure.yml",
+      "credentialed": false,
+      "sha256": "3aada300f772583a3ffccd414268c80e83e0571ae232db3bf1e2127bf20adef1"
+    },
+    {
+      "path": ".github/workflows/musitu-connect-methane-backtest.yml",
+      "credentialed": false,
+      "sha256": "0f9e477fe7c846715000240dcd03730d1c77de418657d40348aecb39f1ffae46"
+    },
+    {
+      "path": ".github/workflows/musitu-connect-mine-reality.yml",
+      "credentialed": false,
+      "sha256": "096e52f14d04b5277a36b0dc619f8601b2c8d3d8eda84b6e9d28761048a93f7a"
+    },
+    {
+      "path": ".github/workflows/musitu-connect-mqtt-repeatability.yml",
+      "credentialed": false,
+      "sha256": "e1d8b079bcb433c054b30df3f27ef6d97163d1da18874fb3bf231ff8cc3e69c3"
+    },
+    {
+      "path": ".github/workflows/musitu-connect-non-fixture-direct-compute.yml",
+      "credentialed": true,
+      "sha256": "3d1b959066fb43235682766fcdaffa0edfaa6d1d122f078fc17f3d7bdf5632df"
+    },
+    {
+      "path": ".github/workflows/musitu-connect-non-fixture-identity.yml",
+      "credentialed": true,
+      "sha256": "0f0ba3896e3c5ed13756e7a206ebb51d9489847178a59afd9b7e96c1e5cfe93b"
+    },
+    {
+      "path": ".github/workflows/musitu-connect-oauth-pkce.yml",
+      "credentialed": true,
+      "sha256": "c7c5c4b3271e9496bc3bd784853e151d66d8f31ecc1a72b90a6190481e283943"
+    },
+    {
+      "path": ".github/workflows/musitu-connect-operational-admission.yml",
+      "credentialed": true,
+      "sha256": "ba226b5d49670e6a48a7f81b2dd75443a7054c7e42416ca091dfeef21e4450bc"
+    },
+    {
+      "path": ".github/workflows/musitu-connect-partner-mine-contract.yml",
+      "credentialed": false,
+      "sha256": "0085988ca966c3347fd9dca30af587fbfd2360db8603029d45d878030b9f8985"
+    },
+    {
+      "path": ".github/workflows/musitu-connect-production-paging-readiness.yml",
+      "credentialed": false,
+      "sha256": "a050091fde7de033947481f9c03ced0418f6530d0b211a02fb02628b28dfdf06"
+    },
+    {
+      "path": ".github/workflows/musitu-connect-production-runtime-enablement.yml",
+      "credentialed": true,
+      "sha256": "1f4c9698b75c01f1eeecf30b218296930538ca9e0948bc4ba267915835d42d14"
+    },
+    {
+      "path": ".github/workflows/musitu-connect-real-mine-prediction.yml",
+      "credentialed": false,
+      "sha256": "e2f71c60774f1f96f7f8a10f077c565508cee34c2eaa130a556e4c7e42552a70"
+    },
+    {
+      "path": ".github/workflows/musitu-connect-real-mine-public-data.yml",
+      "credentialed": false,
+      "sha256": "bfa2c7306999de280a68834238cc477393a685a41313c018571a53ecce1e39ab"
+    },
+    {
+      "path": ".github/workflows/musitu-connect-real-mine-telemetry.yml",
+      "credentialed": false,
+      "sha256": "81a877891156a4aa9bac461259fb9ea799e397920bb77c17833fbabcd92654e0"
+    },
+    {
+      "path": ".github/workflows/musitu-connect.yml",
+      "credentialed": false,
+      "sha256": "91ddfae638aaa3008c7c5f9b16fc259dfc439e7ef9c5fb3b1eddea004a50d0dd"
+    },
+    {
+      "path": ".github/workflows/musitu-corporate-bing-readonly.yml",
+      "credentialed": true,
+      "sha256": "cc61e2e8d68c6cd044e4d11d81b3f9cb6e5d5a566abb7c53c2b3d3186e999cd7"
+    },
+    {
+      "path": ".github/workflows/musitu-education-nexus-phase5-public-runtime-publication.yml",
+      "credentialed": false,
+      "sha256": "7c810d9c2b8b51a6c84c9168694b5efa5af000dedc4e0c0166c9f3a67d0c271e"
+    },
+    {
+      "path": ".github/workflows/musitu-ga-deployment-safety.yml",
+      "credentialed": false,
+      "sha256": "18a4ffd9b4a5c1bde7d1e3cf2f92aa9215fe52ccace106e65f35862871f61611"
+    },
+    {
+      "path": ".github/workflows/musitu-ga-launch-evidence-check.yml",
+      "credentialed": false,
+      "sha256": "f7747fa9824ccad3a128946c3eb88bfa383ee3e05d50495eb37c80d64f807f0c"
+    },
+    {
+      "path": ".github/workflows/musitu-ga-legacy-live-patch-guard.yml",
+      "credentialed": false,
+      "sha256": "58016770ef50ce1ba5620669f4d2af86122545c809a3d8f761b515c848dce95b"
+    },
+    {
+      "path": ".github/workflows/musitu-ga-privileged-deploy-safety.yml",
+      "credentialed": false,
+      "sha256": "47eefe4ce26eca68d87b660a6a133fb8027ba86a02d75ecef0df599438cfa3c0"
+    },
+    {
+      "path": ".github/workflows/musitu-ga-privileged-workflow-safety.yml",
+      "credentialed": false,
+      "sha256": "0b3a36f25f871933175043a31d6e5546bab0393e7e35bfae4ece9069d8e27dc7"
+    },
+    {
+      "path": ".github/workflows/musitu-ga-publication-package-guard.yml",
+      "credentialed": false,
+      "sha256": "2bee7200853cd3d5e0112ee9aacf444c73cd47a788be7a720f0d65c029af39df"
+    },
+    {
+      "path": ".github/workflows/musitu-ga-sandbox-reconciliation.yml",
+      "credentialed": false,
+      "sha256": "6e68e2e59fe8a99eb3c2fdde025e73610cbbf88916a0ab5ac5816e95c992e490"
+    },
+    {
+      "path": ".github/workflows/musitu-namespace-certification.yml",
+      "credentialed": false,
+      "sha256": "7681f025774286735fe765ff2042a66fa655aeca024bd515b311b583017f52e6"
+    },
+    {
+      "path": ".github/workflows/musitu-phase5-authority-gate-negative.yml",
+      "credentialed": false,
+      "sha256": "58d05d03f459f7cf192f10a8c93df4569fd91ca3825d2082622fd134c2da9b84"
+    },
+    {
+      "path": ".github/workflows/musitu-whole-product-continuation-export.yml",
+      "credentialed": false,
+      "sha256": "8d1cde2f3f042386d512466a3a09c1ec4692d8bfa92f2ae9de3115f9880d69fa"
+    },
+    {
+      "path": ".github/workflows/payments-mftintelligence-readonly-topology.yml",
+      "credentialed": true,
+      "sha256": "6a72d2d8905d445295be856bdc2d54cd4f29791b1dccb39bcaddf7bf18db9f0e"
+    }
+  ],
+  "pins": {
+    "actions/checkout@v4": "actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5",
+    "actions/checkout@v6": "actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803",
+    "actions/setup-python@v5": "actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065",
+    "actions/setup-node@v4": "actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020",
+    "actions/upload-artifact@v4": "actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02"
+  }
+}

@@ -9,8 +9,13 @@ on:
 permissions:
   contents: read
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
+
 jobs:
   verify:
+    if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main' && github.ref_protected == true && github.repository_id == '1356837528' && github.actor_id == '285482095'
     runs-on: ubuntu-latest
     timeout-minutes: 12
     env:
@@ -24,7 +29,9 @@ jobs:
       BILLING_ROUTE: payments.mftintelligence.com/billing/*
       BASE: https://payments.mftintelligence.com
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
+        with:
+          persist-credentials: false
       - name: Verify live endpoint and control-plane invariants read-only
         env:
           CLOUDFLARE_EMAIL: ${{ secrets.CLOUDFLARE_EMAIL }}
@@ -90,7 +97,13 @@ jobs:
           sub=cf(f'/accounts/{aid}/workers/scripts/{urllib.parse.quote(billing,safe="")}/subdomain') or {};checks['workers_dev_enabled']=sub.get('enabled');checks['previews_enabled']=sub.get('previews_enabled')
           if sub.get('enabled') is not False or sub.get('previews_enabled') is not False:raise SystemExit('FAIL subdomain exposure')
           aset=cf(f'/accounts/{aid}/workers/scripts/{urllib.parse.quote(auth,safe="")}/settings') or {};an={z.get('name') for z in aset.get('bindings') or [] if isinstance(z,dict)}
-          required={'AUTHORITY_CAPABILITY_TOKEN','PAYNOW_INTEGRATION_KEY','BILLING_BRIDGE_CAPABILITY_TOKEN','SIGNING_PRIVATE_G1_B64','SIGNING_PUBLIC_G1_B64'};checks['authority_required_bindings_present']=required.issubset(an)
+          required={
+              'AUTHORITY_CAPABILITY_TOKEN',
+              'PAYNOW_INTEGRATION_KEY',
+              'BILLING_BRIDGE_CAPABILITY_TOKEN',
+              'SIGNING_PRIVATE_G1_B64',
+              'SIGNING_PUBLIC_G1_B64',
+          };checks['authority_required_bindings_present']=required.issubset(an)
           if not checks['authority_required_bindings_present']:raise SystemExit('FAIL authority binding preservation')
           # Read source hash and ensure bridge extension exists without printing source or values.
           c,hh,raw=http(f'{api}/accounts/{aid}/workers/scripts/{urllib.parse.quote(auth,safe="")}',headers=AH);src=raw
@@ -110,7 +123,7 @@ jobs:
           raw=(json.dumps(evidence,indent=2,sort_keys=True)+'\n').encode();open('postdeploy-verify.json','wb').write(raw);dg=hashlib.sha256(raw).hexdigest();open('postdeploy-verify.sha256','w').write(dg+'  postdeploy-verify.json\n')
           print(json.dumps({'gate':evidence['gate'],'health_http':checks['health_http'],'catalog_http':checks['catalog_http'],'checkout_http':checks['checkout_http'],'invalid_webhook_http':checks['invalid_webhook_http'],'invalid_webhook_mutation':checks['invalid_webhook_mutation'],'transport_internal_noauth_http':checks['transport_internal_noauth_http'],'exact_route_count':checks['exact_route_count'],'workers_dev_enabled':checks['workers_dev_enabled'],'previews_enabled':checks['previews_enabled'],'authority_bridge_code_present':checks['authority_bridge_code_present'],'production_mutation_performed':False,'secret_values_read':False,'evidence_sha256':dg},sort_keys=True))
           PY
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
           name: musitu-axiom-billing-ingress-postdeploy-verify
           path: |

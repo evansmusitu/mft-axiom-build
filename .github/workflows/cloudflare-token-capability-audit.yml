@@ -9,8 +9,13 @@ on:
 permissions:
   contents: read
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
+
 jobs:
   audit:
+    if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main' && github.ref_protected == true && github.repository_id == '1356837528' && github.actor_id == '285482095'
     runs-on: ubuntu-latest
     timeout-minutes: 10
     env:
@@ -36,7 +41,7 @@ jobs:
           with open('cloudflare-token-permission-groups.json','w') as f: json.dump({'success':True,'groups':wanted},f,indent=2,sort_keys=True)
           print(json.dumps({'success':True,'matched_group_count':len(wanted),'names':[x['name'] for x in wanted]},sort_keys=True))
           PY
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
           name: cloudflare-token-permission-groups
           path: cloudflare-token-permission-groups.json
