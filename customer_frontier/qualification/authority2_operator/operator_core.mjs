@@ -3,7 +3,7 @@ import {readFileSync,lstatSync,writeFileSync} from 'node:fs';
 import {join,resolve,relative,isAbsolute} from 'node:path';
 import {ACCOUNT,SCRIPT,BUCKET,PIN,REPO,CHECKPOINT_REPO,CHECKPOINT_ID,SERVING_SHA,INITIALIZER_SHA,SPKI_SHA,canonical,need,OperatorHold,HEX64} from './pins.mjs';
 import {WORKER_ROOT,readBoundedBody} from './transport.mjs';
-import {readBoundary,assertSameBoundary,freshBuildDenials} from './boundary.mjs';
+import {readBoundary,assertSameBoundary,freshBuildDenials,BoundaryHold} from './boundary.mjs';
 import {observePrivateSchedule} from './tail.mjs';
 import {publishGithubCheckpoint,verifyGithubCheckpoint} from './approved-anchor.mjs';
 import {verifyAuthority2InitializerRetirement} from './approved-retirement.mjs';
@@ -183,7 +183,7 @@ export class PrivateOperatorRunner{
    const revokeWindow=scheduleWindow(),revoke={...hosted,...revokeWindow,phase:'REVOCATION',old_read_token:old.read,old_write_token:old.write,read_token:this.roles.read,write_token:this.roles.write};
    const revoked=await this.scheduled('harness','REVOCATION',revoke,revokeWindow);publicEnvelope(revoked.envelope,'REVOCATION',this.nonce,genesisSha);this.report.phases.push({phase:'ACTUAL_PROVIDER_BACKED_ROLE_REVOCATION',...revoked});await this.retire();
    need(!this.t.privateArchiveFailed,'A2OP_PRIVATE_EVIDENCE_INCOMPLETE_HOLD');success=true;this.report.status='OWNER_OPERATOR_HOSTED_SEQUENCE_COMPLETED_INDEPENDENT_REVIEW_REQUIRED_NOT_RELEASE';
-  }catch(e){code=typeof e?.code==='string'&&/^(A2OP|A2QUAL|ANCHOR|A2_RETIREMENT|WORKER|ACTIVE_DEPLOYMENT)_[A-Z0-9_]{1,100}$/.test(e.code)?e.code:'A2OP_EXECUTION_UNCONFIRMED_HOLD';this.report.status=code;}
+  }catch(e){code=typeof e?.code==='string'&&/^(A2OP|A2QUAL|ANCHOR|A2_RETIREMENT|WORKER|ACTIVE_DEPLOYMENT)_[A-Z0-9_]{1,100}$/.test(e.code)?e.code:'A2OP_EXECUTION_UNCONFIRMED_HOLD';this.report.status=code;if(e instanceof BoundaryHold)this.report.boundary_hold_details=e.publicBoundaryDetails;}
   finally{
    if(this.created&&!success){try{await this.retire();this.report.failure_cleanup='TEMPORARY_CONTROLS_RETIRED_SOURCE_RESTORED_STATE_PRESERVED';}catch{this.report.failure_cleanup='UNCONFIRMED_OPERATOR_REVIEW_REQUIRED';}}
    this.report.completed_at_utc=new Date().toISOString();this.report.provider_request_counts={Cloudflare:this.t.cfCount,GitHub:this.t.ghCount,mutations:this.t.mutations};this.report.original_provider_responses_encrypted_on_owner_PC=true;this.report.private_original_evidence_complete=!this.t.privateArchiveFailed;

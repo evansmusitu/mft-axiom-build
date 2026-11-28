@@ -1,0 +1,622 @@
+{
+  "schema": "musitu.axiom.authority2.build-scope-readback.v1",
+  "observed_at_utc": "2026-11-28T16:24:42.091Z",
+  "execution_origin": "EXISTING_BUILD_METADATA_CREDENTIAL_NOT_INDEPENDENT_OPERATOR",
+  "original_provider_responses_retained": false,
+  "scope_projection_only": true,
+  "accessible_zone_inventory_complete": true,
+  "absence_of_other_A2_zones_qualified": false,
+  "current_policy_inventory_complete": false,
+  "zone_ownership_complete": false,
+  "permission_catalog_matches_complete": true,
+  "independent_custody_qualified": false,
+  "effective_write_denial_verified": false,
+  "gate3_closed": false,
+  "B27": "FAILED_IN_SYNTHETIC_ATTACK",
+  "parity_superiority": "NOT_CERTIFIED",
+  "unavailable_final_usage": "UNKNOWN",
+  "release_status": "NOT_RELEASE",
+  "permission_groups": [
+    {
+      "permission_group_id": "037b9e348b3b42d4b46ea2fcb1cfb3e7",
+      "catalog_entry_observed": true,
+      "scope_metadata_valid": true,
+      "scopes": [
+        "com.cloudflare.api.account"
+      ],
+      "effective_permission_verified": false
+    },
+    {
+      "permission_group_id": "06f0526e6e464647bd61b63c54935235",
+      "catalog_entry_observed": true,
+      "scope_metadata_valid": true,
+      "scopes": [
+        "com.cloudflare.api.account.zone"
+      ],
+      "effective_permission_verified": false
+    },
+    {
+      "permission_group_id": "09b2857d1c31407795e75e3fed8617a1",
+      "catalog_entry_observed": true,
+      "scope_metadata_valid": true,
+      "scopes": [
+        "com.cloudflare.api.account"
+      ],
+      "effective_permission_verified": false
+    },
+    {
+      "permission_group_id": "0a6cfe8cd3ed445e918579e2fb13087b",
+      "catalog_entry_observed": true,
+      "scope_metadata_valid": true,
+      "scopes": [
+        "com.cloudflare.api.account.zone"
+      ],
+      "effective_permission_verified": false
+    },
+    {
+      "permission_group_id": "0ac90a90249747bca6b047d97f0803e9",
+      "catalog_entry_observed": true,
+      "scope_metadata_valid": true,
+      "scopes": [
+        "com.cloudflare.api.account.zone"
+      ],
+      "effective_permission_verified": false
+    },
+    {
+      "permission_group_id": "0fd9d56bc2da43ad8ea22d610dd8cab1",
+      "catalog_entry_observed": true,
+      "scope_metadata_valid": true,
+      "scopes": [
+        "com.cloudflare.api.account.zone"
+      ],
+      "effective_permission_verified": false
+    },
+    {
+      "permission_group_id": "1b1ea24cf0904d33903f0cc7e54e280f",
+      "catalog_entry_observed": true,
+      "scope_metadata_valid": true,
+      "scopes": [
+        "com.cloudflare.api.account.zone"
+      ],
+      "effective_permission_verified": false
+    },
+    {
+      "permission_group_id": "20e5ea084b2f491c86b8d8d90abff905",
+      "catalog_entry_observed": true,
+      "scope_metadata_valid": true,
+      "scopes": [
+        "com.cloudflare.api.account.zone"
+      ],
+      "effective_permission_verified": false
+    },
+    {
+      "permission_group_id": "211a4c0feb3e43b3a2d41f1443a433e7",
+      "catalog_entry_observed": true,
+      "scope_metadata_valid": true,
+      "scopes": [
+        "com.cloudflare.api.account.zone"
+      ],
+      "effective_permission_verified": false
+    },
+    {
+      "permission_group_id": "26ce6c7d18a346528e7b905d5e269866",
+      "catalog_entry_observed": true,
+      "scope_metadata_valid": true,
+      "scopes": [
+        "com.cloudflare.api.account"
+      ],
+      "effective_permission_verified": false
+    },
+    {
+      "permission_group_id": "28f4b596e7d643029c524985477ae49a",
+      "catalog_entry_observed": true,
+      "scope_metadata_valid": true,
+      "scopes": [
+        "com.cloudflare.api.account.zone"
+      ],
+      "effective_permission_verified": false
+    },
+    {
+      "permission_group_id": "2a69899475004f5dbe8a99c5244ab23d",
+      "catalog_entry_observed": true,
+      "scope_metadata_valid": true,
+      "scopes": [
+        "com.cloudflare.api.account.zone"
+      ],
+      "effective_permission_verified": false
+    },
+    {
+      "permission_group_id": "2efd5506f9c8494dacb1fa10a3e7d5b6",
+      "catalog_entry_observed": true,
+      "scope_metadata_valid": true,
+      "scopes": [
+        "com.cloudflare.edge.r2.bucket"
+      ],
+      "effective_permission_verified": false
+    },
+    {
+      "permission_group_id": "3030687196b94b638145a3953da2b699",
+      "catalog_entry_observed": true,
+      "scope_metadata_valid": true,
+      "scopes": [
+        "com.cloudflare.api.account.zone"
+      ],
+      "effective_permission_verified": false
+    },
+    {
+      "permission_group_id": "319f5059d33a410da0fac4d35a716157",
+      "catalog_entry_observed": true,
+      "scope_metadata_valid": true,
+      "scopes": [
+        "com.cloudflare.api.account.zone"
+      ],
+      "effective_permission_verified": false
+    },
+    {
+      "permission_group_id": "3518d0f75557482e952c6762d3e64903",
+      "catalog_entry_observed": true,
+      "scope_metadata_valid": true,
+      "scopes": [
+        "com.cloudflare.api.user"
+      ],
+      "effective_permission_verified": false
+    },
+    {
+      "permission_group_id": "366f57075ffc42689627bcf8242a1b6d",
+      "catalog_entry_observed": true,
+      "scope_metadata_valid": true,
+      "scopes": [
+        "com.cloudflare.api.account"
+      ],
+      "effective_permission_verified": false
+    },
+    {
+      "permission_group_id": "384a77ea7c2e47d898715dc6a064f3f4",
+      "catalog_entry_observed": true,
+      "scope_metadata_valid": true,
+      "scopes": [
+        "com.cloudflare.api.account"
+      ],
+      "effective_permission_verified": false
+    },
+    {
+      "permission_group_id": "4755a26eedb94da69e1066d98aa820be",
+      "catalog_entry_observed": true,
+      "scope_metadata_valid": true,
+      "scopes": [
+        "com.cloudflare.api.account.zone"
+      ],
+      "effective_permission_verified": false
+    },
+    {
+      "permission_group_id": "4bd3fb513a23494aa1341a7e1eb6e080",
+      "catalog_entry_observed": true,
+      "scope_metadata_valid": true,
+      "scopes": [
+        "com.cloudflare.api.account.zone"
+      ],
+      "effective_permission_verified": false
+    },
+    {
+      "permission_group_id": "4dc8917b4b40457d88d3035d5dadb054",
+      "catalog_entry_observed": true,
+      "scope_metadata_valid": true,
+      "scopes": [
+        "com.cloudflare.api.account"
+      ],
+      "effective_permission_verified": false
+    },
+    {
+      "permission_group_id": "4eeea447c0b34f34b33b2481f4187e7e",
+      "catalog_entry_observed": true,
+      "scope_metadata_valid": true,
+      "scopes": [
+        "com.cloudflare.api.account"
+      ],
+      "effective_permission_verified": false
+    },
+    {
+      "permission_group_id": "517b21aee92c4d89936c976ba6e4be55",
+      "catalog_entry_observed": true,
+      "scope_metadata_valid": true,
+      "scopes": [
+        "com.cloudflare.api.account.zone"
+      ],
+      "effective_permission_verified": false
+    },
+    {
+      "permission_group_id": "5e875a9694a340c6bfba2e88a0a59a42",
+      "catalog_entry_observed": true,
+      "scope_metadata_valid": true,
+      "scopes": [
+        "com.cloudflare.api.account.zone"
+      ],
+      "effective_permission_verified": false
+    },
+    {
+      "permission_group_id": "64156ba5be47441096c83c7fc17c488b",
+      "catalog_entry_observed": true,
+      "scope_metadata_valid": true,
+      "scopes": [
+        "com.cloudflare.api.account"
+      ],
+      "effective_permission_verified": false
+    },
+    {
+      "permission_group_id": "644535f4ed854494a59cb289d634b257",
+      "catalog_entry_observed": true,
+      "scope_metadata_valid": true,
+      "scopes": [
+        "com.cloudflare.api.account"
+      ],
+      "effective_permission_verified": false
+    },
+    {
+      "permission_group_id": "69a7c8a8d0794770be19af6fa020d8e9",
+      "catalog_entry_observed": true,
+      "scope_metadata_valid": true,
+      "scopes": [
+        "com.cloudflare.api.account.zone"
+      ],
+      "effective_permission_verified": false
+    },
+    {
+      "permission_group_id": "6a018a9f2fc74eb6b293b0c548f38b39",
+      "catalog_entry_observed": true,
+      "scope_metadata_valid": true,
+      "scopes": [
+        "com.cloudflare.edge.r2.bucket"
+      ],
+      "effective_permission_verified": false
+    },
+    {
+      "permission_group_id": "6c8a3737f07f46369c1ea1f22138daaf",
+      "catalog_entry_observed": true,
+      "scope_metadata_valid": true,
+      "scopes": [
+        "com.cloudflare.api.account"
+      ],
+      "effective_permission_verified": false
+    },
+    {
+      "permission_group_id": "71b0df4c5b6c4d3196f4428d7a6580ea",
+      "catalog_entry_observed": true,
+      "scope_metadata_valid": true,
+      "scopes": [
+        "com.cloudflare.api.account"
+      ],
+      "effective_permission_verified": false
+    },
+    {
+      "permission_group_id": "721b2f51fba74871bd361de65aeb7e03",
+      "catalog_entry_observed": true,
+      "scope_metadata_valid": true,
+      "scopes": [
+        "com.cloudflare.api.account"
+      ],
+      "effective_permission_verified": false
+    },
+    {
+      "permission_group_id": "74c654eb4aac40e28d6c6caa4c5aeb3d",
+      "catalog_entry_observed": true,
+      "scope_metadata_valid": true,
+      "scopes": [
+        "com.cloudflare.api.account.zone"
+      ],
+      "effective_permission_verified": false
+    },
+    {
+      "permission_group_id": "74e1036f577a48528b78d2413b40538d",
+      "catalog_entry_observed": true,
+      "scope_metadata_valid": true,
+      "scopes": [
+        "com.cloudflare.api.account.zone"
+      ],
+      "effective_permission_verified": false
+    },
+    {
+      "permission_group_id": "79b3ec0d10ce4148a8f8bdc0cc5f97f2",
+      "catalog_entry_observed": true,
+      "scope_metadata_valid": true,
+      "scopes": [
+        "com.cloudflare.api.account.zone"
+      ],
+      "effective_permission_verified": false
+    },
+    {
+      "permission_group_id": "7b32a91ece3140d4b3c2c56f23fc8e35",
+      "catalog_entry_observed": true,
+      "scope_metadata_valid": true,
+      "scopes": [
+        "com.cloudflare.api.account.zone"
+      ],
+      "effective_permission_verified": false
+    },
+    {
+      "permission_group_id": "82e64a83756745bbbb1c9c2701bf816b",
+      "catalog_entry_observed": true,
+      "scope_metadata_valid": true,
+      "scopes": [
+        "com.cloudflare.api.account.zone"
+      ],
+      "effective_permission_verified": false
+    },
+    {
+      "permission_group_id": "8764961c1edb4274be129d630b0b2671",
+      "catalog_entry_observed": true,
+      "scope_metadata_valid": true,
+      "scopes": [
+        "com.cloudflare.api.account"
+      ],
+      "effective_permission_verified": false
+    },
+    {
+      "permission_group_id": "8acbe5bb0d54464ab867149d7f7cf8ac",
+      "catalog_entry_observed": true,
+      "scope_metadata_valid": true,
+      "scopes": [
+        "com.cloudflare.api.user"
+      ],
+      "effective_permission_verified": false
+    },
+    {
+      "permission_group_id": "93ae59e7a40c4287a57ff6e501186a63",
+      "catalog_entry_observed": true,
+      "scope_metadata_valid": true,
+      "scopes": [
+        "com.cloudflare.api.account.zone"
+      ],
+      "effective_permission_verified": false
+    },
+    {
+      "permission_group_id": "95fa65ba51fd49c4a6ac4c8c78ebac93",
+      "catalog_entry_observed": true,
+      "scope_metadata_valid": true,
+      "scopes": [
+        "com.cloudflare.api.account"
+      ],
+      "effective_permission_verified": false
+    },
+    {
+      "permission_group_id": "a2431ca73b7d41f99c53303027392586",
+      "catalog_entry_observed": true,
+      "scope_metadata_valid": true,
+      "scopes": [
+        "com.cloudflare.api.account.zone"
+      ],
+      "effective_permission_verified": false
+    },
+    {
+      "permission_group_id": "a2b55cd504d44ef18b7ba6a7f2b8fbb1",
+      "catalog_entry_observed": true,
+      "scope_metadata_valid": true,
+      "scopes": [
+        "com.cloudflare.api.account.zone"
+      ],
+      "effective_permission_verified": false
+    },
+    {
+      "permission_group_id": "a4308c6855c84eb2873e01b6cc85cbb3",
+      "catalog_entry_observed": true,
+      "scope_metadata_valid": true,
+      "scopes": [
+        "com.cloudflare.api.account.zone"
+      ],
+      "effective_permission_verified": false
+    },
+    {
+      "permission_group_id": "a9dba34cf5814d4ab2007b4ada0045bd",
+      "catalog_entry_observed": true,
+      "scope_metadata_valid": true,
+      "scopes": [
+        "com.cloudflare.api.account.zone"
+      ],
+      "effective_permission_verified": false
+    },
+    {
+      "permission_group_id": "adc8fa2bc6124928a8b3314dc63a1235",
+      "catalog_entry_observed": true,
+      "scope_metadata_valid": true,
+      "scopes": [
+        "com.cloudflare.api.account"
+      ],
+      "effective_permission_verified": false
+    },
+    {
+      "permission_group_id": "adddda876faa4a0590f1b23a038976e4",
+      "catalog_entry_observed": true,
+      "scope_metadata_valid": true,
+      "scopes": [
+        "com.cloudflare.api.account"
+      ],
+      "effective_permission_verified": false
+    },
+    {
+      "permission_group_id": "bacc64e0f6c34fc0883a1223f938a104",
+      "catalog_entry_observed": true,
+      "scope_metadata_valid": true,
+      "scopes": [
+        "com.cloudflare.api.account"
+      ],
+      "effective_permission_verified": false
+    },
+    {
+      "permission_group_id": "bdbcd690c763475a985e8641dddc09f7",
+      "catalog_entry_observed": true,
+      "scope_metadata_valid": true,
+      "scopes": [
+        "com.cloudflare.api.account"
+      ],
+      "effective_permission_verified": false
+    },
+    {
+      "permission_group_id": "bf7481a1826f439697cb59a20b22293e",
+      "catalog_entry_observed": true,
+      "scope_metadata_valid": true,
+      "scopes": [
+        "com.cloudflare.api.account"
+      ],
+      "effective_permission_verified": false
+    },
+    {
+      "permission_group_id": "c03055bc037c4ea9afb9a9f104b7b721",
+      "catalog_entry_observed": true,
+      "scope_metadata_valid": true,
+      "scopes": [
+        "com.cloudflare.api.account.zone"
+      ],
+      "effective_permission_verified": false
+    },
+    {
+      "permission_group_id": "c1fde68c7bcc44588cbb6ddbc16d6480",
+      "catalog_entry_observed": true,
+      "scope_metadata_valid": true,
+      "scopes": [
+        "com.cloudflare.api.account"
+      ],
+      "effective_permission_verified": false
+    },
+    {
+      "permission_group_id": "c244ec076974430a88bda1cdd992d0d9",
+      "catalog_entry_observed": true,
+      "scope_metadata_valid": true,
+      "scopes": [
+        "com.cloudflare.api.account.zone"
+      ],
+      "effective_permission_verified": false
+    },
+    {
+      "permission_group_id": "c4df38be41c247b3b4b7702e76eadae0",
+      "catalog_entry_observed": true,
+      "scope_metadata_valid": true,
+      "scopes": [
+        "com.cloudflare.api.account.zone"
+      ],
+      "effective_permission_verified": false
+    },
+    {
+      "permission_group_id": "c8fed203ed3043cba015a93ad1616f1f",
+      "catalog_entry_observed": true,
+      "scope_metadata_valid": true,
+      "scopes": [
+        "com.cloudflare.api.account.zone"
+      ],
+      "effective_permission_verified": false
+    },
+    {
+      "permission_group_id": "c9915d86fbff46af9dd945c0a882294b",
+      "catalog_entry_observed": true,
+      "scope_metadata_valid": true,
+      "scopes": [
+        "com.cloudflare.api.account.zone"
+      ],
+      "effective_permission_verified": false
+    },
+    {
+      "permission_group_id": "d2a1802cc9a34e30852f8b33869b2f3c",
+      "catalog_entry_observed": true,
+      "scope_metadata_valid": true,
+      "scopes": [
+        "com.cloudflare.api.account"
+      ],
+      "effective_permission_verified": false
+    },
+    {
+      "permission_group_id": "d8e12db741544d1586ec1d6f5d3c7786",
+      "catalog_entry_observed": true,
+      "scope_metadata_valid": true,
+      "scopes": [
+        "com.cloudflare.api.account.zone"
+      ],
+      "effective_permission_verified": false
+    },
+    {
+      "permission_group_id": "dadeaf3abdf14126a77a35e0c92fc36e",
+      "catalog_entry_observed": true,
+      "scope_metadata_valid": true,
+      "scopes": [
+        "com.cloudflare.api.account.zone"
+      ],
+      "effective_permission_verified": false
+    },
+    {
+      "permission_group_id": "e086da7e2179491d91ee5f35b3ca210a",
+      "catalog_entry_observed": true,
+      "scope_metadata_valid": true,
+      "scopes": [
+        "com.cloudflare.api.account"
+      ],
+      "effective_permission_verified": false
+    },
+    {
+      "permission_group_id": "e2980d9241cf4939bbbd74fdc43b9651",
+      "catalog_entry_observed": true,
+      "scope_metadata_valid": true,
+      "scopes": [
+        "com.cloudflare.api.account"
+      ],
+      "effective_permission_verified": false
+    },
+    {
+      "permission_group_id": "e34111af393449539859485aa5ddd5bd",
+      "catalog_entry_observed": true,
+      "scope_metadata_valid": true,
+      "scopes": [
+        "com.cloudflare.api.account"
+      ],
+      "effective_permission_verified": false
+    },
+    {
+      "permission_group_id": "e6d2666161e84845a636613608cee8d5",
+      "catalog_entry_observed": true,
+      "scope_metadata_valid": true,
+      "scopes": [
+        "com.cloudflare.api.account.zone"
+      ],
+      "effective_permission_verified": false
+    },
+    {
+      "permission_group_id": "f6a7a748dad644ba9792d3f1d0204cc2",
+      "catalog_entry_observed": true,
+      "scope_metadata_valid": true,
+      "scopes": [
+        "com.cloudflare.api.account.zone"
+      ],
+      "effective_permission_verified": false
+    },
+    {
+      "permission_group_id": "f7f0eda5697f475c90846e879bab8666",
+      "catalog_entry_observed": true,
+      "scope_metadata_valid": true,
+      "scopes": [
+        "com.cloudflare.api.account"
+      ],
+      "effective_permission_verified": false
+    },
+    {
+      "permission_group_id": "f9e1ba803b8d4d52b4d4184825b07a28",
+      "catalog_entry_observed": true,
+      "scope_metadata_valid": true,
+      "scopes": [
+        "com.cloudflare.api.account"
+      ],
+      "effective_permission_verified": false
+    }
+  ],
+  "zone_ownership_readbacks": [
+    {
+      "zone_identifier_sha256": "c2bbf50c670e251ff0a434873b00e6464b11ee4c947058f86716aeec795e38f8",
+      "http_status": 200,
+      "ownership_verified": true,
+      "owner_account_class": "SOURCE_ACCOUNT",
+      "owner_account_identifier_sha256": "86091bf728f627e21659fca64487fe9af1daa687536d1aa725f2f35fc97b8cde"
+    }
+  ],
+  "accessible_zone_count": 1,
+  "accessible_A2_zone_count": 0,
+  "inventory_hold": "A2OP_PROVIDER_STATUS_HOLD",
+  "status": "PARTIAL_SCOPE_READBACK_HOLD",
+  "source_commit": "da69b7c868bfe2e7b63fa3b1ee50c242292e93af",
+  "provider_requests": 8,
+  "provider_mutations": 0
+}

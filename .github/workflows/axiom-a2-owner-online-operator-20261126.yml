@@ -38,7 +38,7 @@ jobs:
           A2_OPERATOR_STAGE: ${{ runner.temp }}/operator-stage
           A2_OPERATOR_DEPS: ${{ runner.temp }}/operator-deps/node_modules
         run: |
-          node --test customer_frontier/tests/authority2_operator_transport.test.mjs
+          node --test customer_frontier/tests/authority2_operator*.test.mjs
           node --test qualification/authority2-operator-20261126/operator-integration.test.mjs
       - name: Reproduce exact public package bytes in a second build directory
         env:
