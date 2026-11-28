@@ -208,7 +208,10 @@ class HostedD1ReadOnlyTests(unittest.TestCase):
               '.github/workflows/musitu-connect-hosted-d1-readonly.yml').read_text()
         trigger = wf.split('\non:\n', 1)[1].split('\npermissions:', 1)[0]
         self.assertIn('workflow_dispatch:', trigger)
-        self.assertIn("if: github.ref == 'refs/heads/main'", wf)
+        for guard in ("github.ref == 'refs/heads/main'", "github.event_name == 'workflow_dispatch'",
+                      'github.ref_protected == true', "github.repository_id == '1356837528'",
+                      "github.actor_id == '285482095'"):
+            self.assertIn(guard, wf)
         self.assertNotIn('push:', trigger)
         self.assertNotIn('pull_request:', trigger)
         self.assertIn('python qualification/probe_connect_hosted_d1.py', wf)

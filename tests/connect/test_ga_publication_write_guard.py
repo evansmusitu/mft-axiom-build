@@ -24,7 +24,7 @@ class PublicPackageWriteGuardTests(unittest.TestCase):
                 self.assertNotIn('git push',s)
                 self.assertNotIn('CLOUDFLARE_GLOBAL_API_KEY',s)
                 self.assertNotIn('wrangler deploy',s)
-                self.assertIn('actions/upload-artifact@v4',s)
+                self.assertRegex(s, r'(?m)^\s*(?:-\s*)?uses: actions/upload-artifact@[0-9a-f]{40}\s*$')
                 self.assertEqual(s.count(GUARD),1)
 
     def test_non_enabling_ci_rechecks_repository_write_policy(self):
