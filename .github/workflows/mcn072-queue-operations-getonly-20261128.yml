@@ -38,7 +38,7 @@ jobs:
         run: |
           set -euo pipefail
           umask 077
-          PYTHONDONTWRITEBYTECODE=1 python3 -B qualification/mcn072_queue_operations_getonly_20261128.py
+          PYTHONDONTWRITEBYTECODE=1 python3 -B -m qualification.mcn072_queue_operations_getonly_20261128
       - name: Preserve sanitized nonqualifying evidence
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
