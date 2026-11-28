@@ -1,0 +1,51 @@
+name: MUSITU MCN072 provider Queue operations GET and query only (NO RELEASE)
+on:
+  push:
+    branches:
+      - audit/mcn072-queue-operations-20261128
+    paths:
+      - .github/workflows/mcn072-queue-operations-getonly-20261128.yml
+permissions:
+  contents: read
+concurrency:
+  group: mcn072-queue-operations-20261128
+  cancel-in-progress: false
+jobs:
+  probe:
+    if: github.repository == 'evansmusitu/mft-axiom-build' && github.ref == 'refs/heads/audit/mcn072-queue-operations-20261128'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 8
+    steps:
+      - name: Checkout isolated audit ref without retained token
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
+      - name: Verify pinned source, test suite and 36 earlier adverse controls before secret injection
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git hash-object qualification/mcn072_cloudflare_consumer_field_diag.py)" = "2e907fb3460d3cc19c6709775bff35fe043d16c8"
+          test "$(git hash-object tests/test_mcn072_cloudflare_consumer_field_diag.py)" = "2daa6320d3a88bc14396b70add9cd61a994942a5"
+          test "$(git hash-object qualification/mcn072_queue_operations_getonly_20261128.py)" = "8caeb846c2bacbd25a2f06633e852e4a6d053a85"
+          test "$(git hash-object tests/test_mcn072_queue_operations_getonly_20261128.py)" = "1c324d72d08e30754e2cc221929db2372b6e8456"
+          PYTHONDONTWRITEBYTECODE=1 python3 -B -m py_compile qualification/mcn072_cloudflare_consumer_field_diag.py qualification/mcn072_queue_operations_getonly_20261128.py tests/test_mcn072_queue_operations_getonly_20261128.py
+          PYTHONDONTWRITEBYTECODE=1 python3 -B -m unittest discover -s tests -p test_mcn072_cloudflare_consumer_field_diag.py -q
+          PYTHONDONTWRITEBYTECODE=1 python3 -B -m unittest discover -s tests -p test_mcn072_queue_operations_getonly_20261128.py -v
+      - name: Account pinned Cloudflare Queue aggregate GET and GraphQL QUERY (no message pulls or mutations)
+        shell: bash
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+        run: |
+          set -euo pipefail
+          umask 077
+          PYTHONDONTWRITEBYTECODE=1 python3 -B qualification/mcn072_queue_operations_getonly_20261128.py
+      - name: Preserve sanitized nonqualifying evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: musitu-mcn072-queue-operations-20261128
+          path: |
+            mcn072-queue-operations-sanitized.json
+            mcn072-queue-operations-sanitized.json.sha256
+          retention-days: 7
+          if-no-files-found: warn
