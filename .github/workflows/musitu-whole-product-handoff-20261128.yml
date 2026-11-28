@@ -1,0 +1,54 @@
+name: MUSITU whole-product November 28 clean additive handoff — source only
+on:
+  push:
+    branches:
+      - experiments/studio-g56-budgeted-render-20261122
+    paths:
+      - .github/workflows/musitu-whole-product-handoff-20261128.yml
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: musitu-whole-product-handoff-source-only-20261128
+  cancel-in-progress: false
+jobs:
+  package-source:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 12
+    steps:
+      - name: Checkout immutable committed repository state without persisted credentials
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
+          fetch-depth: 1
+      - name: Confirm git head and no generated secrets
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
+          test -f ops/musitu_build_whole_product_handoff_20261128.py
+          git status --porcelain
+          python --version
+      - name: Build source-complete additive ZIP tree and SHA256 verify every member
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m py_compile ops/musitu_build_whole_product_handoff_20261128.py
+          python ops/musitu_build_whole_product_handoff_20261128.py
+          test -s _musitu_whole_product_handoff_20261128/00_READ_FIRST/README.md
+          test -s _musitu_whole_product_handoff_20261128/00_READ_FIRST/NEW_CHAT_COMMAND_TEMPLATE.txt
+          test -s _musitu_whole_product_handoff_20261128/01_AUTHORITY/CHAIN.json
+          test -s _musitu_whole_product_handoff_20261128/02_LATEST_GITHUB_SOURCE/musitu_studio/gates56/durable_queue_controller.mjs
+          test -s _musitu_whole_product_handoff_20261128/03_EVIDENCE/20261126_GENUINE_MODAL_T4_GPU_SMOKE_PASS.json
+          python _musitu_whole_product_handoff_20261128/04_VERIFICATION/VERIFY.py _musitu_whole_product_handoff_20261128
+          sha256sum _musitu_whole_product_handoff_20261128/04_VERIFICATION/MANIFEST.json
+          echo 'MUSITU_20261128_HANDOFF_SOURCE_NO_PROVIDER_WRITES=PASS'
+      - name: Save one portable ZIP artifact with full current branch source and manifest
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: MUSITU_WHOLE_PRODUCT_20261128_LATEST_SOURCE_CONTINUITY_ADDITIVE
+          path: _musitu_whole_product_handoff_20261128/
+          if-no-files-found: error
+          include-hidden-files: true
+          compression-level: 9
+          retention-days: 30
