@@ -9,8 +9,13 @@ on:
 permissions:
   contents: read
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
+
 jobs:
   audit:
+    if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main' && github.ref_protected == true && github.repository_id == '1356837528' && github.actor_id == '285482095'
     runs-on: ubuntu-latest
     timeout-minutes: 12
     env:
@@ -18,7 +23,9 @@ jobs:
       ACCOUNT_ID: 93f395f5121954671f92fffa453d6b61
       PAYMENTS_BASE: https://payments.mftintelligence.com
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
+        with:
+          persist-credentials: false
       - name: Read public authority flags and binding metadata only
         env:
           CLOUDFLARE_EMAIL: ${{ secrets.CLOUDFLARE_EMAIL }}
@@ -101,7 +108,7 @@ jobs:
           open('authority-binding-inventory.sha256','w').write(digest+'  authority-binding-inventory.json\n')
           print(json.dumps({'gate':out['gate'],'payments_public_authority':public,'worker_count_scanned':len(names),'interesting_worker_binding_metadata':interesting,'secret_values_read':False,'script_sources_read':False,'mutation_performed':False,'sha256':digest},sort_keys=True))
           PY
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
           name: musitu-axiom-paynow-authority-binding-inventory-readonly
           path: |

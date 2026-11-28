@@ -9,8 +9,13 @@ on:
 permissions:
   contents: read
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
+
 jobs:
   audit:
+    if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main' && github.ref_protected == true && github.repository_id == '1356837528' && github.actor_id == '285482095'
     runs-on: ubuntu-latest
     timeout-minutes: 10
     env:
@@ -19,7 +24,9 @@ jobs:
       D1_NAME: mft-axiom-prod
       D1_UUID: 4a62b374-7232-4103-b201-34443c467382
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
+        with:
+          persist-credentials: false
       - name: Verify canonical D1 schema with SELECT-only queries
         env:
           CLOUDFLARE_EMAIL: ${{ secrets.CLOUDFLARE_EMAIL }}
@@ -107,7 +114,7 @@ jobs:
           print(json.dumps({'gate':'PASS','query_mode':'SELECT_ONLY','mutation_performed':False,'table_count':len(tables),'required_index_count':len(required_indexes),'sha256':digest},sort_keys=True))
           PY
       - name: Upload sealed D1 read-only evidence
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
           name: musitu-axiom-d1-readonly-schema-audit
           path: |

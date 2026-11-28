@@ -11,8 +11,13 @@ on:
 permissions:
   contents: read
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
+
 jobs:
   qualify:
+    if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main' && github.ref_protected == true && github.repository_id == '1356837528' && github.actor_id == '285482095'
     runs-on: ubuntu-latest
     timeout-minutes: 8
     env:
@@ -21,8 +26,10 @@ jobs:
       D1_UUID: 504029cc-f9a5-495e-818f-63c6144b4ea4
       AXIOM_BASE: https://axiom.mftintelligence.com
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065
         with:
           python-version: '3.12'
       - name: Validate qualification source
@@ -48,7 +55,7 @@ jobs:
       - name: Upload evidence
         if: success()
         continue-on-error: true
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
           name: musitu-connect-non-fixture-direct-compute
           path: |

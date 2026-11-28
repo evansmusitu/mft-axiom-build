@@ -4,9 +4,13 @@ on:
 
 permissions:
   contents: read
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
+
 jobs:
   final:
-    if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main'
+    if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main' && github.ref_protected == true && github.repository_id == '1356837528' && github.actor_id == '285482095' && (github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main')
     runs-on: ubuntu-latest
     timeout-minutes: 25
     env:
@@ -23,7 +27,9 @@ jobs:
       CLOUDFLARE_API_KEY: ${{ secrets.CLOUDFLARE_GLOBAL_API_KEY }}
       CLOUDFLARE_GLOBAL_API_KEY: ${{ secrets.CLOUDFLARE_GLOBAL_API_KEY }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
+        with:
+          persist-credentials: false
       - name: Precondition MUSITU infrastructure and resolve D1
         shell: bash
         run: |
@@ -192,7 +198,7 @@ jobs:
           print('MUSITU_PROTOCOL_ONLY_ACTIVE_VERIFIED')
           PY
           sha256sum musitu-protocol-cutover.json > musitu-protocol-cutover.sha256
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
           name: musitu-axiom-protocol-cutover
           path: |

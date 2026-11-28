@@ -12,7 +12,7 @@ concurrency:
 
 jobs:
   cutover:
-    if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main'
+    if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main' && github.ref_protected == true && github.repository_id == '1356837528' && github.actor_id == '285482095' && (github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main')
     runs-on: ubuntu-latest
     timeout-minutes: 15
     env:
@@ -25,7 +25,9 @@ jobs:
       AUTH_ISSUER: https://auth.mftintelligence.com
       EXPECTED_BUILD: MFT-AXIOM-V3-FULL-SELF-CONTAINED-20260904
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
+        with:
+          persist-credentials: false
       - name: Validate sources
         run: |
           set -euo pipefail
@@ -181,7 +183,7 @@ jobs:
           PY
       - name: Upload sealed evidence
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
           name: musitu-axiom-public-plugin-v4-v2
           path: |

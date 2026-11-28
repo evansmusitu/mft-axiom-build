@@ -13,7 +13,7 @@ concurrency:
 
 jobs:
   e2e:
-    if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main'
+    if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main' && github.ref_protected == true && github.repository_id == '1356837528' && github.actor_id == '285482095' && (github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main')
     runs-on: ubuntu-latest
     timeout-minutes: 12
     env:
@@ -22,7 +22,9 @@ jobs:
       D1_UUID: 504029cc-f9a5-495e-818f-63c6144b4ea4
       BASE: https://payments.mftintelligence.com
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
+        with:
+          persist-credentials: false
       - name: Create disposable customer, initiate unpaid checkout, verify, and clean up
         env:
           CLOUDFLARE_EMAIL: ${{ secrets.CLOUDFLARE_EMAIL }}
@@ -114,7 +116,7 @@ jobs:
           raw=(json.dumps(evidence,indent=2,sort_keys=True)+'\n').encode();open('checkout-e2e-evidence.json','wb').write(raw);dg=hashlib.sha256(raw).hexdigest();open('checkout-e2e-evidence.sha256','w').write(dg+'  checkout-e2e-evidence.json\n')
           print(json.dumps({'gate':evidence['gate'],'pricing_tamper_http':evidence['pricing_tamper_http'],'checkout_http':evidence['checkout_http'],'plan':evidence['plan'],'amount_cents':evidence['amount_cents'],'currency':evidence['currency'],'intent_unit_limit':evidence['intent_unit_limit'],'status_http':evidence['status_http'],'polled_payment_status':evidence['polled_payment_status'],'subscription_activated':evidence.get('subscription_activated'),'fixture_subscription_count':evidence['fixture_subscription_count'],'provider_checkout_created':True,'real_payment_completed':False,'raw_api_key_published':False,'cleanup_complete':True,'fixture_rows_remaining':0,'reference_sha256':evidence['reference_sha256'],'evidence_sha256':dg},sort_keys=True))
           PY
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
           name: musitu-axiom-disposable-paynow-checkout-e2e
           path: |

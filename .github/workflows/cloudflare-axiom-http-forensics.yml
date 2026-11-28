@@ -9,6 +9,10 @@ on:
 permissions:
   contents: read
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
+
 jobs:
   http-forensics:
     runs-on: ubuntu-latest
@@ -58,7 +62,7 @@ jobs:
       - name: Seal forensics
         run: sha256sum stage-http-forensics.json > stage-http-forensics.sha256
       - name: Upload forensics evidence
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
           name: musitu-axiom-stage-http-forensics
           path: |

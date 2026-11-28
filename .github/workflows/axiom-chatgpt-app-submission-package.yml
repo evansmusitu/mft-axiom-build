@@ -16,8 +16,9 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
         with:
+          persist-credentials: false
           fetch-depth: 0
 
       - name: Validate submission generator
@@ -33,7 +34,7 @@ jobs:
           python -m json.tool submission/review-checks.json >/dev/null
 
       - name: Upload generated review package without repository mutation
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
           name: musitu-axiom-chatgpt-review-package-not-submitted
           path: |

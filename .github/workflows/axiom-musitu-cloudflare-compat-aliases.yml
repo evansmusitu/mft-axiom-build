@@ -6,9 +6,13 @@ on:
 permissions:
   contents: read
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
+
 jobs:
   aliases:
-    if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main'
+    if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main' && github.ref_protected == true && github.repository_id == '1356837528' && github.actor_id == '285482095' && (github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main')
     runs-on: ubuntu-latest
     timeout-minutes: 15
     env:
@@ -21,7 +25,9 @@ jobs:
       MUSITU_EDGE: musitu-axiom-modal-edge-stage
       BUILD_ID: MFT-AXIOM-V3-FULL-SELF-CONTAINED-20260904
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
+        with:
+          persist-credentials: false
       - name: Install Wrangler and verify Cloudflare auth
         shell: bash
         run: |
@@ -117,7 +123,7 @@ jobs:
           json.dump(out,open('musitu-cloudflare-alias-evidence.json','w'),indent=2,sort_keys=True)
           PY
           sha256sum musitu-cloudflare-alias-evidence.json > musitu-cloudflare-alias-evidence.sha256
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
           name: musitu-axiom-cloudflare-compatibility-alias
           path: |

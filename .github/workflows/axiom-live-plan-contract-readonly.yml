@@ -9,8 +9,13 @@ on:
 permissions:
   contents: read
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
+
 jobs:
   inspect:
+    if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main' && github.ref_protected == true && github.repository_id == '1356837528' && github.actor_id == '285482095'
     runs-on: ubuntu-latest
     timeout-minutes: 10
     env:
@@ -18,7 +23,9 @@ jobs:
       ACCOUNT_ID: 93f395f5121954671f92fffa453d6b61
       BACKEND: mft-axiom-modal-edge-stage
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
+        with:
+          persist-credentials: false
       - name: Extract non-secret plan and quota metadata only
         env:
           CLOUDFLARE_EMAIL: ${{ secrets.CLOUDFLARE_EMAIL }}
@@ -68,7 +75,7 @@ jobs:
           blob=(json.dumps(out,indent=2,sort_keys=True)+'\n').encode(); open('live-plan-contract.json','wb').write(blob); dg=hashlib.sha256(blob).hexdigest(); open('live-plan-contract.sha256','w').write(dg+'  live-plan-contract.json\n')
           print(json.dumps({**out,'evidence_sha256':dg},sort_keys=True))
           PY
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
           name: musitu-axiom-live-plan-contract
           path: |

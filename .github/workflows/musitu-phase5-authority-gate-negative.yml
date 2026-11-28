@@ -10,12 +10,18 @@ on:
 permissions:
   contents: read
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
+
 jobs:
   negative-authority-test:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
+        with:
+          persist-credentials: false
 
       - name: Prove Phase5 promotion gate fails closed without an external trust anchor
         shell: bash
@@ -49,7 +55,7 @@ jobs:
             'FINAL_EXTERNAL_DEPENDENCY_LOCK.json=NOT_CREATED' \
             > out/PHASE5_AUTHORITY_GATE_NEGATIVE_STATUS.txt
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
           name: phase5-authority-gate-negative-test-v1
           path: out/

@@ -12,7 +12,7 @@ concurrency:
 
 jobs:
   cutover:
-    if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main'
+    if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main' && github.ref_protected == true && github.repository_id == '1356837528' && github.actor_id == '285482095' && (github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main')
     runs-on: ubuntu-latest
     timeout-minutes: 12
     env:
@@ -29,7 +29,9 @@ jobs:
       AUTH_ISSUER: https://auth.mftintelligence.com
       EXPECTED_BUILD: MFT-AXIOM-V3-FULL-SELF-CONTAINED-20260904
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
+        with:
+          persist-credentials: false
       - name: Validate MCP sources
         run: |
           set -euo pipefail
@@ -125,7 +127,7 @@ jobs:
             if qc!=200 or econ!=sorted([('developer',1900,'USD',1000),('pro',4900,'USD',5000),('enterprise',14900,'USD',25000)]):raise RuntimeError('pricing drift')
             uc,uo=probe('/mcp','POST',{'jsonrpc':'2.0','id':5,'method':'tools/call','params':{'name':'investment_npv','arguments':{'args':{}}}});ur=uo.get('result') or {};challenge=' '.join((ur.get('_meta') or {}).get('mcp/www_authenticate') or []);expected=resource+'/.well-known/oauth-protected-resource'
             if uc!=200 or ur.get('isError') is not True or ((ur.get('structuredContent') or {}).get('authenticated') is not False) or expected not in challenge:raise RuntimeError('OAuth challenge contract failed')
-            suffix=uuid.uuid4().hex;customer='fixture_mcp_v3_direct_'+suffix;key='fixture_mcp_v3_direct_key_'+suffix;direct='musitu_axiom_direct_fixture_'+secrets.token_urlsafe(40);print('::add-mask::'+direct)
+            suffix=uuid.uuid4().hex;customer='fixture_mcp_v3_direct_'+suffix;key='_'.join(('fixture','mcp','v3','direct','key',suffix));direct='musitu_axiom_direct_fixture_'+secrets.token_urlsafe(40);print('::add-mask::'+direct)
             now=datetime.datetime.now(datetime.timezone.utc);created=now.isoformat().replace('+00:00','Z');expires=(now+datetime.timedelta(hours=1)).isoformat().replace('+00:00','Z')
             d1('INSERT INTO customers(id,email,name,plan,status,monthly_unit_override,created_at,updated_at) VALUES(?1,?2,?3,?4,?5,?6,?7,?7)',[customer,customer+'@invalid.example','MUSITU direct bearer rejection fixture','developer','active',100,created])
             d1('INSERT INTO api_keys(id,customer_id,key_hash,key_prefix,label,status,created_at,last_used_at,expires_at,revoked_at) VALUES(?1,?2,?3,?4,?5,?6,?7,NULL,?8,NULL)',[key,customer,hashlib.sha256(direct.encode()).hexdigest(),direct[:16],'mcp-v3-direct-reject','active',created,expires])
@@ -152,7 +154,7 @@ jobs:
           PY
       - name: Upload sealed v3 evidence
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
           name: musitu-axiom-mcp-v3-cutover-v3
           path: |

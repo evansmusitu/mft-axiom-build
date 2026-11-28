@@ -6,9 +6,13 @@ on:
 permissions:
   contents: read
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
+
 jobs:
   diagnose:
-    if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main'
+    if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main' && github.ref_protected == true && github.repository_id == '1356837528' && github.actor_id == '285482095' && (github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main')
     runs-on: ubuntu-latest
     timeout-minutes: 15
     env:
@@ -20,7 +24,7 @@ jobs:
       ADAPTER_WORKER: mft-axiom-modal-adapter
       PROBE_WORKER: musitu-axiom-modal-adapter-probe
     steps:
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065
         with:
           python-version: '3.13'
 
@@ -124,7 +128,7 @@ jobs:
           PY
           sha256sum adapter-transport-diagnostic.json > adapter-transport-diagnostic.sha256
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
           name: musitu-axiom-modal-adapter-transport-diagnostic
           path: |

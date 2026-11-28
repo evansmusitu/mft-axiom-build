@@ -6,13 +6,19 @@ on:
 permissions:
   contents: read
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
+
 jobs:
   probe:
     if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     timeout-minutes: 8
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
+        with:
+          persist-credentials: false
       - name: Send malformed non-transactional requests only
         shell: bash
         run: |
@@ -40,7 +46,7 @@ jobs:
           digest=hashlib.sha256(blob).hexdigest(); open('paynow-negative-admission-probe.sha256','w').write(digest+'  paynow-negative-admission-probe.json\n')
           print(json.dumps({'gate':out['gate'],'results':results,'valid_payment_fields_supplied':False,'transaction_intent_created':False,'sha256':digest},sort_keys=True))
           PY
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
           name: musitu-axiom-paynow-negative-admission-probe
           path: |

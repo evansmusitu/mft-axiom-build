@@ -12,7 +12,7 @@ concurrency:
 
 jobs:
   patch:
-    if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main'
+    if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main' && github.ref_protected == true && github.repository_id == '1356837528' && github.actor_id == '285482095' && (github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main')
     runs-on: ubuntu-latest
     timeout-minutes: 12
     env:
@@ -23,7 +23,9 @@ jobs:
       BASE: https://payments.mftintelligence.com
       EXPECTED_BILLING_SHA256: c7e2ca8c11eef9dc6aafc35d435fcdf74f4890212b832c30576c3ca7ed419a7f
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
+        with:
+          persist-credentials: false
       - name: Compile patcher before production access
         run: python -m py_compile ops/axiom_billing_status_contract_patch.py
       - name: Patch checkout status transitions with rollback
@@ -31,7 +33,7 @@ jobs:
           CLOUDFLARE_EMAIL: ${{ secrets.CLOUDFLARE_EMAIL }}
           CLOUDFLARE_GLOBAL_API_KEY: ${{ secrets.CLOUDFLARE_GLOBAL_API_KEY }}
         run: python ops/axiom_billing_status_contract_patch.py
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
           name: musitu-axiom-billing-status-contract-patch
           path: |

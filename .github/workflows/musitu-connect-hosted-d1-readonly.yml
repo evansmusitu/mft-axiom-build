@@ -8,7 +8,7 @@ concurrency:
   cancel-in-progress: false
 jobs:
   staged-schema-readonly:
-    if: github.ref == 'refs/heads/main'
+    if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main' && github.ref_protected == true && github.repository_id == '1356837528' && github.actor_id == '285482095' && (github.ref == 'refs/heads/main')
     runs-on: ubuntu-latest
     timeout-minutes: 5
     env:
@@ -18,15 +18,17 @@ jobs:
       MUSITU_CF_STAGING_DATABASE_ID: ${{ secrets.MUSITU_CF_STAGING_DATABASE_ID }}
       MUSITU_CF_STAGING_READ_TOKEN: ${{ secrets.MUSITU_CF_STAGING_READ_TOKEN }}
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065
         with:
           python-version: '3.12'
       - name: Qualify local mock contract first (no network)
         run: python -m unittest tests.connect.test_hosted_d1_readonly -v
       - name: Inspect only the independently scoped staged D1 database
         run: python qualification/probe_connect_hosted_d1.py --output hosted-d1-readonly-evidence.json
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         if: success()
         with:
           name: musitu-connect-hosted-d1-readonly-evidence

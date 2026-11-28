@@ -1,0 +1,61 @@
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Sid": "Identity",
+      "Effect": "Allow",
+      "Action": "sts:GetCallerIdentity",
+      "Resource": "*"
+    },
+    {
+      "Sid": "OhioNetworkInventory",
+      "Effect": "Allow",
+      "Action": [
+        "ec2:DescribeVpcs",
+        "ec2:DescribeSubnets",
+        "ec2:DescribeVpcEndpoints",
+        "ec2:DescribeSecurityGroups",
+        "ec2:DescribeRouteTables",
+        "ec2:DescribeInstances"
+      ],
+      "Resource": "*",
+      "Condition": {
+        "StringEquals": {
+          "aws:RequestedRegion": "us-east-2"
+        }
+      }
+    },
+    {
+      "Sid": "InspectOwnReviewedRole",
+      "Effect": "Allow",
+      "Action": [
+        "iam:GetRole",
+        "iam:ListAttachedRolePolicies"
+      ],
+      "Resource": "${VERIFIED_ROLE_ARN}"
+    },
+    {
+      "Sid": "CreditInventory",
+      "Effect": "Allow",
+      "Action": "billing:GetCredits",
+      "Resource": "*"
+    },
+    {
+      "Sid": "DenyMutationsAndOtherServices",
+      "Effect": "Deny",
+      "NotAction": [
+        "sts:GetCallerIdentity",
+        "ec2:DescribeVpcs",
+        "ec2:DescribeSubnets",
+        "ec2:DescribeVpcEndpoints",
+        "ec2:DescribeSecurityGroups",
+        "ec2:DescribeRouteTables",
+        "ec2:DescribeInstances",
+        "iam:GetRole",
+        "iam:ListAttachedRolePolicies",
+        "billing:GetCredits"
+      ],
+      "Resource": "*"
+    }
+  ]
+}

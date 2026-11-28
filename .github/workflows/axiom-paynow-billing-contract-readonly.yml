@@ -9,8 +9,13 @@ on:
 permissions:
   contents: read
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
+
 jobs:
   audit:
+    if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main' && github.ref_protected == true && github.repository_id == '1356837528' && github.actor_id == '285482095'
     runs-on: ubuntu-latest
     timeout-minutes: 15
     env:
@@ -20,7 +25,9 @@ jobs:
       PAYMENTS_HOST: payments.mftintelligence.com
       PAYNOW_WORKER: mft-paynow-transport-gateway
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
+        with:
+          persist-credentials: false
       - name: Reconstruct authoritative runtime and inspect billing contracts read-only
         env:
           CLOUDFLARE_EMAIL: ${{ secrets.CLOUDFLARE_EMAIL }}
@@ -144,7 +151,7 @@ jobs:
           open('axiom-paynow-billing-contract.sha256','w').write(digest+'  axiom-paynow-billing-contract.json\n')
           print(json.dumps({'gate':out['gate'],'payments_host':out['payments_host'],'paynow_worker':worker,'paynow_binding_names':binding_names,'paynow_binding_types':binding_types,'paynow_path_candidates':path_candidates,'paynow_http_method_tokens':method_tokens,'paynow_provider_tokens':provider_tokens,'public_get_probe':public_probe,'axiom_billing_routes':out['axiom_billing_routes'],'axiom_billing_env_names':out['axiom_billing_env_names'],'d1_table_columns':columns,'d1_foreign_keys':fks,'d1_index_names':indexes,'source_code_published':False,'secret_values_logged':False,'mutation_performed':False,'sha256':digest},sort_keys=True))
           PY
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
           name: musitu-axiom-paynow-billing-contract-readonly
           path: |

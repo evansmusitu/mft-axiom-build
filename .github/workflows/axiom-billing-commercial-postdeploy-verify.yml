@@ -10,8 +10,13 @@ on:
 permissions:
   contents: read
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
+
 jobs:
   verify:
+    if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main' && github.ref_protected == true && github.repository_id == '1356837528' && github.actor_id == '285482095'
     runs-on: ubuntu-latest
     timeout-minutes: 12
     env:
@@ -25,7 +30,9 @@ jobs:
       ROUTE: payments.mftintelligence.com/billing/*
       BASE: https://payments.mftintelligence.com
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
+        with:
+          persist-credentials: false
       - name: Verify production commercial billing invariants read-only
         env:
           CLOUDFLARE_EMAIL: ${{ secrets.CLOUDFLARE_EMAIL }}
@@ -113,7 +120,7 @@ jobs:
           raw=(json.dumps(evidence,indent=2,sort_keys=True)+'\n').encode();open('commercial-postdeploy-verify.json','wb').write(raw);dg=hashlib.sha256(raw).hexdigest();open('commercial-postdeploy-verify.sha256','w').write(dg+'  commercial-postdeploy-verify.json\n')
           print(json.dumps({'gate':evidence['gate'],'health_http':checks['health_http'],'catalog':checks['catalog'],'checkout_noauth_http':checks['checkout_noauth_http'],'checkout_badbearer_http':checks['checkout_badbearer_http'],'invalid_webhook_http':checks['invalid_webhook_http'],'invalid_webhook_mutation':checks['invalid_webhook_mutation'],'exact_route_count':checks['exact_route_count'],'workers_dev_enabled':checks['workers_dev_enabled'],'previews_enabled':checks['previews_enabled'],'authority_source_sha256':checks['authority_source_sha256'],'transport_source_sha256':checks['transport_source_sha256'],'billing_source_sha256':checks['billing_source_sha256'],'live_money_certified':checks['live_money_certified'],'production_mutation_performed':False,'secret_values_read':False,'evidence_sha256':dg},sort_keys=True))
           PY
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
           name: musitu-axiom-billing-commercial-postdeploy-verify
           path: |

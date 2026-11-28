@@ -9,8 +9,13 @@ on:
 permissions:
   contents: read
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
+
 jobs:
   contract:
+    if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main' && github.ref_protected == true && github.repository_id == '1356837528' && github.actor_id == '285482095'
     runs-on: ubuntu-latest
     timeout-minutes: 10
     env:
@@ -18,7 +23,9 @@ jobs:
       ACCOUNT_ID: 93f395f5121954671f92fffa453d6b61
       PAYNOW_WORKER: mft-paynow-transport-gateway
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
+        with:
+          persist-credentials: false
       - name: Patch authorization only in local copy and execute with mocked network
         env:
           CLOUDFLARE_EMAIL: ${{ secrets.CLOUDFLARE_EMAIL }}
@@ -75,7 +82,7 @@ jobs:
           const raw=JSON.stringify(out,null,2)+'\n';fs.writeFileSync('contract.json',raw);const dig=crypto.createHash('sha256').update(raw).digest('hex');fs.writeFileSync('contract.sha256',dig+'  contract.json\n');console.log(JSON.stringify({...out,artifact_sha256:dig}));
           JS
           node run.mjs
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
           name: musitu-axiom-paynow-offline-local-auth-bypass-contract
           path: |
