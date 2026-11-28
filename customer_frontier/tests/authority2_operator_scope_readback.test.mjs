@@ -13,13 +13,13 @@ const hash=x=>createHash('sha256').update(x).digest('hex');
 const zone='a'.repeat(32),group='b'.repeat(32),privateName='PRIVATE_PROVIDER_NAME_NEVER_EXPORT';
 const targets={zone_identifier_sha256:[hash('cloudflare-zone-id\n'+zone)],permission_group_ids:[group]};
 const page=rows=>({status:200,data:rows,result_info:{page:1,per_page:50,count:rows.length,total_count:rows.length}});
-function fake({owner=SOURCE_ACCOUNT,inventoryDenied=false,zoneMalformed=false}={}){
+function fake({owner=SOURCE_ACCOUNT,inventoryDenied=false,zoneMalformed=false,listOmitsZone=false,zoneDenied=false}={}){
  const calls=[];
  return {calls,async cf(method,path){
   calls.push({method,path});assert.equal(method,'GET');
   if(path==='/user/tokens/permission_groups')return {status:200,data:[{id:group,name:privateName,scopes:['com.cloudflare.api.account.zone']}]};
-  if(path==='/zones?page=1&per_page=50')return page([{id:zone,name:privateName,account:{id:owner,name:privateName}}]);
-  if(path==='/zones/'+zone)return {status:200,data:{id:zone,account:{id:zoneMalformed?'invalid':owner,name:privateName}}};
+  if(path==='/zones?page=1&per_page=50')return page(listOmitsZone?[]:[{id:zone,name:privateName,account:{id:owner,name:privateName}}]);
+  if(path==='/zones/'+zone)return zoneDenied?{status:403,data:{private:privateName}}:{status:200,data:{id:zone,account:{id:zoneMalformed?'invalid':owner,name:privateName}}};
   if(path==='/user/tokens?page=1&per_page=50&include_expired=true'){
    if(inventoryDenied)throw Object.assign(Error(privateName),{code:'A2OP_PROVIDER_STATUS_HOLD'});
    return page([{id:'c'.repeat(32),status:'active',name:privateName,policies:[{effect:'allow',resources:{['com.cloudflare.api.account.zone.'+zone]:'*'},permission_groups:[{name:'DNS Write'}]}]}]);
@@ -40,6 +40,18 @@ test('scope readback observes only fixed GET surfaces and exports neither privat
 test('a zone actually owned by A2 stays an active token risk after successful metadata collection',async()=>{
  const r=await observeScopes(fake({owner:ACCOUNT}),targets);assert.equal(r.current_token_inventory[0].tokens[0].potential_A2_or_global_credential_admin_allow,true);
  assert.equal(r.accessible_A2_zone_count,1);assert.equal(r.gate3_closed,false);
+});
+test('a zone omitted from the accessible list is looked up directly from current token metadata once',async()=>{
+ const t=fake({listOmitsZone:true}),r=await observeScopes(t,targets);
+ assert.equal(r.accessible_zone_count,0);assert.equal(r.zone_ownership_complete,true);
+ assert.equal(r.current_token_inventory[0].tokens[0].potential_A2_or_global_credential_admin_allow,false);
+ assert.equal(t.calls.filter(x=>x.path==='/zones/'+zone).length,1);assert.equal(r.absence_of_other_A2_zones_qualified,false);
+});
+test('an omitted zone with direct 403 stays unresolved rather than being classified outside A2',async()=>{
+ const t=fake({listOmitsZone:true,zoneDenied:true}),r=await observeScopes(t,targets);
+ assert.equal(r.status,'PARTIAL_SCOPE_READBACK_HOLD');assert.equal(r.zone_ownership_complete,false);
+ assert.equal(r.current_token_inventory[0].tokens[0].potential_A2_or_global_credential_admin_allow,true);
+ assert.equal(t.calls.filter(x=>x.path==='/zones/'+zone).length,1);
 });
 test('missing token-list permission produces an explicit partial hold without losing independent zone/catalog observations',async()=>{
  const t=fake({inventoryDenied:true}),r=await observeScopes(t,targets);

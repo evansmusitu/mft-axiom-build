@@ -6,7 +6,7 @@ import {resolve} from 'node:path';
 import {OperatorTransport} from './transport.mjs';
 import {ACCOUNT,SOURCE_ACCOUNT,need} from './pins.mjs';
 import {pages,summarizeToken} from './boundary.mjs';
-import {resolveZoneOwners} from './scope_policy.mjs';
+import {referencedZoneIds,resolveZoneOwners} from './scope_policy.mjs';
 import {parseIdentityJson} from '../../customer_control_plane/zitadel_provider_tokens_candidate.mjs';
 const hash=x=>createHash('sha256').update(x).digest('hex');
 const hex32=x=>typeof x==='string'&&/^[a-f0-9]{32}$/.test(x);
@@ -40,11 +40,12 @@ async function listZones(t){
 export async function observeScopes(t,targets){
  need(targets&&Array.isArray(targets.zone_identifier_sha256)&&targets.zone_identifier_sha256.length<=32&&targets.zone_identifier_sha256.every(x=>/^[a-f0-9]{64}$/.test(x))&&new Set(targets.zone_identifier_sha256).size===targets.zone_identifier_sha256.length,'A2OP_SCOPE_TARGETS_HOLD');
  const report={schema:'musitu.axiom.authority2.build-scope-readback.v1',observed_at_utc:new Date().toISOString(),execution_origin:'EXISTING_BUILD_METADATA_CREDENTIAL_NOT_INDEPENDENT_OPERATOR',original_provider_responses_retained:false,scope_projection_only:true,accessible_zone_inventory_complete:false,absence_of_other_A2_zones_qualified:false,current_policy_inventory_complete:false,zone_ownership_complete:false,permission_catalog_matches_complete:false,independent_custody_qualified:false,effective_write_denial_verified:false,gate3_closed:false,B27:'FAILED_IN_SYNTHETIC_ATTACK',parity_superiority:'NOT_CERTIFIED',unavailable_final_usage:'UNKNOWN',release_status:'NOT_RELEASE'};
- let owners=new Map();
+ let owners=new Map();const attemptedZones=new Set(),wanted=new Set(targets.zone_identifier_sha256);
  try{const catalog=(await t.cf('GET','/user/tokens/permission_groups')).data;report.permission_groups=projectCatalog(catalog,targets.permission_group_ids);report.permission_catalog_matches_complete=report.permission_groups.every(x=>x.catalog_entry_observed&&x.scope_metadata_valid);}
  catch(e){report.catalog_hold=fixedCode(e);}
  try{
-  const zones=await listZones(t);const wanted=new Set(targets.zone_identifier_sha256),selected=zones.filter(z=>wanted.has(hash('cloudflare-zone-id\n'+z.id)));
+  const zones=await listZones(t),selected=zones.filter(z=>wanted.has(hash('cloudflare-zone-id\n'+z.id)));
+  for(const z of selected)attemptedZones.add(z.id);
   const readback=await resolveZoneOwners(t,selected.map(z=>z.id));owners=readback.owners;report.zone_ownership_readbacks=readback.observations;
   report.zone_ownership_complete=selected.length===wanted.size&&readback.observations.every(x=>x.ownership_verified);
   report.accessible_zone_inventory_complete=true;report.accessible_zone_count=zones.length;
@@ -54,9 +55,19 @@ export async function observeScopes(t,targets){
  try{
   const inventories=[];
   for(const [name,path]of [['USER',p=>`/user/tokens?page=${p}&per_page=50&include_expired=true`],['A2_ACCOUNT',p=>`/accounts/${ACCOUNT}/tokens?page=${p}&per_page=50&include_expired=true`],['SOURCE_ACCOUNT',p=>`/accounts/${SOURCE_ACCOUNT}/tokens?page=${p}&per_page=50&include_expired=true`]]){
-   const tokens=await pages(t,path);inventories.push({inventory:name,count:tokens.length,tokens:tokens.map(token=>summarizeToken(token,{zoneOwners:owners}))});
+   const tokens=await pages(t,path);inventories.push({inventory:name,tokens});
   }
-  report.current_token_inventory=inventories;report.current_policy_inventory_complete=true;
+  // Accessible-zone listing need not include every zone named by an existing
+  // token policy. Query those exact current provider-returned IDs once, without
+  // treating 403/404 or absence from the list as account-isolation evidence.
+  const direct=referencedZoneIds(inventories.flatMap(x=>x.tokens)).filter(z=>wanted.has(hash('cloudflare-zone-id\n'+z))&&!attemptedZones.has(z));
+  for(const z of direct)attemptedZones.add(z);
+  if(direct.length){
+   const extra=await resolveZoneOwners(t,direct);for(const [z,a]of extra.owners)owners.set(z,a);
+   report.zone_ownership_readbacks=[...(report.zone_ownership_readbacks??[]),...extra.observations].sort((a,b)=>a.zone_identifier_sha256.localeCompare(b.zone_identifier_sha256));
+  }
+  report.zone_ownership_complete=[...wanted].every(id=>report.zone_ownership_readbacks?.some(x=>x.zone_identifier_sha256===id&&x.ownership_verified));
+  report.current_token_inventory=inventories.map(x=>({inventory:x.inventory,count:x.tokens.length,tokens:x.tokens.map(token=>summarizeToken(token,{zoneOwners:owners}))}));report.current_policy_inventory_complete=true;
  }catch(e){report.inventory_hold=fixedCode(e);}
  report.status=report.current_policy_inventory_complete&&report.zone_ownership_complete&&report.permission_catalog_matches_complete?'FRESH_METADATA_OBSERVED_INDEPENDENT_ACCEPTANCE_REQUIRED_NOT_RELEASE':'PARTIAL_SCOPE_READBACK_HOLD';
  return report;
