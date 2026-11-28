@@ -5,10 +5,10 @@
   "bypass_actors": [],
   "conditions": {
     "ref_name": {
+      "exclude": [],
       "include": [
         "refs/heads/main"
-      ],
-      "exclude": []
+      ]
     }
   },
   "rules": [
@@ -21,10 +21,11 @@
     {
       "type": "pull_request",
       "parameters": {
+        "required_approving_review_count": 1,
         "dismiss_stale_reviews_on_push": true,
+        "required_reviewers": [],
         "require_code_owner_review": true,
         "require_last_push_approval": true,
-        "required_approving_review_count": 1,
         "required_review_thread_resolution": true,
         "require_extra_approval_for_unattributed_changes": true,
         "allowed_merge_methods": [
@@ -51,6 +52,18 @@
     },
     {
       "type": "required_signatures"
+    },
+    {
+      "type": "code_scanning",
+      "parameters": {
+        "code_scanning_tools": [
+          {
+            "tool": "CodeQL",
+            "security_alerts_threshold": "high_or_higher",
+            "alerts_threshold": "errors"
+          }
+        ]
+      }
     }
   ]
 }
