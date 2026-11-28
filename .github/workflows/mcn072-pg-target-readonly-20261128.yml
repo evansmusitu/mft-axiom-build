@@ -1,0 +1,110 @@
+name: MUSITU MCN-072 protected PostgreSQL target read-only scope audit
+on:
+  push:
+    branches:
+      - audit/mcn072-queue-operations-20261128
+    paths:
+      - .github/workflows/mcn072-pg-target-readonly-20261128.yml
+permissions:
+  contents: read
+jobs:
+  inspect:
+    if: github.repository == 'evansmusitu/mft-axiom-build' && github.ref == 'refs/heads/audit/mcn072-queue-operations-20261128'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 8
+    steps:
+      - name: Checkout isolated audit without saving credentials
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
+      - name: Verify MCN-072 immutable pinned source before secret exposure
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git hash-object qualification/mcn072_cloudflare_consumer_field_diag.py)" = "2e907fb3460d3cc19c6709775bff35fe043d16c8"
+          test "$(git hash-object tests/test_mcn072_cloudflare_consumer_field_diag.py)" = "2daa6320d3a88bc14396b70add9cd61a994942a5"
+          PYTHONDONTWRITEBYTECODE=1 python3 -B -m unittest discover -s tests -p test_mcn072_cloudflare_consumer_field_diag.py -q
+      - name: Read only scoped MCN-072 Postgres target aliases and catalog if unambiguous
+        shell: bash
+        env:
+          MCN072_PG_READONLY_URL: ${{ secrets.MCN072_PG_READONLY_URL }}
+          MCN072_DATABASE_URL: ${{ secrets.MCN072_DATABASE_URL }}
+          AXIOM_PG_READONLY_URL: ${{ secrets.AXIOM_PG_READONLY_URL }}
+          AXIOM_MCN072_PG_URL: ${{ secrets.AXIOM_MCN072_PG_URL }}
+          NEON_API_KEY: ${{ secrets.NEON_API_KEY }}
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+        run: |
+          set -euo pipefail
+          umask 077
+          python3 -B - <<'PY'
+          import os,subprocess,json,hashlib,shutil,urllib.parse,re
+          from pathlib import Path
+          TARGETS=['MCN072_PG_READONLY_URL','MCN072_DATABASE_URL','AXIOM_PG_READONLY_URL','AXIOM_MCN072_PG_URL']
+          present=[n for n in TARGETS if os.environ.get(n)]
+          report={'schema':'musitu.mcn072.pg_target_github_secret_readonly.v1',
+                  'source':'GITHUB_ACTIONS_SCOPED_SECRET_PROBE',
+                  'read_only':True,'sql_mutations':0,'production_config_mutations':0,
+                  'mcn072_qualified':False,'queue_to_pg_confirmed':False,
+                  'candidate_aliases_present':present,
+                  'generic_database_url_present':bool(os.environ.get('DATABASE_URL')),
+                  'neon_api_key_present':bool(os.environ.get('NEON_API_KEY'))}
+          def h(v):return hashlib.sha256(v.encode()).hexdigest()
+          if len(present)!=1:
+              report['status']='NO_UNAMBIGUOUS_MCN072_TARGET_SECRET'
+          else:
+              uri=os.environ[present[0]]
+              try:
+                  parsed=urllib.parse.urlsplit(uri)
+                  if parsed.scheme not in ('postgres','postgresql') or not parsed.hostname or parsed.hostname in ('localhost','127.0.0.1') or len(uri)>4096 or any(c.isspace() for c in uri):
+                      raise ValueError('INVALID_OR_LOCAL_DATABASE_URL')
+                  report['host_sha256']=h(parsed.hostname.lower())
+                  report['database_name_sha256']=h(urllib.parse.unquote(parsed.path.lstrip('/')))
+                  report['provider_hostname_neon_suffix']=parsed.hostname.lower().endswith('.neon.tech')
+                  if not shutil.which('psql'):
+                      report['status']='PSQL_CLIENT_NOT_PRESENT'
+                  else:
+                      query="""BEGIN READ ONLY;
+                       SET LOCAL statement_timeout = '5000ms';
+                       SET LOCAL lock_timeout = '1000ms';
+                       SELECT json_build_object(
+                         'db',current_database(),
+                         'server_version',current_setting('server_version'),
+                         'mcn072_tables',(SELECT count(*) FROM pg_catalog.pg_class c
+                          JOIN pg_catalog.pg_namespace n ON c.relnamespace=n.oid
+                          WHERE c.relkind IN ('r','p') AND c.relname LIKE 'axiom_mcn072_%'),
+                         'queue_link_table',to_regclass('public.axiom_mcn072_queue_delivery_links') IS NOT NULL
+                         )::text;
+                       ROLLBACK;"""
+                      env=dict(os.environ)
+                      env['PGOPTIONS']='-c default_transaction_read_only=on -c statement_timeout=5000 -c lock_timeout=1000'
+                      env['PGCONNECT_TIMEOUT']='8'
+                      env['PGSSLMODE']='require'
+                      proc=subprocess.run(['psql','-X','-A','-t','-w','-v','ON_ERROR_STOP=1','-d',uri,'-c',query],env=env,stdout=subprocess.PIPE,stderr=subprocess.DEVNULL,text=True,timeout=15)
+                      if proc.returncode!=0:
+                          report['status']='CONNECT_OR_READONLY_SQL_DENIED'
+                      else:
+                          rows=[x for x in proc.stdout.splitlines() if x.startswith('{') and x.endswith('}')]
+                          if len(rows)!=1:raise ValueError('RESULT_SHAPE_INVALID')
+                          obj=json.loads(rows[0])
+                          report['database_identity_sha256']=h(str(obj.get('db','')))
+                          report['pg_version_major']=str(obj.get('server_version','')).split('.')[0]
+                          report['mcn072_tables_observed']=obj.get('mcn072_tables')
+                          report['queue_link_table_observed']=obj.get('queue_link_table')
+                          report['status']='READONLY_CATALOG_OBSERVED_NOT_WORKER_JOIN'
+              except (ValueError,TypeError,subprocess.TimeoutExpired,OverflowError):
+                  report['status']='TARGET_INVALID_OR_UNREACHABLE'
+          out=Path('mcn072-pg-target-scope-sanitized.json')
+          out.write_text(json.dumps(report,sort_keys=True,indent=2)+'\n')
+          Path(str(out)+'.sha256').write_text(h(out.read_text())+'  '+out.name+'\n')
+          print('MCN072',report['status'],'MCN072_NO_GO')
+          PY
+      - name: Preserve only sanitized read-only result
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: musitu-mcn072-pg-target-scope-20261128
+          path: |
+            mcn072-pg-target-scope-sanitized.json
+            mcn072-pg-target-scope-sanitized.json.sha256
+          retention-days: 7
+          if-no-files-found: warn
