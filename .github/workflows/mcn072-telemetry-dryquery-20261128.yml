@@ -1,0 +1,154 @@
+name: MUSITU MCN-072 isolated Cloudflare telemetry dry query (NO RELEASE)
+on:
+  push:
+    branches:
+      - audit/mcn072-telemetry-dryquery-20261128
+    paths:
+      - .github/workflows/mcn072-telemetry-dryquery-20261128.yml
+permissions:
+  contents: read
+concurrency:
+  group: mcn072-telemetry-dryquery-20261128
+  cancel-in-progress: false
+jobs:
+  observe:
+    if: github.repository == 'evansmusitu/mft-axiom-build' && github.ref == 'refs/heads/audit/mcn072-telemetry-dryquery-20261128'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 8
+    steps:
+      - name: Checkout audited branch without persistent credentials
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
+      - name: Verify pinned MCN-072 consumer source and 36 adverse tests before injecting secret
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git hash-object qualification/mcn072_cloudflare_consumer_field_diag.py)" = "2e907fb3460d3cc19c6709775bff35fe043d16c8"
+          test "$(git hash-object tests/test_mcn072_cloudflare_consumer_field_diag.py)" = "2daa6320d3a88bc14396b70add9cd61a994942a5"
+          PYTHONDONTWRITEBYTECODE=1 python3 -B -m unittest discover -s tests -p test_mcn072_cloudflare_consumer_field_diag.py -q
+      - name: Cloudflare bounded dry telemetry query; no raw event export
+        shell: bash
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+        run: |
+          set -euo pipefail
+          umask 077
+          PYTHONDONTWRITEBYTECODE=1 python3 -B - <<'PY'
+          import hashlib
+          import json
+          import os
+          import urllib.request
+          import urllib.error
+          from datetime import datetime,timezone,timedelta
+          from pathlib import Path
+          from qualification import mcn072_cloudflare_consumer_field_diag as base
+
+          def sha(value):
+              return hashlib.sha256(value if isinstance(value,bytes) else value.encode()).hexdigest()
+          report={"schema":"musitu.mcn072.provider_telemetry_dryquery.v1",
+                  "source":"GITHUB_PROTECTED_SECRET_CLOUDFLARE_READONLY_DRYQUERY",
+                  "method":"POST_READONLY_QUERY_WITH_DRY_TRUE",
+                  "cloudflare_mutations":0,"queue_messages_pulled":0,"queue_ack_requests":0,
+                  "raw_events_exported":0,"postgres_events_authenticated":False,
+                  "provider_confirmed_message_ack_history":False,
+                  "mcn072_qualified":False,"commercial_ga":"NO_GO"}
+          try:
+              token=os.environ.get("CLOUDFLARE_API_TOKEN","")
+              if not 12<=len(token)<=4096 or any(c.isspace() for c in token):
+                  raise base.ProbeFailure("TOKEN_MISSING")
+              if sha(base.ACCOUNT)!="68d517b5b40ac48a42707ecc6bdec18e28a12255efc450857f297b3c91e2b6f2":
+                  raise base.ProbeFailure("ACCOUNT_IDENTITY_MISMATCH")
+              opener=urllib.request.build_opener(base.NoRedirect())
+              inv,_=base.fetch(base.LIST_PATH,token,opener)
+              queues=inv.get("result")
+              meta=inv.get("result_info")
+              if type(queues)!=list or len(queues)!=1 or type(meta)!=dict or meta.get("total_pages")!=1 or meta.get("total_count")!=1:
+                  raise base.ProbeFailure("QUEUE_INVENTORY_UNVERIFIABLE")
+              qid=base.checked_id(queues[0].get("queue_id"))
+              qdetail,_=base.fetch(base.PREFIX+"/"+qid,token,opener)
+              queue=qdetail.get("result")
+              if type(queue)!=dict or queue.get("queue_id")!=qid:
+                  raise base.ProbeFailure("QUEUE_DETAIL_CONFLICT")
+              qname=queue.get("queue_name")
+              if type(qname)!=str or len(qname)>128:
+                  raise base.ProbeFailure("QUEUE_NAME_INVALID")
+              detail=base.indexed(queue.get("consumers"),qname)
+              listed,_=base.fetch(base.PREFIX+"/"+qid+"/consumers",token,opener)
+              bylist=base.indexed(listed.get("result"),qname)
+              if len(detail)!=1 or detail.keys()!=bylist.keys():
+                  raise base.ProbeFailure("CONSUMER_NOT_UNIQUE")
+              cid=next(iter(detail))
+              exact,_=base.fetch(base.PREFIX+"/"+qid+"/consumers/"+cid,token,opener)
+              entry=exact.get("result")
+              if type(entry)!=dict or base.validate_consumer(entry,qname)!=(cid,"worker"):
+                  raise base.ProbeFailure("CONSUMER_IDENTITY_INVALID")
+              aliases=[base.script_alias_value(x) for x in (detail[cid],bylist[cid],entry)]
+              if aliases[0] is None or aliases.count(aliases[0])!=3:
+                  raise base.ProbeFailure("SCRIPT_ALIAS_DISAGREEMENT")
+              script=aliases[0]
+              workers,_,_=base.worker_listing(token,opener)
+              if script not in workers:
+                  raise base.ProbeFailure("SCRIPT_NOT_IN_WORKER_INVENTORY")
+              end=datetime.now(timezone.utc)
+              start=end-timedelta(hours=6)
+              payload={"queryId":"mcn072-readonly-observability-20261128",
+                       "timeframe":{"from":int(start.timestamp()*1000),"to":int(end.timestamp()*1000)},
+                       "view":"events","limit":100,"dry":True,
+                       "parameters":{"datasets":["cloudflare-workers"],
+                                     "filters":[{"key":"$metadata.service","operation":"eq","type":"string","value":script}]}}
+              path=f"/client/v4/accounts/{base.ACCOUNT}/workers/observability/telemetry/query"
+              body=json.dumps(payload,sort_keys=True,separators=(",",":")).encode()
+              request=urllib.request.Request(base.BASE+path,data=body,method="POST",
+                      headers={"Authorization":"Bearer "+token,"Accept":"application/json",
+                               "Content-Type":"application/json",
+                               "User-Agent":"MUSITU-MCN072-DryTelemetry-20261128/1.0"})
+              report.update({"queue_id_sha256":sha(qid),"consumer_id_sha256":sha(cid),
+                             "worker_alias_sha256":sha(script),
+                             "timeframe_start_utc":start.isoformat(),"timeframe_end_utc":end.isoformat(),
+                             "dry":True,"observation_status":"ATTEMPTED"})
+              try:
+                  with opener.open(request,timeout=20) as response:
+                      code=response.status
+                      kind=response.headers.get("Content-Type","").lower()
+                      raw=response.read(1048577)
+                  report["http_status"]=code
+                  if code!=200 or len(raw)>1048576 or "json" not in kind:
+                      report["observation_status"]="PROVIDER_RESPONSE_INVALID"
+                  else:
+                      doc=json.loads(raw,object_pairs_hook=base.unique_object)
+                      result=doc.get("result") if type(doc)==dict else None
+                      events=result.get("events") if type(result)==dict else None
+                      rows=events.get("events") if type(events)==dict else None
+                      report.update({"response_sha256":sha(raw),
+                                     "provider_success":doc.get("success") is True,
+                                     "event_rows_returned":len(rows) if type(rows)==list else None,
+                                     "provider_reported_event_count":events.get("count") if type(events)==dict and type(events.get("count"))==int else None,
+                                     "response_raw_retained":False,
+                                     "observation_status":"TELEMETRY_RESPONSE_SANITIZED"})
+              except urllib.error.HTTPError as exc:
+                  report.update({"http_status":exc.code,"observation_status":"PROVIDER_HTTP_DENIED_OR_INVALID"})
+              except (urllib.error.URLError,TimeoutError,OSError):
+                  report["observation_status"]="NETWORK_OR_TIMEOUT"
+          except (base.ProbeFailure,ValueError,TypeError,KeyError) as exc:
+              report["observation_status"]="IDENTITY_OR_SCHEMA_BLOCKED"
+              report["reason_code"]=str(exc) if type(exc)==base.ProbeFailure else "UNEXPECTED_SCHEMA"
+          except Exception:
+              report["observation_status"]="UNEXPECTED_FAILURE"
+          out=Path("mcn072-telemetry-dryquery-sanitized.json")
+          out.write_text(json.dumps(report,sort_keys=True,indent=2)+"\n",encoding="utf-8")
+          Path(str(out)+".sha256").write_text(sha(out.read_bytes())+"  "+out.name+"\n",encoding="utf-8")
+          print("MCN072_SANITIZED_STATUS",report.get("observation_status"),
+                "HTTP_STATUS",report.get("http_status","NA"),
+                "MCN072_NO_GO_NO_RAW_LOG_EXPORT")
+          PY
+      - name: Upload only sanitized nonqualifying observation
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: musitu-mcn072-telemetry-dryquery-20261128
+          path: |
+            mcn072-telemetry-dryquery-sanitized.json
+            mcn072-telemetry-dryquery-sanitized.json.sha256
+          retention-days: 7
+          if-no-files-found: warn
