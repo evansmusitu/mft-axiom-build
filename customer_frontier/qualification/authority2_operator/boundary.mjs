@@ -1,5 +1,7 @@
 import {createHash} from 'node:crypto';
 import {ACCOUNT,SOURCE_ACCOUNT,PIN,BUCKET,REPO,need,canonical} from './pins.mjs';
+import {resourceProjection,referencedZoneIds,resolveZoneOwners} from './scope_policy.mjs';
+import {OperatorHold} from './pins.mjs';
 const hash=x=>createHash('sha256').update(x).digest('hex');
 const KNOWN=['83eda64c33252d73b0ae28ebcb902d35d5aa081a7b43f77728924820021860f5','e2ca57fa6d971286e02a8f02050c53991ab79e3ccc8c958d46dbeaf8ed34f1a2','bf3d1b9b09d06a396f9e97846f6ed2c6de64e67184c3865d370610e6d0a925c6'];
 const DECLARED_PRIVATE=['f0885fe1d8c056f3972b4e24ebec8c249300fb7d572bcbfa28a9f219996304fe','3faa5c18db7e0fabffe1a3721d889e1e1f115aef77043ccda82d5ed3fed7277a'];
@@ -13,20 +15,19 @@ export async function pages(t,path){
   if(rows.length===total)return rows;need(rows.length<total&&a.length>0,'A2OP_INVENTORY_INCOMPLETE_HOLD');
  }need(false,'A2OP_INVENTORY_BUDGET_HOLD');
 }
-export function summarizeToken(token){
+export function summarizeToken(token,context={}){
  need(token&&typeof token.id==='string'&&/^[a-f0-9]{32}$/.test(token.id)&&['active','disabled','expired'].includes(token.status)&&Array.isArray(token.policies)&&token.policies.length<=100,'A2OP_TOKEN_METADATA_HOLD');
  const policies=token.policies.map(p=>{
   need(['allow','deny'].includes(p.effect)&&p.resources&&typeof p.resources==='object'&&!Array.isArray(p.resources)&&Array.isArray(p.permission_groups)&&p.permission_groups.length<=2048,'A2OP_TOKEN_POLICY_HOLD');
   need(p.permission_groups.every(g=>typeof g?.name==='string'&&g.name.length<=200),'A2OP_PERMISSION_LABEL_HOLD');
-  const resources=p.resources,all=resources['com.cloudflare.api.account.*']==='*'||resources['*']==='*',a2=resources['com.cloudflare.api.account.'+ACCOUNT]==='*';
   const nonRead=p.permission_groups.filter(g=>!reader(g.name));
-  const keys=Object.keys(resources),userTokenAdmin=nonRead.length>0&&keys.some(k=>k.startsWith('com.cloudflare.api.user.')||k==='*');
-  // Unmapped zones or new/nested resource forms cannot be presumed unrelated.
-  // Only explicit non-A2 account IDs are classified outside this boundary.
-  const unresolved=nonRead.length>0&&(!keys.length||keys.some(k=>resources[k]!=='*'||!/^com\.cloudflare\.api\.account\.[a-f0-9]{32}$/.test(k)&&!['com.cloudflare.api.account.*','*'].includes(k)));
-  return {effect:p.effect,all_account_or_A2_resource:all||a2,non_read_groups:nonRead.length,global_user_credential_admin:userTokenAdmin,unresolved_resource_scope:unresolved};
+  const scope=resourceProjection(p.resources,context?.zoneOwners);
+  return {effect:p.effect,all_account_or_A2_resource:scope.a2_account_or_all_accounts,non_read_groups:nonRead.length,global_user_credential_admin:nonRead.length>0&&scope.user_credential_scope,unresolved_resource_scope:nonRead.length>0&&scope.unresolved_scope,a2_zone_or_bucket_resource:scope.a2_zone_or_bucket,global_zone_resource:scope.global_zone_scope};
  });
- return {token_identifier_sha256:hash('cloudflare-token-id\n'+token.id),status:token.status,policies,potential_A2_or_global_credential_admin_allow:policies.some(p=>p.effect==='allow'&&((p.all_account_or_A2_resource&&p.non_read_groups>0)||p.global_user_credential_admin||p.unresolved_resource_scope))};
+ return {token_identifier_sha256:hash('cloudflare-token-id\n'+token.id),status:token.status,policies,potential_A2_or_global_credential_admin_allow:policies.some(p=>p.effect==='allow'&&(((p.all_account_or_A2_resource||p.a2_zone_or_bucket_resource||p.global_zone_resource)&&p.non_read_groups>0)||p.global_user_credential_admin||p.unresolved_resource_scope))};
+}
+export class BoundaryHold extends OperatorHold{
+ constructor(code,details){super(code);this.publicBoundaryDetails=details;}
 }
 export async function readBoundary(t){
  const r=await t.cf('GET','/user'),u=r.data;need(/^[a-f0-9]{32}$/.test(u?.id)&&u.two_factor_authentication_enabled===true&&hash('cloudflare-user-id\n'+u.id)==='29293f773babce484eb7b17af2b293a083d8311ea296ef8d3e0dac119e63c243','A2OP_OWNER_PRINCIPAL_OR_MFA_HOLD');
@@ -37,13 +38,20 @@ export async function readBoundary(t){
  need(members.length===1&&members[0].status==='accepted'&&members[0].user?.id===u.id&&Array.isArray(members[0].roles)&&members[0].roles.some(x=>typeof x?.name==='string'&&/administrator/i.test(x.name)),'A2OP_OWNER_ACCOUNT_MEMBERSHIP_HOLD');
  const tokens=await pages(t,p=>`/user/tokens?page=${p}&per_page=50&include_expired=true`),accountTokens=await pages(t,p=>`/accounts/${ACCOUNT}/tokens?page=${p}&per_page=50&include_expired=true`);
  const sourceTokens=await pages(t,p=>`/accounts/${SOURCE_ACCOUNT}/tokens?page=${p}&per_page=50&include_expired=true`);
- const summaries=[...tokens,...accountTokens,...sourceTokens].map(summarizeToken),map=new Map(summaries.map(x=>[x.token_identifier_sha256,x]));
+ const zone=await resolveZoneOwners(t,referencedZoneIds([...tokens,...accountTokens,...sourceTokens]));
+ const summaries=[...tokens,...accountTokens,...sourceTokens].map(x=>summarizeToken(x,{zoneOwners:zone.owners})),map=new Map();
+ for(const x of summaries){const old=map.get(x.token_identifier_sha256);need(!old||canonical(old)===canonical(x),'A2OP_DUPLICATE_TOKEN_POLICY_HOLD');map.set(x.token_identifier_sha256,x);}
  for(const id of KNOWN){const x=map.get(id);need(x?.status==='active'&&!x.potential_A2_or_global_credential_admin_allow,'A2OP_KNOWN_BUILD_POLICY_CHANGED_HOLD');}
- const extra=[...tokens,...accountTokens].map(summarizeToken).filter(x=>x.status==='active'&&x.potential_A2_or_global_credential_admin_allow);
- need(extra.every(x=>DECLARED_PRIVATE.includes(x.token_identifier_sha256)),'A2OP_NEW_UNRECONCILED_ADMIN_IDENTITY_HOLD');
+ const extra=[...tokens,...accountTokens].map(x=>summarizeToken(x,{zoneOwners:zone.owners})).filter(x=>x.status==='active'&&x.potential_A2_or_global_credential_admin_allow);
+ const unresolved=extra.filter(x=>!DECLARED_PRIVATE.includes(x.token_identifier_sha256));
+ if(unresolved.length){
+  const details={schema:'musitu.axiom.authority2.boundary-hold-details.v1',zone_ownership_readbacks:zone.observations,known_build_prerequisites_passed:true,preexisting_two_private_token_declaration_preserved:true,unapproved_active_token_projections:unresolved,current_provider_metadata_observed:true,effective_access_or_custody_qualified:false,gate3_closed:false,release_status:'NOT_RELEASE'};
+  const onlyGlobalZones=unresolved.every(x=>x.policies.every(p=>p.effect!=='allow'||p.non_read_groups===0||(!p.all_account_or_A2_resource&&!p.a2_zone_or_bucket_resource&&!p.global_user_credential_admin&&!p.unresolved_resource_scope))&&x.policies.some(p=>p.effect==='allow'&&p.global_zone_resource&&p.non_read_groups>0));
+  throw new BoundaryHold(onlyGlobalZones?'A2OP_GLOBAL_ZONE_WRITE_SCOPE_HOLD':'A2OP_NEW_UNRECONCILED_ADMIN_IDENTITY_HOLD',details);
+ }
  const lock=await t.cf('GET',`/accounts/${ACCOUNT}/r2/buckets/${BUCKET}/lock`);
  need(Array.isArray(lock.data?.rules)&&lock.data.rules.some(x=>x.enabled===true&&x.condition?.type==='Indefinite'&&['','b27/',undefined].includes(x.prefix)),'A2OP_RETENTION_PREFLIGHT_HOLD');
- return {schema:'musitu.axiom.authority2.operator-boundary-observation.v1',account_id:ACCOUNT,principal_identifier_sha256:hash('cloudflare-user-id\n'+u.id),provider_MFA_enabled:true,one_authenticated_administrator_member:true,user_token_count:tokens.length,A2_account_token_count:accountTokens.length,known_build_token_policies:KNOWN.map(id=>map.get(id)),other_A2_write_identities:extra,owner_two_private_token_declaration_preserved:true,indefinite_b27_retention_observed:true,observed_at_utc:new Date().toISOString(),full_all_provider_policy_evaluation:false};
+ return {schema:'musitu.axiom.authority2.operator-boundary-observation.v1',account_id:ACCOUNT,principal_identifier_sha256:hash('cloudflare-user-id\n'+u.id),provider_MFA_enabled:true,one_authenticated_administrator_member:true,user_token_count:tokens.length,A2_account_token_count:accountTokens.length,known_build_token_policies:KNOWN.map(id=>map.get(id)),other_A2_write_identities:extra,zone_ownership_readbacks:zone.observations,owner_two_private_token_declaration_preserved:true,indefinite_b27_retention_observed:true,observed_at_utc:new Date().toISOString(),full_all_provider_policy_evaluation:false};
 }
 export function assertSameBoundary(a,b){need(canonical({...a,observed_at_utc:null})===canonical({...b,observed_at_utc:null}),'A2OP_BOUNDARY_DRIFT_HOLD');}
 export async function freshBuildDenials(t,{wait,progress,readLog}){

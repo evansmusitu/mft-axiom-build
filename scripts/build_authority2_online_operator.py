@@ -25,7 +25,7 @@ def build(args):
  for name,digest in APPROVED_HASHES.items():
   if sha((approved/name).read_bytes())!=digest:raise ValueError('APPROVED_SOURCE_HASH_MISMATCH:'+name)
  stage=args.stage.resolve();stage.mkdir(parents=True,exist_ok=True)
- for name in ['pins.mjs','transport.mjs','boundary.mjs','tail.mjs','operator_core.mjs','operator_cli.mjs','private_evidence.mjs','private_hosted_harness.mjs']:(stage/name).write_bytes((src/name).read_bytes())
+ for name in ['pins.mjs','transport.mjs','scope_policy.mjs','boundary.mjs','tail.mjs','operator_core.mjs','operator_cli.mjs','private_evidence.mjs','private_hosted_harness.mjs']:(stage/name).write_bytes((src/name).read_bytes())
  (stage/'parser.mjs').write_bytes((root/'customer_frontier/customer_control_plane/zitadel_provider_tokens_candidate.mjs').read_bytes())
  for name,target in [('authority2-r2-worm.mjs','approved-r2.mjs'),('external-highwater-fence.mjs','approved-fence.mjs')]:(stage/target).write_bytes((approved/'integrations/security-authority2'/name).read_bytes())
  evidence=root/'customer_frontier/evidence/gate3_security_20261114/raw_ci_artifacts_20261115';bundles={}
@@ -41,7 +41,7 @@ def build(args):
  const b=await esbuild.build({absWorkingDir:stage,entryPoints:['private_hosted_harness.mjs'],bundle:true,format:'esm',platform:'browser',target:'es2022',write:false});fs.writeFileSync(path.join(stage,'hosted-harness.js'),b.outputFiles[0].contents);})().catch(()=>process.exitCode=2);'''
  subprocess.run([args.node,'-e',js,str(args.esbuild.resolve()),str(approved),str(stage)],check=True)
  harness=(stage/'hosted-harness.js').read_bytes();bundles['harness']={'base64':base64.b64encode(harness).decode(),'sha256':sha(harness),'bytes':len(harness)}
- files={n:(stage/n).read_text(encoding='utf-8') for n in ['pins.mjs','transport.mjs','boundary.mjs','tail.mjs','operator_core.mjs','operator_cli.mjs','private_evidence.mjs','parser.mjs','approved-anchor.mjs','approved-retirement.mjs']}
+ files={n:(stage/n).read_text(encoding='utf-8') for n in ['pins.mjs','transport.mjs','scope_policy.mjs','boundary.mjs','tail.mjs','operator_core.mjs','operator_cli.mjs','private_evidence.mjs','parser.mjs','approved-anchor.mjs','approved-retirement.mjs']}
  payload={'schema':'musitu.axiom.authority2.single-file-online-operator-package.v1','source_commit':args.source_commit,'approved_source_commit':APPROVED,'approved_config_sha256':CONFIG,'approved_input_source_sha256':APPROVED_HASHES,'files':files,'bundles':bundles,'new_automation_and_hosted_harness_requires_operator_review':True,'credential_values_included':False,'gate3_closed':False,'release_status':'NOT_RELEASE'}
  raw=json.dumps(payload,sort_keys=True,separators=(',',':'),ensure_ascii=True).encode();(stage/'payload.json').write_bytes(raw)
  text=(src/'owner_online_runner.template.ps1').read_text(encoding='utf-8');replace={'SOURCE_COMMIT':args.source_commit,'PAYLOAD_SHA':sha(raw),'PAYLOAD_GZIP_B64':base64.b64encode(gzip.compress(raw,mtime=0)).decode()}

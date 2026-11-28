@@ -1,0 +1,29 @@
+name: AXIOM A2 scope metadata readback (NOT ACCEPTANCE)
+on:
+  push:
+    branches: ['build/axiom-a2-scope-boundary-20261128']
+permissions: {contents: read}
+jobs:
+  scoped-metadata-readback:
+    if: github.repository == 'evansmusitu/mft-axiom-build' && github.ref == 'refs/heads/build/axiom-a2-scope-boundary-20261128'
+    runs-on: ubuntu-latest
+    timeout-minutes: 4
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with: {persist-credentials: false}
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with: {node-version: '24.12.0'}
+      - name: Verify endpoint confinement and scope projection
+        run: node --test customer_frontier/tests/authority2_operator*.test.mjs
+      - name: Read metadata using the existing build reader; no owner signer or provider writes
+        env:
+          AXIOM_A2_SCOPE_READBACK: '1'
+          MUSITU_CLOUDFLARE_ADMIN_TOKEN: ${{ secrets.MUSITU_CLOUDFLARE_ADMIN_TOKEN }}
+        run: node customer_frontier/qualification/authority2_operator/scope_readback.mjs
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        if: always()
+        with:
+          name: a2-scope-provider-metadata-not-acceptance
+          path: A2_SCOPE_PROVIDER_READBACK.json
+          retention-days: 7
+          if-no-files-found: warn
