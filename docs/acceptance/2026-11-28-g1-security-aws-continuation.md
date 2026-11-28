@@ -65,8 +65,11 @@ role/grant, customer action, production AI execution or payment was created.
 
 ## Measured tests and coverage
 
-The original 26 G1 tests pass; seven new workflow-boundary cases bring the suite
-to 33 passing tests. Six existing privileged deployment/billing regressions also
+The original 26 G1 tests pass; seven workflow-boundary cases and four
+AWS CLI timestamp regressions bring the suite to 37 passing tests. An automated
+review correctly found that CLI v2 returns ISO timestamps; the new fixtures
+failed twice before the parser fix, then passed. CLI ISO values, epoch values,
+UTC offsets, malformed dates and reversed/expired intervals are now covered. Six existing privileged deployment/billing regressions also
 pass. Actionlint `1.7.7` validates all 223 proposed workflows. Gitleaks `8.28.0`
 finds no current-tree leaks with output fully redacted. Upstream binary SHA-256
 checksums are checked before execution, locally and in CI.
@@ -74,7 +77,8 @@ checksums are checked before execution, locally and in CI.
 Coverage for the three existing G1 AWS modules was measured before the changes:
 175/249 executable statements, approximately 70.28%. CI uses the observed,
 rounded-down 70% floor and produces Cobertura XML with a required artifact-upload
-step. This is scoped G1 module coverage, not product-wide coverage. Native
+step. After the timestamp fix, measured coverage is 186/260 statements (about 71.54%);
+the original 70% floor remains. This is scoped G1 module coverage, not product-wide coverage. Native
 GitHub coverage enforcement is not enabled: it requires Code Quality, an
 eligible plan and an actual successful native coverage upload. Neither an
 artifact upload nor an invented percentage is a substitute.

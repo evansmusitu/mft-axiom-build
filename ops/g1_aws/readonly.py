@@ -96,9 +96,9 @@ def credit_summary(payload, account_id, now=None):
         if not isinstance(products, list) or not all(isinstance(p, str) and
                 re.fullmatch(r'[A-Za-z][A-Za-z0-9 ()/&.,:+_-]{0,127}', p) for p in products):
             raise ValueError('Credit service eligibility unverified')
-        end, start = credit.get('endDate'), credit.get('startDate')
+        end, start = credit_timestamp(credit.get('endDate')), credit_timestamp(credit.get('startDate'))
         # Absent expiry/enabled status never establishes usable credit.
-        dated = type(start) in (int, float) and type(end) in (int, float)
+        dated = start is not None and end is not None and start < end
         active = (dated and start <= now.timestamp() < end and
                   credit.get('creditStatus') == 'ENABLED' and Decimal(remaining) > 0)
         purchases = credit.get('purchaseTypeApplications')
@@ -112,6 +112,21 @@ def credit_summary(payload, account_id, now=None):
                     'purchase_type_restrictions': purchases,
                     'pilot_service_eligibility_independently_verified': False})
     return out
+
+
+def credit_timestamp(value):
+    """Normalize CLI-v2 ISO timestamps and wire epochs; reject ambiguous dates."""
+    try:
+        if type(value) in (int, float):
+            # Round-trip through datetime to reject nonfinite or out-of-range epochs.
+            return datetime.fromtimestamp(value, timezone.utc).timestamp()
+        if isinstance(value, str) and len(value) <= 64:
+            parsed = datetime.fromisoformat(value.replace('Z', '+00:00'))
+            if parsed.tzinfo is not None:
+                return parsed.timestamp()
+    except (ValueError, OverflowError, OSError):
+        pass
+    return None
 
 
 def collect(mode, role_arn, aws=aws_json):
