@@ -7,7 +7,7 @@ import {tmpdir} from 'node:os';
 import {join} from 'node:path';
 import {pathToFileURL} from 'node:url';
 import {ACCOUNT,SOURCE_ACCOUNT,canonical} from '../qualification/authority2_operator/pins.mjs';
-import {cfAllowed} from '../qualification/authority2_operator/transport.mjs';
+import {cfAllowed,OperatorTransport} from '../qualification/authority2_operator/transport.mjs';
 import {observeScopes,projectCatalog} from '../qualification/authority2_operator/scope_readback.mjs';
 const hash=x=>createHash('sha256').update(x).digest('hex');
 const zone='a'.repeat(32),group='b'.repeat(32),privateName='PRIVATE_PROVIDER_NAME_NEVER_EXPORT';
@@ -73,6 +73,10 @@ test('new metadata routes do not add writes or accept alternate hosts, query pun
  for(const p of ['/zones/'+zone,'/zones?page=1&per_page=50','/user/tokens/permission_groups'])assert.equal(cfAllowed('GET',p),true);
  for(const p of ['/zones/'+zone,'/zones?page=1&per_page=50','/user/tokens/permission_groups'])for(const method of ['POST','PUT','PATCH','DELETE'])assert.equal(cfAllowed(method,p),false);
  for(const p of ['/zones?page=0&per_page=50','/zones?page=6&per_page=50','/zones?page=1&per_page=100','/zones/../user','https://attacker.invalid/zones'])assert.equal(cfAllowed('GET',p),false);
+});
+test('transport retains only typed HTTP evidence when a zone response is refused',async()=>{
+ const t=new OperatorTransport({credential:{kind:'api_token',secret:'SYNTHETIC_METADATA_CREDENTIAL'},githubToken:'',fetchImpl:async()=>Response.json({success:false,errors:[{message:'PRIVATE_PROVIDER_REASON'}]},{status:400})});
+ await assert.rejects(t.cf('GET','/zones/'+zone),e=>e.code==='A2OP_PROVIDER_STATUS_HOLD'&&e.observedHttpStatus===400&&e.responseComplete===true&&!e.message.includes('PRIVATE_PROVIDER_REASON'));
 });
 test('CLI refuses other contexts before reading a credential or performing provider requests',()=>{
  const file=new URL('../qualification/authority2_operator/scope_readback.mjs',import.meta.url);

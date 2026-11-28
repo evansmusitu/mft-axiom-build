@@ -68,8 +68,16 @@ test('403/404 owner reads are unknown, never proof that a zone is outside A2',as
  }
 });
 test('mismatched/malformed ownership and invalid lookup requests cannot create exclusions',async()=>{
- for(const data of [{id:other,account:{id:SOURCE_ACCOUNT}},{id:zone,account:{id:'invalid'}}])await assert.rejects(resolveZoneOwners({async cf(){return {status:200,data};}},[zone]),/A2OP_ZONE_OWNER_METADATA_HOLD/);
+ for(const data of [{id:other,account:{id:SOURCE_ACCOUNT}},{id:zone,account:{id:'invalid'}}]){
+  const r=await resolveZoneOwners({async cf(){return {status:200,data};}},[zone]);assert.equal(r.owners.size,0);assert.equal(r.observations[0].ownership_verified,false);assert.equal(r.observations[0].readback_hold,'A2OP_ZONE_OWNER_METADATA_HOLD');assert.equal(r.observations[0].http_status,200);
+ }
  await assert.rejects(resolveZoneOwners({async cf(){throw Error('MUST_NOT_CALL');}},['invalid']),/A2OP_ZONE_LOOKUP_SCOPE_HOLD/);
+});
+test('a refused or ambiguous zone lookup preserves a typed status without inventing ownership',async()=>{
+ for(const status of [400,401,429,500,null]){
+  const t={async cf(){throw Object.assign(Error('PRIVATE_PROVIDER_MESSAGE'),{code:'A2OP_PROVIDER_STATUS_HOLD',observedHttpStatus:status});}};
+  const r=await resolveZoneOwners(t,[zone]);assert.equal(r.owners.size,0);assert.equal(r.observations[0].http_status,status);assert.equal(r.observations[0].ownership_verified,false);assert.equal(JSON.stringify(r.observations).includes('PRIVATE_PROVIDER_MESSAGE'),false);
+ }
 });
 test('scope evidence does not include token names and a typed hold carries a reviewable projection',()=>{
  const projection=summarizeToken(token({'com.cloudflare.api.account.zone.*':'*'}));assert.equal(JSON.stringify(projection).includes('PRIVATE_TOKEN_NAME'),false);

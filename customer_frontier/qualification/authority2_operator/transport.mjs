@@ -43,7 +43,7 @@ export class OperatorTransport{
    if(cf&&r.status===200)need(d?.success===true&&(!d.errors||Array.isArray(d.errors)&&d.errors.length===0)&&Object.hasOwn(d,'result'),'A2OP_PROVIDER_ENVELOPE_HOLD');
    if(mutation)await this.journal({method,path,provider,phase:'ACKNOWLEDGED',http_status:r.status});
    return {status:r.status,data:cf&&r.status===200?d.result:d,headers:r.headers,result_info:d?.result_info};
-  }catch(e){if(this.capturePrivate({provider,method,path,http_status:observedStatus,response_complete:responseComplete,outcome:'REQUEST_NOT_ACCEPTED',at_utc:new Date().toISOString()})===false)this.privateArchiveFailed=true;if(e instanceof OperatorHold)throw e;throw new OperatorHold('A2OP_REQUEST_AMBIGUOUS_HOLD');}finally{clearTimeout(timer);}
+  }catch(e){if(this.capturePrivate({provider,method,path,http_status:observedStatus,response_complete:responseComplete,outcome:'REQUEST_NOT_ACCEPTED',at_utc:new Date().toISOString()})===false)this.privateArchiveFailed=true;const error=e instanceof OperatorHold?e:new OperatorHold('A2OP_REQUEST_AMBIGUOUS_HOLD');error.observedHttpStatus=observedStatus;error.responseComplete=responseComplete;throw error;}finally{clearTimeout(timer);}
  }
  cf(method,path,options){return this.request('cf',method,path,options);}
  gh(method,path,options){return this.request('gh',method,path,options);}

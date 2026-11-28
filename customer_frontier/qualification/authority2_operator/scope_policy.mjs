@@ -54,11 +54,16 @@ export async function resolveZoneOwners(t,zoneIds){
  need(Array.isArray(zoneIds)&&zoneIds.length<=32&&zoneIds.every(id)&&new Set(zoneIds).size===zoneIds.length,'A2OP_ZONE_LOOKUP_SCOPE_HOLD');
  const owners=new Map(),observations=[];
  for(const zone of [...zoneIds].sort()){
-  const r=await t.cf('GET','/zones/'+zone,{allowStatus:[200,403,404]});
-  const row={zone_identifier_sha256:hash('cloudflare-zone-id\n'+zone),http_status:r.status,ownership_verified:false};
-  if(r.status===200){
-   need(r.data?.id===zone&&id(r.data.account?.id),'A2OP_ZONE_OWNER_METADATA_HOLD');
-   owners.set(zone,r.data.account.id);Object.assign(row,{ownership_verified:true,owner_account_class:accountClass(r.data.account.id),owner_account_identifier_sha256:hash('cloudflare-account-id\n'+r.data.account.id)});
+  const row={zone_identifier_sha256:hash('cloudflare-zone-id\n'+zone),http_status:null,ownership_verified:false};
+  try{
+   const r=await t.cf('GET','/zones/'+zone,{allowStatus:[200,403,404]});row.http_status=r.status;
+   if(r.status===200){
+    need(r.data?.id===zone&&id(r.data.account?.id),'A2OP_ZONE_OWNER_METADATA_HOLD');
+    owners.set(zone,r.data.account.id);Object.assign(row,{ownership_verified:true,owner_account_class:accountClass(r.data.account.id),owner_account_identifier_sha256:hash('cloudflare-account-id\n'+r.data.account.id)});
+   }
+  }catch(e){
+   if(Number.isInteger(e?.observedHttpStatus)&&e.observedHttpStatus>=100&&e.observedHttpStatus<=599)row.http_status=e.observedHttpStatus;
+   row.readback_hold=typeof e?.code==='string'&&/^A2OP_[A-Z0-9_]+$/.test(e.code)?e.code:'A2OP_ZONE_READBACK_UNKNOWN_HOLD';
   }
   observations.push(row);
  }
